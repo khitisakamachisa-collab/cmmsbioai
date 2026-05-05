@@ -1,0 +1,112 @@
+
+D:\Maestria\Modulo 6\CMMS\CMMS\backend>pip install -r requirements.txt
+Defaulting to user installation because normal site-packages is not writeable
+Collecting fastapi (from -r requirements.txt (line 1))
+  Downloading fastapi-0.136.1-py3-none-any.whl.metadata (28 kB)
+Collecting sqlmodel (from -r requirements.txt (line 3))
+  Downloading sqlmodel-0.0.38-py3-none-any.whl.metadata (10 kB)
+Collecting python-multipart (from -r requirements.txt (line 4))
+  Downloading python_multipart-0.0.26-py3-none-any.whl.metadata (2.1 kB)
+Collecting uvicorn[standard] (from -r requirements.txt (line 2))
+  Downloading uvicorn-0.46.0-py3-none-any.whl.metadata (6.7 kB)
+Collecting python-jose[cryptography] (from -r requirements.txt (line 5))
+  Downloading python_jose-3.5.0-py2.py3-none-any.whl.metadata (5.5 kB)
+Collecting passlib[bcrypt] (from -r requirements.txt (line 6))
+  Downloading passlib-1.7.4-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting starlette>=0.46.0 (from fastapi->-r requirements.txt (line 1))
+  Downloading starlette-1.0.0-py3-none-any.whl.metadata (6.3 kB)
+Collecting pydantic>=2.9.0 (from fastapi->-r requirements.txt (line 1))
+  Downloading pydantic-2.13.3-py3-none-any.whl.metadata (108 kB)
+Requirement already satisfied: typing-extensions>=4.8.0 in C:\Users\X99\AppData\Roaming\Python\Python314\site-packages (from fastapi->-r requirements.txt (line 1)) (4.15.0)
+Collecting typing-inspection>=0.4.2 (from fastapi->-r requirements.txt (line 1))
+  Downloading typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+Collecting annotated-doc>=0.0.2 (from fastapi->-r requirements.txt (line 1))
+  Downloading annotated_doc-0.0.4-py3-none-any.whl.metadata (6.6 kB)
+Requirement already satisfied: click>=7.0 in C:\Users\X99\AppData\Roaming\Python\Python314\site-packages (from uvicorn[standard]->-r requirements.txt (line 2)) (8.3.2)
+Collecting h11>=0.8 (from uvicorn[standard]->-r requirements.txt (line 2))
+  Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+Requirement already satisfied: colorama>=0.4 in C:\Users\X99\AppData\Roaming\Python\Python314\site-packages (from uvicorn[standard]->-r requirements.txt (line 2)) (0.4.6)
+Collecting httptools>=0.6.3 (from uvicorn[standard]->-r requirements.txt (line 2))
+  Downloading httptools-0.7.1-cp314-cp314-win_amd64.whl.metadata (3.6 kB)
+Collecting python-dotenv>=0.13 (from uvicorn[standard]->-r requirements.txt (line 2))
+  Downloading python_dotenv-1.2.2-py3-none-any.whl.metadata (27 kB)
+Requirement already satisfied: pyyaml>=5.1 in C:\Users\X99\AppData\Roaming\Python\Python314\site-packages (from uvicorn[standard]->-r requirements.txt (line 2)) (6.0.3)
+Collecting watchfiles>=0.20 (from uvicorn[standard]->-r requirements.txt (line 2))
+  Downloading watchfiles-1.1.1-cp314-cp314-win_amd64.whl.metadata (5.0 kB)
+Collecting websockets>=10.4 (from uvicorn[standard]->-r requirements.txt (line 2))
+  Downloading websockets-16.0-cp314-cp314-win_amd64.whl.metadata (7.0 kB)
+Collecting SQLAlchemy<2.1.0,>=2.0.14 (from sqlmodel->-r requirements.txt (line 3))
+  Downloading sqlalchemy-2.0.49-cp314-cp314-win_amd64.whl.metadata (9.8 kB)
+Collecting greenlet>=1 (from SQLAlchemy<2.1.0,>=2.0.14->sqlmodel->-r requirements.txt (line 3))
+  Downloading greenlet-3.4.0-cp314-cp314-win_amd64.whl.metadata (3.8 kB)
+Collecting ecdsa!=0.15 (from python-jose[cryptography]->-r requirements.txt (line 5))
+  Downloading ecdsa-0.19.2-py2.py3-none-any.whl.metadata (29 kB)
+Collecting rsa!=4.1.1,!=4.4,<5.0,>=4.0 (from python-jose[cryptography]->-r requirements.txt (line 5))
+  Downloading rsa-4.9.1-py3-none-any.whl.metadata (5.6 kB)
+Collecting pyasn1>=0.5.0 (from python-jose[cryptography]->-r requirements.txt (line 5))
+  Downloading pyasn1-0.6.3-py3-none-any.whl.metadata (8.4 kB)
+Collecting cryptography>=3.4.0 (from python-jose[cryptography]->-r requirements.txt (line 5))
+  Downloading cryptography-47.0.0-cp311-abi3-win_amd64.whl.metadata (4.5 kB)
+Collecting bcrypt>=3.1.0 (from passlib[bcrypt]->-r requirements.txt (line 6))
+  Downloading bcrypt-5.0.0-cp39-abi3-win_amd64.whl.metadata (10 kB)
+Collecting cffi>=2.0.0 (from cryptography>=3.4.0->python-jose[cryptography]->-r requirements.txt (line 5))
+  Downloading cffi-2.0.0-cp314-cp314-win_amd64.whl.metadata (2.6 kB)
+Collecting pycparser (from cffi>=2.0.0->cryptography>=3.4.0->python-jose[cryptography]->-r requirements.txt (line 5))
+  Downloading pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+Collecting six>=1.9.0 (from ecdsa!=0.15->python-jose[cryptography]->-r requirements.txt (line 5))
+  Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting annotated-types>=0.6.0 (from pydantic>=2.9.0->fastapi->-r requirements.txt (line 1))
+  Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+Collecting pydantic-core==2.46.3 (from pydantic>=2.9.0->fastapi->-r requirements.txt (line 1))
+  Downloading pydantic_core-2.46.3-cp314-cp314-win_amd64.whl.metadata (6.7 kB)
+Collecting anyio<5,>=3.6.2 (from starlette>=0.46.0->fastapi->-r requirements.txt (line 1))
+  Downloading anyio-4.13.0-py3-none-any.whl.metadata (4.5 kB)
+Requirement already satisfied: idna>=2.8 in C:\Users\X99\AppData\Roaming\Python\Python314\site-packages (from anyio<5,>=3.6.2->starlette>=0.46.0->fastapi->-r requirements.txt (line 1)) (3.11)
+Downloading fastapi-0.136.1-py3-none-any.whl (117 kB)
+Downloading uvicorn-0.46.0-py3-none-any.whl (70 kB)
+Downloading sqlmodel-0.0.38-py3-none-any.whl (27 kB)
+Downloading sqlalchemy-2.0.49-cp314-cp314-win_amd64.whl (2.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 7.1 MB/s  0:00:00
+Downloading python_multipart-0.0.26-py3-none-any.whl (28 kB)
+Downloading python_jose-3.5.0-py2.py3-none-any.whl (34 kB)
+Downloading rsa-4.9.1-py3-none-any.whl (34 kB)
+Downloading passlib-1.7.4-py2.py3-none-any.whl (525 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 525.6/525.6 kB 8.4 MB/s  0:00:00
+Downloading annotated_doc-0.0.4-py3-none-any.whl (5.3 kB)
+Downloading bcrypt-5.0.0-cp39-abi3-win_amd64.whl (150 kB)
+Downloading cryptography-47.0.0-cp311-abi3-win_amd64.whl (3.8 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.8/3.8 MB 2.0 MB/s  0:00:01
+Downloading cffi-2.0.0-cp314-cp314-win_amd64.whl (185 kB)
+Downloading ecdsa-0.19.2-py2.py3-none-any.whl (150 kB)
+Downloading greenlet-3.4.0-cp314-cp314-win_amd64.whl (239 kB)
+Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+Downloading httptools-0.7.1-cp314-cp314-win_amd64.whl (88 kB)
+Downloading pyasn1-0.6.3-py3-none-any.whl (83 kB)
+Downloading pydantic-2.13.3-py3-none-any.whl (471 kB)
+Downloading pydantic_core-2.46.3-cp314-cp314-win_amd64.whl (2.1 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 2.6 MB/s  0:00:00
+Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+Downloading python_dotenv-1.2.2-py3-none-any.whl (22 kB)
+Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Downloading starlette-1.0.0-py3-none-any.whl (72 kB)
+Downloading anyio-4.13.0-py3-none-any.whl (114 kB)
+Downloading typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+Downloading watchfiles-1.1.1-cp314-cp314-win_amd64.whl (287 kB)
+Downloading websockets-16.0-cp314-cp314-win_amd64.whl (178 kB)
+Downloading pycparser-3.0-py3-none-any.whl (48 kB)
+Installing collected packages: passlib, websockets, typing-inspection, six, python-multipart, python-dotenv, pydantic-core, pycparser, pyasn1, httptools, h11, greenlet, bcrypt, anyio, annotated-types, annotated-doc, watchfiles, uvicorn, starlette, SQLAlchemy, rsa, pydantic, ecdsa, cffi, sqlmodel, python-jose, fastapi, cryptography
+   ━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  1/28 [websockets]  WARNING: The script websockets.exe is installed in 'C:\Users\X99\AppData\Roaming\Python\Python314\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+   ━━━━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  5/28 [python-dotenv]  WARNING: The script dotenv.exe is installed in 'C:\Users\X99\AppData\Roaming\Python\Python314\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+   ━━━━━━━━━━━━━━━━━━━━━━╸━━━━━━━━━━━━━━━━━ 16/28 [watchfiles]  WARNING: The script watchfiles.exe is installed in 'C:\Users\X99\AppData\Roaming\Python\Python314\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+   ━━━━━━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━ 17/28 [uvicorn]  WARNING: The script uvicorn.exe is installed in 'C:\Users\X99\AppData\Roaming\Python\Python314\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━╸━━━━━━━━━━━ 20/28 [rsa]  WARNING: The scripts pyrsa-decrypt.exe, pyrsa-encrypt.exe, pyrsa-keygen.exe, pyrsa-priv2pub.exe, pyrsa-sign.exe and pyrsa-verify.exe are installed in 'C:\Users\X99\AppData\Roaming\Python\Python314\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╺━━ 26/28 [fastapi]  WARNING: The script fastapi.exe is installed in 'C:\Users\X99\AppData\Roaming\Python\Python314\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+Successfully installed SQLAlchemy-2.0.49 annotated-doc-0.0.4 annotated-types-0.7.0 anyio-4.13.0 bcrypt-5.0.0 cffi-2.0.0 cryptography-47.0.0 ecdsa-0.19.2 fastapi-0.136.1 greenlet-3.4.0 h11-0.16.0 httptools-0.7.1 passlib-1.7.4 pyasn1-0.6.3 pycparser-3.0 pydantic-2.13.3 pydantic-core-2.46.3 python-dotenv-1.2.2 python-jose-3.5.0 python-multipart-0.0.26 rsa-4.9.1 six-1.17.0 sqlmodel-0.0.38 starlette-1.0.0 typing-inspection-0.4.2 uvicorn-0.46.0 watchfiles-1.1.1 websockets-16.0
+
+D:\Maestria\Modulo 6\CMMS\CMMS\backend>

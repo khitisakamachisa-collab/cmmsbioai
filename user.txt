@@ -1,0 +1,26 @@
+Vuelve a tu página de Login (http://localhost:5173/).
+Escribe:
+Usuario: jperez
+Contraseña: miclave123
+Dale a Iniciar Sesión.
+
+
+
+1. Para el Backend (Python/FastAPI)
+Abre una terminal y ejecuta estos comandos uno por uno:
+
+bash
+
+cd D:\Maestria\Modulo 6\CMMS\CMMS\backend
+python -m uvicorn main:app --reload
+(El servidor quedará corriendo en el puerto 8000).
+
+2. Para el Frontend (Vue/Vite)
+Abre una nueva terminal (no cierres la anterior) y ejecuta:
+
+bash
+
+cd D:\Maestria\Modulo 6\CMMS\CMMS\frontend
+npm run dev
+(El servidor quedará corriendo en el puerto 5173).
+

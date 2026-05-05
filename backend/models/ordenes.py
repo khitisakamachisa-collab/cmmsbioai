@@ -1,0 +1,34 @@
+from typing import Optional
+from sqlmodel import Field, SQLModel
+from datetime import datetime, date
+
+# --- Tabla de Dominio: Estados de OT ---
+
+class EstadoOT(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    nombre_estado: str = Field(unique=True)
+
+# --- Tabla Principal: Ordenes de Trabajo ---
+
+class OrdenTrabajo(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    equipo_id: int = Field(foreign_key="equipo.id")
+    
+    # CAMBIO AQUÍ: Quitamos foreign_key="tareas_mp.id" porque esa tabla no existe aún
+    orden_preventiva_id: Optional[int] = Field(default=None) 
+    
+    estado_id: int = Field(foreign_key="estadoot.id")
+    
+    prioridad: str 
+    tecnico_asignado_id: Optional[int] = Field(default=None, foreign_key="usuario.id")
+    
+    fecha_creacion: datetime = Field(default_factory=datetime.now)
+    fecha_vencimiento: Optional[date] = None
+    
+    titulo: str
+    descripcion_falla: str
+    
+    # Campos de cierre
+    acciones_realizadas: Optional[str] = None
+    tiempo_real_invertido: Optional[float] = None
+    costo_adicional: Optional[float] = None

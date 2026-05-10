@@ -3,9 +3,17 @@ from sqlmodel import Session, select
 from database import get_session
 from models.equipos import Equipo
 from models.estados import EstadoEquipo
+from models.users import Usuario # Asegúrate de que esta ruta sea correcta
 from schemas.equipo import EquipoCreate, EquipoRead, EquipoUpdate
 
 router = APIRouter(prefix="/equipos", tags=["Equipos"])
+
+# NUEVO: Endpoint para listar técnicos (usuarios)
+@router.get("/tecnicos")
+def listar_tecnicos(session: Session = Depends(get_session)):
+    tecnicos = session.exec(select(Usuario)).all()
+    # Devolvemos solo lo necesario para el selector
+    return [{"id": t.id, "username": t.username} for t in tecnicos]
 
 @router.post("/", response_model=EquipoRead)
 def crear_equipo(equipo: EquipoCreate, session: Session = Depends(get_session)):

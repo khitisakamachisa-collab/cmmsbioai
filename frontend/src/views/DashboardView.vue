@@ -4,11 +4,10 @@ import apiClient from '../services/api.js'
 
 // --- Variables Generales ---
 const equipos = ref([])
+const estados = ref([])
+const tecnicos = ref([]) // Variable para técnicos
 const loading = ref(true)
 const error_msg = ref('')
-
-// --- NUEVO: Variable para guardar los estados disponibles ---
-const estados = ref([])
 
 // --- Variables Modal ---
 const showModal = ref(false)
@@ -20,7 +19,7 @@ const showHistoryModal = ref(false)
 const historyData = ref([])
 const selectedEquipName = ref('')
 
-// --- Funciones de Datos ---
+// --- Funciones de Datos (Fetch) ---
 const fetchEquipos = async () => {
   try {
     loading.value = true
@@ -34,7 +33,6 @@ const fetchEquipos = async () => {
   }
 }
 
-// --- NUEVO: Función para obtener los estados del backend ---
 const fetchEstados = async () => {
   try {
     const response = await apiClient.get('/equipos/estados')
@@ -44,10 +42,20 @@ const fetchEstados = async () => {
   }
 }
 
+const fetchTecnicos = async () => {
+  try {
+    const response = await apiClient.get('/equipos/tecnicos')
+    tecnicos.value = response.data
+  } catch (error) {
+    console.error('Error al cargar técnicos', error)
+  }
+}
+
 // --- Funciones del Modal ---
 
 const openCreateModal = () => {
   isEditing.value = false
+  // Inicializamos formulario con TODOS los campos (antiguos y nuevos)
   formData.value = {
     nombre_corto: '',
     modelo: '',
@@ -55,8 +63,13 @@ const openCreateModal = () => {
     marca: '',
     fecha_adquisicion: '',
     ubicacion_actual: '',
-    estado_id: 1, // Por defecto 'Operativo' (ID 1)
-    responsable_tecnico_id: 1
+    estado_id: 1,
+    // Nuevos campos inicializados
+    registro_sanitario_bolivia: '',
+    proveedor_principal: '',
+    descripcion: '',
+    calibracion_proxima: '',
+    responsable_tecnico_id: null // null = sin asignar
   }
   showModal.value = true
 }
@@ -64,9 +77,17 @@ const openCreateModal = () => {
 const openEditModal = (equipo) => {
   isEditing.value = true
   formData.value = { ...equipo }
+  
+  // Ajustes de formato de fecha para inputs date
   if (equipo.fecha_adquisicion) {
     formData.value.fecha_adquisicion = equipo.fecha_adquisicion.substring(0, 10)
   }
+  if (equipo.calibracion_proxima) {
+    formData.value.calibracion_proxima = equipo.calibracion_proxima.substring(0, 10)
+  } else {
+    formData.value.calibracion_proxima = ''
+  }
+  
   showModal.value = true
 }
 
@@ -74,6 +95,7 @@ const saveEquipo = async () => {
   try {
     const payload = { ...formData.value };
 
+    // Limpieza de campos vacíos a null (opcional pero recomendado para la BD)
     if (payload.fecha_adquisicion === "") payload.fecha_adquisicion = null;
     if (payload.calibracion_proxima === "") payload.calibracion_proxima = null;
     if (payload.responsable_tecnico_id === "") payload.responsable_tecnico_id = null;
@@ -103,7 +125,7 @@ const saveEquipo = async () => {
 }
 
 const deleteEquipo = async (id) => {
-  if (confirm("¿Estás seguro de eliminar este equipo? Se borrarán sus órdenes de trabajo asociadas.")) {
+  if (confirm("¿Estás seguro de eliminar este equipo?")) {
     try {
       await apiClient.delete(`/equipos/${id}`)
       alert('Equipo eliminado')
@@ -126,28 +148,21 @@ const openHistory = async (equipo) => {
   }
 }
 
-// --- NUEVO: Helper para mostrar nombre de estado en la tabla ---
+// --- Helpers para Vista ---
 const getNombreEstado = (id) => {
   const estado = estados.value.find(e => e.id === id)
   return estado ? estado.nombre_estado : 'Desconocido'
 }
 
-// --- NUEVO: Helper para asignar colores según el NOMBRE del estado ---
-const getEstadoClass = (id) => {
-  const nombre = getNombreEstado(id).toLowerCase() // Obtenemos el nombre (ej: "operativo")
-  
-  if (nombre.includes('operativo')) return 'bg-green'
-  if (nombre.includes('inactivo')) return 'bg-red'
-  if (nombre.includes('Fallo leve')) return 'bg-gray'
-  if (nombre.includes('baja')) return 'bg-blue'
-  if (nombre.includes('mantenimiento')) return 'bg-orange'
-  
-  return 'bg-default' // Color por defecto si no coincide con ninguno
+const getEstadoColor = (id) => {
+  const estado = estados.value.find(e => e.id === id)
+  return estado ? estado.color : '#95a5a6'
 }
 
 onMounted(() => {
   fetchEquipos()
-  fetchEstados() // Cargamos los estados al iniciar
+  fetchEstados()
+  fetchTecnicos() // Cargamos técnicos al inicio
 })
 </script>
 
@@ -192,15 +207,34 @@ onMounted(() => {
             <td>{{ equipo.marca }}</td>
             <td>{{ equipo.ubicacion_actual }}</td>
             <td>
-              <!-- MEJORA: Mostramos el nombre real del estado -->
-              <span class="badge" :class="getEstadoClass(equipo.estado_id)">
-               {{ getNombreEstado(equipo.estado_id) }}
+              <!-- Usamos el color dinámico directamente -->
+              <span class="badge" :style="{ backgroundColor: getEstadoColor(equipo.estado_id) }">
+                {{ getNombreEstado(equipo.estado_id) }}
               </span>
             </td>
-            <td>
-              <button class="btn-edit btn-sm" @click="openEditModal(equipo)">Editar</button>
-              <button class="btn-danger btn-sm" @click="deleteEquipo(equipo.id)">Eliminar</button>
-              <button class="btn-secondary btn-sm" @click="openHistory(equipo)">Ver Historial</button>
+            <td class="actions-cell">
+              <!-- Botón Editar (Icono Lápiz) -->
+              <button class="btn-icon" title="Editar" @click="openEditModal(equipo)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                </svg>
+              </button>
+
+              <!-- Botón Eliminar (Icono Papelera) -->
+              <button class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteEquipo(equipo.id)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                  <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                </svg>
+              </button>
+
+              <!-- Botón Historial (Icono Reloj) -->
+              <button class="btn-icon btn-secondary-icon" title="Ver Historial" @click="openHistory(equipo)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
+                  <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
+                </svg>
+              </button>
             </td>
           </tr>
         </tbody>
@@ -212,19 +246,21 @@ onMounted(() => {
       <div class="modal">
         <h3>{{ isEditing ? 'Editar Equipo' : 'Registrar Nuevo Equipo' }}</h3>
         <form @submit.prevent="saveEquipo">
+          
+          <!-- Fila 1: Identificación -->
           <div class="form-group">
-            <label>Nombre Corto (Opcional)</label>
+            <label>Nombre Corto</label>
             <input v-model="formData.nombre_corto" type="text" placeholder="Ej: Monitor UCI 02">
           </div>
-          
+
           <div class="form-row">
             <div class="form-group">
               <label>Marca *</label>
-              <input v-model="formData.marca" type="text" required placeholder="Ej: Philips">
+              <input v-model="formData.marca" type="text" required>
             </div>
             <div class="form-group">
               <label>Modelo *</label>
-              <input v-model="formData.modelo" type="text" required placeholder="Ej: MX-500">
+              <input v-model="formData.modelo" type="text" required>
             </div>
           </div>
 
@@ -233,12 +269,24 @@ onMounted(() => {
             <input v-model="formData.numero_serie" type="text" required placeholder="Único">
           </div>
 
+          <!-- Fila 2: Fechas Importantes -->
           <div class="form-row">
             <div class="form-group">
               <label>Fecha Adquisición *</label>
               <input v-model="formData.fecha_adquisicion" type="date" required>
             </div>
-             <!-- NUEVO: SELECTOR DE ESTADO -->
+            <div class="form-group">
+              <label>Próxima Calibración</label>
+              <input v-model="formData.calibracion_proxima" type="date">
+            </div>
+          </div>
+
+          <!-- Fila 3: Ubicación y Estado -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Ubicación</label>
+              <input v-model="formData.ubicacion_actual" type="text" placeholder="Ej: UCI Box 5">
+            </div>
             <div class="form-group">
               <label>Estado del Equipo</label>
               <select v-model="formData.estado_id" required>
@@ -249,9 +297,33 @@ onMounted(() => {
             </div>
           </div>
 
+          <!-- Fila 4: Datos Administrativos (NUEVOS) -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Registro Sanitario</label>
+              <input v-model="formData.registro_sanitario_bolivia" type="text" placeholder="Código o N/A">
+            </div>
+            <div class="form-group">
+              <label>Proveedor</label>
+              <input v-model="formData.proveedor_principal" type="text" placeholder="Empresa proveedora">
+            </div>
+          </div>
+
+          <!-- Fila 5: Responsable (NUEVO) -->
           <div class="form-group">
-            <label>Ubicación</label>
-            <input v-model="formData.ubicacion_actual" type="text" placeholder="Ej: UCI Box 5">
+            <label>Técnico Responsable (Opcional)</label>
+            <select v-model="formData.responsable_tecnico_id">
+              <option :value="null">-- Sin Asignar --</option>
+              <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
+                {{ tec.nombre }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Descripción (NUEVO) -->
+          <div class="form-group">
+            <label>Descripción / Notas</label>
+            <textarea v-model="formData.descripcion" rows="3" placeholder="Detalles adicionales del equipo..."></textarea>
           </div>
 
           <div class="modal-actions">
@@ -378,6 +450,49 @@ th { background-color: #f8f9fa; font-weight: bold; }
   font-size: 0.8rem; 
   font-weight: bold;
 }
+/* Estilos para Iconos de Acción */
+.actions-cell {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
 
+.btn-icon {
+  background: #f0f2f5;
+  border: none;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  transition: all 0.2s;
+}
 
+.btn-icon:hover {
+  background: #dfe2e6;
+  color: #000;
+}
+
+.btn-danger-icon:hover {
+  background: #fee2e2;
+  color: #c0392b;
+}
+
+.btn-secondary-icon:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+/* Estilo para area de texto */
+.form-group textarea {
+  width: 100%; 
+  padding: 0.6rem; 
+  border: 1px solid #ccc; 
+  border-radius: 4px; 
+  box-sizing: border-box; 
+  resize: vertical; /* Permite redimensionar solo verticalmente */
+  font-family: inherit;
+}
 </style>

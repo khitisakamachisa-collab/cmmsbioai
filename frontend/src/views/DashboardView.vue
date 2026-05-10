@@ -19,6 +19,25 @@ const showHistoryModal = ref(false)
 const historyData = ref([])
 const selectedEquipName = ref('')
 
+// --- Variables Modal Detalle (NUEVO) ---
+const showDetailModal = ref(false)
+const selectedEquipo = ref({})
+
+
+// Función para abrir el modal de detalles
+const openDetailModal = (equipo) => {
+  selectedEquipo.value = equipo
+  showDetailModal.value = true
+}
+
+// Helper para mostrar el nombre del técnico (NUEVO)
+const getTecnicoName = (id) => {
+  if (!id) return 'Sin Asignar'
+  const tec = tecnicos.value.find(t => t.id === id)
+  return tec ? tec.nombre : 'Desconocido'
+}
+
+
 // --- Funciones de Datos (Fetch) ---
 const fetchEquipos = async () => {
   try {
@@ -213,6 +232,13 @@ onMounted(() => {
               </span>
             </td>
             <td class="actions-cell">
+                <!-- NUEVO: Botón Ver Detalle (Icono Ojo) -->
+              <button class="btn-icon" title="Ver Detalles" @click="openDetailModal(equipo)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                </svg>
+              </button>
+
               <!-- Botón Editar (Icono Lápiz) -->
               <button class="btn-icon" title="Editar" @click="openEditModal(equipo)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -375,6 +401,52 @@ onMounted(() => {
         </div>
       </div>
     </div>
+    <!-- Modal Ver Detalles (NUEVO) -->
+    <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
+      <div class="modal" style="width: 650px;">
+        <h3>Detalles del Equipo: {{ selectedEquipo.nombre_corto || selectedEquipo.modelo }}</h3>
+        
+        <div class="detail-grid">
+          <!-- Columna Izquierda -->
+          <div class="detail-column">
+            <h4>Identificación</h4>
+            <p><strong>ID:</strong> {{ selectedEquipo.id }}</p>
+            <p><strong>Marca:</strong> {{ selectedEquipo.marca }}</p>
+            <p><strong>Modelo:</strong> {{ selectedEquipo.modelo }}</p>
+            <p><strong>Nº Serie:</strong> {{ selectedEquipo.numero_serie }}</p>
+            <p><strong>Ubicación:</strong> {{ selectedEquipo.ubicacion_actual || 'N/A' }}</p>
+          </div>
+
+          <!-- Columna Derecha -->
+          <div class="detail-column">
+            <h4>Administrativo</h4>
+            <p><strong>Estado:</strong> 
+              <span class="badge" :style="{ backgroundColor: getEstadoColor(selectedEquipo.estado_id) }">
+                {{ getNombreEstado(selectedEquipo.estado_id) }}
+              </span>
+            </p>
+            <p><strong>Fecha Adquisición:</strong> {{ selectedEquipo.fecha_adquisicion || 'N/A' }}</p>
+            <p><strong>Registro Sanitario:</strong> {{ selectedEquipo.registro_sanitario_bolivia || 'N/A' }}</p>
+            <p><strong>Proveedor:</strong> {{ selectedEquipo.proveedor_principal || 'N/A' }}</p>
+            <p><strong>Próx. Calibración:</strong> {{ selectedEquipo.calibracion_proxima || 'N/A' }}</p>
+          </div>
+        </div>
+
+        <!-- Fila Completa -->
+        <div class="detail-full">
+          <h4>Responsable y Notas</h4>
+          <p><strong>Técnico Responsable:</strong> {{ getTecnicoName(selectedEquipo.responsable_tecnico_id) }}</p>
+          <p><strong>Descripción:</strong></p>
+          <div class="description-box">
+            {{ selectedEquipo.descripcion || 'Sin descripción adicional.' }}
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="showDetailModal = false">Cerrar</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -495,4 +567,50 @@ th { background-color: #f8f9fa; font-weight: bold; }
   resize: vertical; /* Permite redimensionar solo verticalmente */
   font-family: inherit;
 }
+  /* Estilos para el Modal de Detalles */
+  .detail-grid {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .detail-column {
+    flex: 1;
+  }
+
+  .detail-column h4 {
+    margin-bottom: 0.8rem;
+    color: #2c3e50;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 0.3rem;
+  }
+
+  .detail-column p {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    color: #555;
+  }
+
+  .detail-full {
+    width: 100%;
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 6px;
+  }
+
+  .detail-full h4 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    color: #2c3e50;
+  }
+
+  .description-box {
+    background: white;
+    padding: 0.8rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    min-height: 50px;
+    color: #444;
+    font-size: 0.9rem;
+  }
 </style>

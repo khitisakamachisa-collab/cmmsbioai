@@ -34,7 +34,8 @@ const openDetailModal = (equipo) => {
 const getTecnicoName = (id) => {
   if (!id) return 'Sin Asignar'
   const tec = tecnicos.value.find(t => t.id === id)
-  return tec ? tec.nombre : 'Desconocido'
+  // Buscamos full_name (viene del backend), si no existe mostramos el username
+  return tec ? (tec.full_name || tec.username) : 'Desconocido'
 }
 
 
@@ -63,7 +64,7 @@ const fetchEstados = async () => {
 
 const fetchTecnicos = async () => {
   try {
-    const response = await apiClient.get('/equipos/tecnicos')
+    const response = await apiClient.get('users')
     tecnicos.value = response.data
   } catch (error) {
     console.error('Error al cargar técnicos', error)
@@ -192,7 +193,8 @@ onMounted(() => {
       <nav>
         <router-link to="/dashboard">Equipos</router-link> |
         <router-link to="/ordenes">Órdenes</router-link> |
-        <router-link to="/inventario">Inventario</router-link>
+        <router-link to="/inventario">Inventario</router-link> |
+        <router-link to="/usuarios">Usuarios</router-link> <!-- AGREGAR ESTO -->
       </nav>
       <button @click="$router.push('/')">Cerrar Sesión</button>
     </header>
@@ -341,7 +343,8 @@ onMounted(() => {
             <select v-model="formData.responsable_tecnico_id">
               <option :value="null">-- Sin Asignar --</option>
               <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
-                {{ tec.nombre }}
+              <!-- Mostramos full_name, y si no existe, mostramos username -->
+              {{ tec.full_name || tec.username }}
               </option>
             </select>
           </div>

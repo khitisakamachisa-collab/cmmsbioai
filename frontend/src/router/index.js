@@ -3,6 +3,8 @@ import LoginView from '../views/LoginView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import OrdenesView from '../views/OrdenesView.vue' // <--- Importar nueva vista
 import InventarioView from '../views/InventarioView.vue' // <--- Nuevo
+import UsuariosView from '../views/UsuariosView.vue' // Importar
+
 
 const routes = [
   {
@@ -24,6 +26,11 @@ const routes = [
     path: '/inventario',
     name: 'inventario',
     component: InventarioView
+  },
+  {
+    path: '/usuarios',
+    name: 'usuarios',
+    component: UsuariosView
   }
 ]
 

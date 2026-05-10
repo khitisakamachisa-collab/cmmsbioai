@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware # <--- 1. Importar esto
 from database import create_db_and_tables
 from models import Usuario, Equipo, EstadoEquipo, OrdenTrabajo, EstadoOT
-from api.routes import estados, users, equipos, ordenes, auth
+#from api.routes import estados, users, equipos, ordenes, auth
 from api.routes import estados, users, equipos, ordenes, auth, repuestos # Agregar repuestos
 
 app = FastAPI(title="CMMS-BioAI Backend")

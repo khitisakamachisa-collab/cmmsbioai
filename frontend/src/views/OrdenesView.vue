@@ -156,7 +156,8 @@ onMounted(() => {
       <nav>
         <router-link to="/dashboard">Equipos</router-link> |
         <router-link to="/ordenes">Órdenes</router-link> |
-        <router-link to="/inventario">Inventario</router-link>
+        <router-link to="/inventario">Inventario</router-link> |
+        <router-link to="/usuarios">Usuarios</router-link> <!-- AGREGAR ESTO -->
       </nav>
       <button @click="$router.push('/')">Cerrar Sesión</button>
     </header>

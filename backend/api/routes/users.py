@@ -1,33 +1,39 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from database import get_session
-from models.users import Usuario
-from schemas.user import UserCreate, UserRead
-from utils.security import get_password_hash
+from models.users import Usuario # Importamos del archivo user.py existente
+from passlib.context import CryptContext
 
-router = APIRouter(prefix="/users", tags=["Usuarios"])
+router = APIRouter(prefix="/users", tags=["Users"])
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-@router.post("/", response_model=UserRead)
-def create_user(user: UserCreate, session: Session = Depends(get_session)):
-    existe = session.exec(select(Usuario).where(Usuario.username == user.username)).first()
+@router.get("/")
+def listar_usuarios(session: Session = Depends(get_session)):
+    usuarios = session.exec(select(Usuario)).all()
+    return usuarios
+
+@router.post("/")
+def crear_usuario(usuario_data: dict, session: Session = Depends(get_session)):
+    # Verificar email
+    existe = session.exec(select(Usuario).where(Usuario.email == usuario_data["email"])).first()
     if existe:
-        raise HTTPException(status_code=400, detail="El nombre de usuario ya está registrado")
-    
-    hashed_pw = get_password_hash(user.password)
-    db_user = Usuario(
-        username=user.username,
-        email=user.email,
-        full_name=user.full_name,
-        role=user.role,
-        hashed_password=hashed_pw
-    )
-    
-    session.add(db_user)
-    session.commit()
-    session.refresh(db_user)
-    return db_user
+        raise HTTPException(status_code=400, detail="El email ya está registrado")
 
-@router.get("/", response_model=list[UserRead])
-def read_users(session: Session = Depends(get_session)):
-    users = session.exec(select(Usuario)).all()
-    return users
+    import hashlib # Agrega esto al inicio del archivo
+
+    # ... dentro de la función ...
+    # Encriptar usando SHA256 (método estándar de Python, compatible con todo)
+    hashed_password = hashlib.sha256(usuario_data["password"].encode()).hexdigest()
+    
+    nuevo_usuario = Usuario(
+        username=usuario_data["email"], # Usamos email como username
+        email=usuario_data["email"],
+        full_name=usuario_data["nombre_completo"],
+        hashed_password=hashed_password,
+        role=usuario_data.get("rol", "tecnico"),
+        is_active=True
+    )
+    session.add(nuevo_usuario)
+    session.commit()
+    session.refresh(nuevo_usuario)
+    return nuevo_usuario

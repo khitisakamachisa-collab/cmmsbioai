@@ -5,8 +5,12 @@ from datetime import datetime, date
 # --- Tabla de Dominio: Estados de OT ---
 
 class EstadoOT(SQLModel, table=True):
+    __tablename__ = "estadoot" # Asegúrate que coincida con tu tabla real
+    
     id: Optional[int] = Field(default=None, primary_key=True)
-    nombre_estado: str = Field(unique=True)
+    nombre_estado: str
+    # AGREGA ESTA LÍNEA:
+    color: str = Field(default="#95a5a6") 
 
 # --- Tabla Principal: Ordenes de Trabajo ---
 

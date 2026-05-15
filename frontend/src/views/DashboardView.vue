@@ -454,6 +454,28 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* ESTILOS PARA ARREGLAR TEXTO LARGO EN DETALLES Y HISTORIAL */
+
+/* Para el modal de detalles del equipo */
+.detail-full, .description-box {
+  word-break: break-all; /* Rompe palabras largas tipo kkkkkk */
+  overflow-y: auto;      /* Activa scroll si es muy alto */
+  max-height: 150px;     /* Altura máxima */
+  white-space: pre-wrap; /* Respeta los enters del usuario */
+}
+
+/* Para la tabla de historial */
+.history-table td {
+  word-break: break-all; /* Rompe palabras en la tabla */
+  max-width: 200px;      /* Ancho máximo para forzar el salto */
+}
+
+/* Para el modal de Ordenes (si lo necesitas allá también) */
+.detail-box {
+  word-break: break-all;
+  overflow-y: auto;
+  max-height: 200px;
+}
 /* Estilos Existentes */
 .btn-edit { background-color: #f39c12; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; }
 .btn-danger { background-color: #c0392b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; }

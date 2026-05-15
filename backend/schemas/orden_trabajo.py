@@ -1,36 +1,41 @@
-from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime # <--- IMPORTANTE: Importar datetime
+from pydantic import BaseModel
+from datetime import datetime, date
 
-# Clase auxiliar para recibir un repuesto individual
-class RepuestoUsado(BaseModel):
-    repuesto_id: int
-    cantidad: int
-
-class OrdenTrabajoCreate(BaseModel):
+# Esquema base
+class OrdenTrabajoBase(BaseModel):
     equipo_id: int
     estado_id: int
-    prioridad: str
-    tecnico_asignado_id: Optional[int] = None
-    fecha_vencimiento: Optional[str] = None
+    prioridad: str = "Media"
+    tecnico_asignado_id: Optional[int] = None # NUEVO: Permitir asignar técnico
     titulo: str
     descripcion_falla: str
+    fecha_vencimiento: Optional[date] = None
+    
+    # Campos que antes faltaban o eran opcionales
+    acciones_realizadas: Optional[str] = None
+    tiempo_real_invertido: Optional[float] = None
 
-class OrdenTrabajoRead(BaseModel):
+# Esquema para Crear
+class OrdenTrabajoCreate(OrdenTrabajoBase):
+    pass
+
+# Esquema para Leer (Respuesta)
+class OrdenTrabajoRead(OrdenTrabajoBase):
     id: int
-    equipo_id: int
-    estado_id: int
-    prioridad: str
-    titulo: str
-    descripcion_falla: str
-    fecha_creacion: datetime # <--- CORRECCIÓN: Cambiar de 'str' a 'datetime'
-
+    fecha_creacion: Optional[datetime] = None
+    repuestos_usados: Optional[List] = None # <--- AGREGA ESTA LÍNEA
     class Config:
         from_attributes = True
 
+# Esquema para Actualizar (Permite editar todo)
 class OrdenTrabajoUpdate(BaseModel):
-    estado_id: int
+    estado_id: Optional[int] = None
+    prioridad: Optional[str] = None
+    tecnico_asignado_id: Optional[int] = None # NUEVO: Permitir cambiar técnico
+    titulo: Optional[str] = None
+    descripcion_falla: Optional[str] = None
     acciones_realizadas: Optional[str] = None
     tiempo_real_invertido: Optional[float] = None
-    costo_adicional: Optional[float] = None
-    repuestos_utilizados: Optional[List[RepuestoUsado]] = None
+    fecha_vencimiento: Optional[date] = None
+    repuestos_utilizados: Optional[List[dict]] = None

@@ -6,12 +6,14 @@ import apiClient from '../services/api.js'
 const ordenes = ref([])
 const equipos = ref([])
 const estadosOT = ref([]) 
+const tecnicos = ref([])
 const loading = ref(true)
 
 // --- Control de Modales ---
 const showModal = ref(false) // Modal Crear
-const showCloseModal = ref(false) // Modal Cerrar/Editar
-const selectedOT = ref({}) // OT seleccionada para editar
+const showEditModal = ref(false) // Modal Editar (Lápiz)
+const showViewModal = ref(false) // Modal Ver (Ojo)
+const selectedOT = ref({}) // OT seleccionada
 
 // --- Variables para Repuestos ---
 const listaRepuestos = ref([])
@@ -26,28 +28,32 @@ const formData = ref({
   prioridad: 'Media',
   titulo: '',
   descripcion_falla: '',
-  tecnico_asignado_id: 1
+  tecnico_asignado_id: null
 })
 
-// Formulario Cerrar/Editar
-const closeFormData = ref({
+// Formulario Editar
+const editFormData = ref({
   estado_id: '',
+  prioridad: 'Media', // <--- AGREGAR ESTO
   acciones_realizadas: '',
-  tiempo_real_invertido: null
+  tiempo_real_invertido: null,
+  tecnico_asignado_id: null // NUEVO
 })
 
 // --- Funciones de Datos ---
 const fetchData = async () => {
   try {
     loading.value = true
-    const [resOrdenes, resEquipos, resEstados] = await Promise.all([
+    const [resOrdenes, resEquipos, resEstados, resUsers] = await Promise.all([
       apiClient.get('/ordenes/'),
       apiClient.get('/equipos/'),
-      apiClient.get('/ordenes/estados/') 
+      apiClient.get('/ordenes/estados/'),
+      apiClient.get('/users/')
     ])
     ordenes.value = resOrdenes.data
     equipos.value = resEquipos.data
     estadosOT.value = resEstados.data
+    tecnicos.value = resUsers.data
   } catch (error) {
     console.error('Error cargando datos', error)
   } finally {
@@ -60,50 +66,68 @@ const saveOrden = async () => {
     await apiClient.post('/ordenes/', formData.value)
     alert('Orden creada')
     showModal.value = false
-    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: 1 }
+    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null }
     fetchData() 
   } catch (error) {
     alert('Error al crear OT')
   }
 }
 
-// Abre el modal de cierre con los datos de la OT
-const openCloseModal = async (ot) => {
-  selectedOT.value = ot
-  closeFormData.value = {
-    estado_id: ot.estado_id,
-    acciones_realizadas: ot.acciones_realizadas || '',
-    tiempo_real_invertido: ot.tiempo_real_invertido || null
-  }
-  
-  // Cargar inventario
+// --- NUEVO: Abrir Modal Ver (Solo Lectura) ---
+const openViewModal = async (ot) => {
+  // Llamamos al detalle para tener datos frescos
   try {
-    const res = await apiClient.get('/repuestos/')
-    listaRepuestos.value = res.data
-  } catch (e) { console.error(e) }
-  
-  repuestosSeleccionados.value = []
-  showCloseModal.value = true
+    const res = await apiClient.get(`/ordenes/${ot.id}`)
+    selectedOT.value = res.data
+    showViewModal.value = true
+  } catch (e) {
+    alert("Error al cargar detalles")
+  }
 }
 
-// Agregar repuesto a la lista temporal
+// --- NUEVO: Abrir Modal Editar (Lápiz) ---
+const openEditModal = async (ot) => {
+  try {
+    // 1. Obtener datos frescos de la orden específica (SOLUCIONA BUG DE DATOS VACÍOS)
+    const res = await apiClient.get(`/ordenes/${ot.id}`)
+    const fullOt = res.data
+    
+    selectedOT.value = fullOt
+    
+    // 2. Cargar repuestos para el selector
+    const resRep = await apiClient.get('/repuestos/')
+    listaRepuestos.value = resRep.data
+    
+    // 3. Llenar formulario de edición
+    editFormData.value = {
+      estado_id: fullOt.estado_id,
+      prioridad: fullOt.prioridad || 'Media', // <--- AGREGAR ESTO
+      acciones_realizadas: fullOt.acciones_realizadas || '',
+      tiempo_real_invertido: fullOt.tiempo_real_investido || null,
+      tecnico_asignado_id: fullOt.tecnico_asignado_id || null // NUEVO
+    }
+    
+    repuestosSeleccionados.value = []
+    showEditModal.value = true
+  } catch (e) {
+    console.error(e)
+    alert("Error al cargar orden para editar")
+  }
+}
+
 const addRepuestoToOT = () => {
   if (!selectedRepuestoId.value || selectedCantidad.value < 1) return
-
   const repInfo = listaRepuestos.value.find(r => r.id === selectedRepuestoId.value)
   if (!repInfo) return
-
   if (selectedCantidad.value > repInfo.cantidad_disponible) {
     alert("No hay suficiente stock")
     return
   }
-
   repuestosSeleccionados.value.push({
     repuesto_id: repInfo.id,
     nombre: repInfo.nombre_repuesto,
     cantidad: selectedCantidad.value
   })
-
   selectedRepuestoId.value = null
   selectedCantidad.value = 1
 }
@@ -111,37 +135,60 @@ const addRepuestoToOT = () => {
 const updateOrden = async () => {
   try {
     const payload = { 
-      ...closeFormData.value,
+      ...editFormData.value,
       repuestos_utilizados: repuestosSeleccionados.value
     };
     
     if (payload.tiempo_real_invertido === "" || payload.tiempo_real_invertido === null) {
       payload.tiempo_real_invertido = null;
     } else {
-      payload.tiempo_real_invertido = parseFloat(payload.tiempo_real_invertido);
+      payload.tiempo_real_investido = parseFloat(payload.tiempo_real_invertido);
     }
 
     await apiClient.put(`/ordenes/${selectedOT.value.id}`, payload)
-    alert('Orden actualizada y stock ajustado')
-    showCloseModal.value = false
+    alert('Orden actualizada')
+    showEditModal.value = false
     fetchData() 
   } catch (error) {
     console.error(error)
-    if (error.response && error.response.data) {
-        alert(`Error: ${JSON.stringify(error.response.data.detail)}`)
+    alert('Error al actualizar')
+  }
+}
+
+const deleteOrden = async (id) => {
+  if (confirm("¿Eliminar esta orden?")) {
+    try {
+      await apiClient.delete(`/ordenes/${id}`)
+      alert('Orden eliminada')
+      fetchData()
+    } catch (error) {
+      alert('Error al eliminar')
     }
   }
 }
 
+// --- Helpers ---
 const getEquipoNombre = (id) => {
   const eq = equipos.value.find(e => e.id === id)
   return eq ? `${eq.nombre_corto || eq.modelo}` : `ID: ${id}`
+}
+
+const getTecnicoNombre = (id) => {
+  if (!id) return 'Sin Asignar'
+  const t = tecnicos.value.find(u => u.id === id)
+  return t ? (t.full_name || t.username) : 'Desconocido'
 }
 
 const prioridadClass = (prio) => {
   if (prio === 'Urgente') return 'urgente'
   if (prio === 'Alta') return 'alta'
   return 'media'
+}
+
+// Helper para obtener color del estado
+const getEstadoColor = (id) => {
+  const state = estadosOT.value.find(e => e.id === id)
+  return state && state.color ? state.color : '#95a5a6'
 }
 
 onMounted(() => {
@@ -157,7 +204,7 @@ onMounted(() => {
         <router-link to="/dashboard">Equipos</router-link> |
         <router-link to="/ordenes">Órdenes</router-link> |
         <router-link to="/inventario">Inventario</router-link> |
-        <router-link to="/usuarios">Usuarios</router-link> <!-- AGREGAR ESTO -->
+        <router-link to="/usuarios">Usuarios</router-link>
       </nav>
       <button @click="$router.push('/')">Cerrar Sesión</button>
     </header>
@@ -175,7 +222,7 @@ onMounted(() => {
           <tr>
             <th>ID</th>
             <th>Equipo</th>
-            <th>Título / Falla</th>
+            <th>Título</th>
             <th>Prioridad</th>
             <th>Estado</th>
             <th>Acciones</th>
@@ -187,21 +234,37 @@ onMounted(() => {
             <td>{{ getEquipoNombre(ot.equipo_id) }}</td>
             <td>
               <strong>{{ ot.titulo }}</strong><br>
-              <small style="color: #666">{{ ot.descripcion_falla.substring(0, 30) }}...</small>
+              <small>{{ ot.descripcion_falla.substring(0, 30) }}...</small>
             </td>
             <td>
-              <span class="badge" :class="prioridadClass(ot.prioridad)">
-                {{ ot.prioridad }}
-              </span>
+              <span class="badge" :class="prioridadClass(ot.prioridad)">{{ ot.prioridad }}</span>
             </td>
             <td>
-               <span class="badge state">
+               <span class="badge" :style="{ backgroundColor: getEstadoColor(ot.estado_id) }">
                  {{ estadosOT.find(e => e.id === ot.estado_id)?.nombre_estado || 'N/A' }}
                </span>
             </td>
-            <td>
-              <button class="btn-secondary btn-sm" @click="openCloseModal(ot)">
-                Ver / Cerrar
+            <td class="actions-cell">
+              <!-- Ojo: Ver Detalle -->
+              <button class="btn-icon" title="Ver Detalles" @click="openViewModal(ot)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                </svg>
+              </button>
+              
+              <!-- Lápiz: Editar -->
+              <button class="btn-icon btn-edit-icon" title="Editar / Cerrar" @click="openEditModal(ot)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10z"/>
+                </svg>
+              </button>
+
+              <!-- Papelera: Eliminar -->
+              <button class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteOrden(ot.id)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                  <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                </svg>
               </button>
             </td>
           </tr>
@@ -209,105 +272,141 @@ onMounted(() => {
       </table>
     </main>
 
-    <!-- Modal Crear OT -->
+    <!-- Modal Crear OT (Igual que antes) -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal">
         <h3>Nueva Orden de Trabajo</h3>
         <form @submit.prevent="saveOrden">
-          <div class="form-group">
-            <label>Equipo Afectado *</label>
-            <select v-model="formData.equipo_id" required>
-              <option value="" disabled>Seleccione...</option>
-              <option v-for="eq in equipos" :key="eq.id" :value="eq.id">
-                {{ eq.nombre_corto || eq.modelo }}
-              </option>
-            </select>
-          </div>
+          <div class="form-group"><label>Equipo Afectado *</label><select v-model="formData.equipo_id" required><option value="" disabled>Seleccione...</option><option v-for="eq in equipos" :key="eq.id" :value="eq.id">{{ eq.nombre_corto || eq.modelo }}</option></select></div>
           <div class="form-row">
-            <div class="form-group">
-              <label>Estado *</label>
-              <select v-model="formData.estado_id" required>
-                <option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Prioridad</label>
-              <select v-model="formData.prioridad">
-                <option>Alta</option><option>Media</option><option>Baja</option><option>Urgente</option>
-              </select>
-            </div>
+            <div class="form-group"><label>Estado *</label><select v-model="formData.estado_id" required><option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option></select></div>
+            <div class="form-group"><label>Prioridad</label><select v-model="formData.prioridad"><option>Urgente</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
           </div>
-          <div class="form-group">
-            <label>Título</label>
-            <input v-model="formData.titulo" required>
-          </div>
-          <div class="form-group">
-            <label>Descripción</label>
-            <textarea v-model="formData.descripcion_falla" required></textarea>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
-            <button type="submit" class="btn-primary">Crear</button>
-          </div>
+          <div class="form-group"><label>Técnico Asignado</label><select v-model="formData.tecnico_asignado_id"><option :value="null">-- Sin Asignar --</option><option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">{{ tec.full_name || tec.username }}</option></select></div>
+          <div class="form-group"><label>Título</label><input v-model="formData.titulo" required></div>
+          <div class="form-group"><label>Descripción</label><textarea v-model="formData.descripcion_falla" required></textarea></div>
+          <div class="modal-actions"><button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button><button type="submit" class="btn-primary">Crear</button></div>
         </form>
       </div>
     </div>
 
-    <!-- Modal Cerrar / Editar OT -->
-    <div v-if="showCloseModal" class="modal-overlay" @click.self="showCloseModal = false">
-      <div class="modal">
-        <h3>Detalles y Cierre de OT #{{ selectedOT.id }}</h3>
-        
-        <div class="ot-details">
+    <!-- MODAL VER (Solo Lectura) -->
+    <div v-if="showViewModal" class="modal-overlay" @click.self="showViewModal = false">
+      <div class="modal" style="width: 600px;">
+        <h3>Detalle de Orden #{{ selectedOT.id }}</h3>
+        <div class="detail-box">
           <p><strong>Equipo:</strong> {{ getEquipoNombre(selectedOT.equipo_id) }}</p>
-          <p><strong>Falla Reportada:</strong> {{ selectedOT.descripcion_falla }}</p>
+          <p><strong>Técnico:</strong> {{ getTecnicoNombre(selectedOT.tecnico_asignado_id) }}</p>
+          <p><strong>Estado:</strong> 
+            <span class="badge" :style="{ backgroundColor: getEstadoColor(selectedOT.estado_id) }">
+              {{ estadosOT.find(e => e.id === selectedOT.estado_id)?.nombre_estado }}
+            </span>
+          </p>
+
+          <!-- AGREGAR ESTA LÍNEA -->
+          <p><strong>Prioridad:</strong> 
+            <span class="badge" :class="prioridadClass(selectedOT.prioridad)">{{ selectedOT.prioridad }}</span>
+          </p>
+          <!-- -------------------- -->
+   
+          <hr>
+          <p><strong>Título:</strong> {{ selectedOT.titulo }}</p>
+          <p><strong>Descripción Falla:</strong><br>{{ selectedOT.descripcion_falla }}</p>
+          <hr>
+          <p><strong>Acciones Realizadas:</strong><br>
+            <span style="color: #27ae60">{{ selectedOT.acciones_realizadas || 'Pendiente de registro' }}</span>
+          </p>
+          <p><strong>Tiempo Invertido:</strong> {{ selectedOT.tiempo_real_invertido || 0 }} horas</p>
+            <!-- AGREGAR ESTO -->
+            <hr>
+            <p><strong>Repuestos Utilizados:</strong></p>
+            <ul v-if="selectedOT.repuestos_usados && selectedOT.repuestos_usados.length">
+              <li v-for="rep in selectedOT.repuestos_usados" :key="rep.repuesto_id">
+                {{ rep.cantidad_utilizada }} unidad(es) - ID Repuesto: {{ rep.repuesto_id }}
+              </li>
+            </ul>
+            <p v-else><em>Sin repuestos registrados.</em></p>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="showViewModal = false">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL EDITAR (Formulario) -->
+    <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+      <div class="modal" style="width: 650px;">
+        <h3>Editar / Cerrar OT #{{ selectedOT.id }}</h3>
+        
+            <!-- DENTRO DEL FORMULARIO DE EDICIÓN (Lápiz) -->
+
+        <div class="form-group">
+          <label>Nuevo Estado *</label>
+          <select v-model="editFormData.estado_id" required>
+            <option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option>
+          </select>
         </div>
 
-        <hr>
+        <!-- NUEVO: Cambiar Técnico Asignado -->
+        <div class="form-group">
+          <label>Técnico Asignado</label>
+          <select v-model="editFormData.tecnico_asignado_id">
+            <option :value="null">-- Sin Asignar --</option>
+            <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
+              {{ tec.full_name || tec.username }}
+            </option>
+          </select>
+        </div>
+
+                <!-- Dentro del MODAL EDITAR, después del selector de Técnico -->
+        <div class="form-group">
+          <label>Prioridad</label>
+          <select v-model="editFormData.prioridad">
+            <option>Urgente</option>
+            <option>Alta</option>
+            <option>Media</option>
+            <option>Baja</option>
+          </select>
+        </div>
+
+        <!-- ... resto del formulario (acciones, tiempo, etc) ... -->
+
+        <div class="ot-details">
+          <p><strong>Equipo:</strong> {{ getEquipoNombre(selectedOT.equipo_id) }}</p>
+          <p><strong>Falla:</strong> {{ selectedOT.descripcion_falla }}</p>
+        </div>
 
         <form @submit.prevent="updateOrden">
           <div class="form-group">
             <label>Nuevo Estado *</label>
-            <select v-model="closeFormData.estado_id" required>
-              <option v-for="est in estadosOT" :key="est.id" :value="est.id">
-                {{ est.nombre_estado }}
-              </option>
+            <select v-model="editFormData.estado_id" required>
+              <option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option>
             </select>
           </div>
 
           <div class="form-group">
             <label>Acciones Realizadas</label>
-            <textarea v-model="closeFormData.acciones_realizadas" rows="4" placeholder="Describa la reparación..."></textarea>
+            <textarea v-model="editFormData.acciones_realizadas" rows="4" placeholder="Describa la reparación..."></textarea>
           </div>
 
           <div class="form-group">
             <label>Tiempo Real (Horas)</label>
-            <input v-model="closeFormData.tiempo_real_invertido" type="number" step="0.5" placeholder="Ej: 1.5">
+            <input v-model="editFormData.tiempo_real_invertido" type="number" step="0.5" min="0" placeholder="Ej: 1.5">
           </div>
 
-          <!-- Sección de Repuestos -->
           <hr>
           <h4>Repuestos Utilizados</h4>
-          
           <div class="repuesto-selector">
-            <select v-model="selectedRepuestoId">
-              <option :value="null">Seleccionar repuesto...</option>
-              <option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">
-                {{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})
-              </option>
-            </select>
+            <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
             <input type="number" v-model="selectedCantidad" min="1" style="width: 60px">
             <button type="button" class="btn-sm" @click="addRepuestoToOT">Agregar</button>
           </div>
-
-          <ul class="repuesto-lista">
-            <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">
-              {{ item.cantidad }} x {{ item.nombre }}
-            </li>
+          <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
+            <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">{{ item.cantidad }} x {{ item.nombre }}</li>
           </ul>
 
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showCloseModal = false">Cancelar</button>
+            <button type="button" class="btn-secondary" @click="showEditModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar Cambios</button>
           </div>
         </form>
@@ -317,54 +416,58 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* Header Unificado */
-.header { background-color: #2c3e50; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-.header nav a { color: white; text-decoration: none; margin-right: 15px; font-weight: bold; }
-.header nav a:hover { text-decoration: underline; }
-
-/* Botón Cerrar Sesión (Rojo) - Agregado */
-.header button { 
-  background-color: #e74c3c; 
-  color: white; 
-  border: none; 
-  padding: 0.5rem 1rem; 
-  border-radius: 4px; 
-  cursor: pointer; 
+/* Estilo para que el texto largo no se salga y tenga scroll */
+.detail-box, .ot-details {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  
+  /* Magia CSS para texto largo */
+  word-wrap: break-word;      /* Rompe palabras largas */
+  white-space: pre-wrap;      /* Respeta enters del usuario */
+  max-height: 200px;          /* Altura máxima antes de scroll */
+  overflow-y: auto;           /* Activa scroll vertical si es necesario */
 }
 
+.detail-box p {
+  margin: 0.5rem 0;
+}
+
+/* Estilos (Mantener los mismos que la versión anterior, agregar .detail-box) */
+.header { background-color: #2c3e50; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+.header nav a { color: white; text-decoration: none; margin-right: 15px; font-weight: bold; }
+.header button { background-color: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
 .content { padding: 2rem; }
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; }
 th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
 th { background-color: #f8f9fa; }
 .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-
-/* Botones de Acción Unificados */
-.btn-primary { background-color: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; }
-.btn-primary:hover { background-color: #2980b9; }
-.btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem;}
-.btn-sm { font-size: 0.85rem; padding: 5px 10px; }
-
-.badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; color: white; }
+.btn-primary { background-color: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
+.btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
+.badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; color: white; font-weight: bold; }
 .urgente { background-color: #e74c3c; }
 .alta { background-color: #e67e22; }
 .media { background-color: #f1c40f; color: #333; }
-.state { background-color: #3498db; }
 
-/* Modales y Formularios */
+/* Iconos */
+.actions-cell { display: flex; gap: 0.5rem; }
+.btn-icon { background: #f0f2f5; border: none; padding: 8px; border-radius: 6px; cursor: pointer; color: #555; }
+.btn-icon:hover { background: #dfe2e6; }
+.btn-edit-icon:hover { background: #fff3cd; color: #856404; }
+.btn-danger-icon:hover { background: #fee2e2; color: #c0392b; }
+
+/* Modales */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
 .modal { background: white; padding: 2rem; border-radius: 8px; width: 600px; max-width: 90%; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-.form-row { display: flex; gap: 1rem; }
-.form-row .form-group { flex: 1; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
+.detail-box { background: #f8f9fa; padding: 1rem; border-radius: 4px; }
+.detail-box p { margin: 0.5rem 0; }
 .ot-details { background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
-.ot-details p { margin: 0.2rem 0; }
-
-/* Repuestos */
 .repuesto-selector { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
-.repuesto-selector select { flex: 1; padding: 5px; }
-.repuesto-lista { list-style: none; padding: 0; background: #f9f9f9; margin-top: 5px; }
-.repuesto-lista li { padding: 5px; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+.repuesto-lista { list-style: none; padding: 0; background: #f9f9f9; border: 1px solid #eee; }
+.repuesto-lista li { padding: 8px; border-bottom: 1px solid #eee; font-size: 0.9rem; }
 </style>

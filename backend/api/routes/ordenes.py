@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 from typing import Optional
 from database import get_session
 from models.ordenes import OrdenTrabajo, EstadoOT
-from models.repuestos import Repuesto, OtRepuestoUtilizado # Importar modelos nuevos
+from models.repuestos import Repuesto, OtRepuestoUtilizado
 from schemas.orden_trabajo import OrdenTrabajoCreate, OrdenTrabajoRead, OrdenTrabajoUpdate
 
 router = APIRouter(prefix="/ordenes", tags=["Ordenes de Trabajo"])
@@ -39,6 +39,28 @@ def listar_ordenes(equipo_id: Optional[int] = None, session: Session = Depends(g
     else:
         ordenes = session.exec(select(OrdenTrabajo)).all()
     return ordenes
+
+# --- NUEVO: Endpoint para VER UNA OT por ID ---
+# --- Endpoint para VER UNA OT por ID (Corregido) ---
+@router.get("/{ot_id}", response_model=OrdenTrabajoRead)
+def obtener_orden(ot_id: int, session: Session = Depends(get_session)):
+    db_ot = session.get(OrdenTrabajo, ot_id)
+    if not db_ot:
+        raise HTTPException(status_code=404, detail="Orden de Trabajo no encontrada")
+    
+    # 1. Buscar repuestos utilizados
+    repuestos = session.exec(
+        select(OtRepuestoUtilizado).where(OtRepuestoUtilizado.orden_trabajo_id == ot_id)
+    ).all()
+    
+    # 2. Convertir el objeto a diccionario para poder agregarle datos extra
+    data = db_ot.model_dump()
+    
+    # 3. Agregar la lista de repuestos al diccionario
+    data["repuestos_usados"] = repuestos
+    
+    return data
+# ----------------------------------------------
 
 # Endpoint para ACTUALIZAR (Cerrar) una OT con lógica de stock
 @router.put("/{ot_id}", response_model=OrdenTrabajoRead)
@@ -81,3 +103,13 @@ def actualizar_orden(ot_id: int, ot_data: OrdenTrabajoUpdate, session: Session =
     session.commit()
     session.refresh(db_ot)
     return db_ot
+
+# Endpoint para ELIMINAR (opcional, pero buena práctica tenerlo si el frontend lo usa)
+@router.delete("/{ot_id}")
+def eliminar_orden(ot_id: int, session: Session = Depends(get_session)):
+    db_ot = session.get(OrdenTrabajo, ot_id)
+    if not db_ot:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+    session.delete(db_ot)
+    session.commit()
+    return {"ok": True, "message": "Orden eliminada"}

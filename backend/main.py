@@ -3,7 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware # <--- 1. Importar esto
 from database import create_db_and_tables
 from models import Usuario, Equipo, EstadoEquipo, OrdenTrabajo, EstadoOT
 #from api.routes import estados, users, equipos, ordenes, auth
-from api.routes import estados, users, equipos, ordenes, auth, repuestos # Agregar repuestos
+from api.routes import estados, users, equipos, ordenes, auth, repuestos, preventivo # Agregar preventivo
+
+
 
 app = FastAPI(title="CMMS-BioAI Backend")
 
@@ -23,6 +25,8 @@ app.include_router(equipos.router)
 app.include_router(ordenes.router)
 app.include_router(auth.router)
 app.include_router(repuestos.router) # <--- Agregar esto
+# Abajo, donde registramos routers
+app.include_router(preventivo.router)
 
 @app.on_event("startup")
 def on_startup():

@@ -4,6 +4,7 @@ import DashboardView from '../views/DashboardView.vue'
 import OrdenesView from '../views/OrdenesView.vue' // <--- Importar nueva vista
 import InventarioView from '../views/InventarioView.vue' // <--- Nuevo
 import UsuariosView from '../views/UsuariosView.vue' // Importar
+import PreventivoView from '../views/PreventivoView.vue' // <--- AGREGA ESTA LÍNEA
 
 
 const routes = [
@@ -31,6 +32,12 @@ const routes = [
     path: '/usuarios',
     name: 'usuarios',
     component: UsuariosView
+  },
+  // ... dentro del array routes ...
+  {
+    path: '/preventivo',
+    name: 'preventivo',
+    component: PreventivoView
   }
 ]
 

@@ -1,13 +1,19 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import apiClient from '../services/api.js'
 
 // --- Variables Generales ---
 const equipos = ref([])
+const ordenes = ref([])
+const estadosOT = ref([])
 const estados = ref([])
 const tecnicos = ref([]) // Variable para técnicos
 const loading = ref(true)
 const error_msg = ref('')
+
+const PAGE_SIZE = 10
+const currentPage = ref(1)
+const searchQuery = ref('')
 
 // --- Variables Modal ---
 const showModal = ref(false)
@@ -69,6 +75,75 @@ const fetchTecnicos = async () => {
   } catch (error) {
     console.error('Error al cargar técnicos', error)
   }
+}
+
+const fetchOrdenes = async () => {
+  try {
+    const response = await apiClient.get('/ordenes/')
+    ordenes.value = response.data
+  } catch (error) {
+    console.error('Error al cargar órdenes de trabajo', error)
+  }
+}
+
+const fetchEstadosOT = async () => {
+  try {
+    const response = await apiClient.get('/ordenes/estados/')
+    estadosOT.value = response.data
+  } catch (error) {
+    console.error('Error al cargar estados de OT', error)
+  }
+}
+
+const totalEquipos = computed(() => equipos.value.length)
+
+const ordenesPendientes = computed(() => {
+  const cerrados = new Set(['completada', 'cerrada'])
+  return ordenes.value.filter((ot) => {
+    const est = estadosOT.value.find((e) => e.id === ot.estado_id)
+    if (!est) return true
+    const nombre = (est.nombre_estado || '').trim().toLowerCase()
+    return !cerrados.has(nombre)
+  }).length
+})
+
+const equiposMantenimiento = computed(() =>
+  equipos.value.filter((eq) => Number(eq.estado_id) === 2).length
+)
+
+const filteredEquipos = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return equipos.value
+  return equipos.value.filter((eq) => {
+    const nombre = String(eq.nombre_corto ?? '').toLowerCase()
+    const marca = String(eq.marca ?? '').toLowerCase()
+    const modelo = String(eq.modelo ?? '').toLowerCase()
+    return nombre.includes(q) || marca.includes(q) || modelo.includes(q)
+  })
+})
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredEquipos.value.length / PAGE_SIZE))
+)
+
+watch(
+  () => filteredEquipos.value.length,
+  (len) => {
+    const tp = Math.max(1, Math.ceil(len / PAGE_SIZE))
+    if (currentPage.value > tp) currentPage.value = tp
+  }
+)
+
+watch(searchQuery, () => {
+  currentPage.value = 1
+})
+
+const irPaginaAnterior = () => {
+  if (currentPage.value > 1) currentPage.value -= 1
+}
+
+const irPaginaSiguiente = () => {
+  if (currentPage.value < totalPages.value) currentPage.value += 1
 }
 
 // --- Funciones del Modal ---
@@ -182,7 +257,9 @@ const getEstadoColor = (id) => {
 onMounted(() => {
   fetchEquipos()
   fetchEstados()
-  fetchTecnicos() // Cargamos técnicos al inicio
+  fetchTecnicos()
+  fetchOrdenes()
+  fetchEstadosOT()
 })
 </script>
 
@@ -202,11 +279,64 @@ onMounted(() => {
     <main class="content">
       <div class="top-bar">
         <h2>Listado de Equipos</h2>
-        <button class="btn-primary" @click="openCreateModal">+ Nuevo Equipo</button>
+        <div class="top-bar-actions">
+          <input
+            v-model="searchQuery"
+            type="search"
+            class="search-input"
+            placeholder="Buscar por nombre, marca o modelo..."
+            autocomplete="off"
+            aria-label="Buscar equipos por nombre, marca o modelo"
+          >
+          <button class="btn-primary" @click="openCreateModal">+ Nuevo Equipo</button>
+        </div>
       </div>
       
       <div v-if="loading">Cargando equipos...</div>
       <div v-if="error_msg" class="error">{{ error_msg }}</div>
+
+      <section v-if="!loading" class="dashboard-resumen" aria-label="Resumen del dashboard">
+        <h3 class="dashboard-resumen-title">Dashboard Resumen</h3>
+        <div class="dashboard-resumen-grid">
+          <article class="stat-card stat-card--neutral">
+            <div class="stat-card-header">
+              <span class="stat-card-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7h1v8h1V2z"/>
+                </svg>
+              </span>
+              <span class="stat-card-label">Total Equipos</span>
+            </div>
+            <p class="stat-card-value">{{ totalEquipos }}</p>
+          </article>
+
+          <article class="stat-card stat-card--blue">
+            <div class="stat-card-header">
+              <span class="stat-card-icon stat-card-icon--on-tint" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
+                  <path d="M5 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm4 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm4 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                </svg>
+              </span>
+              <span class="stat-card-label">OT Pendientes</span>
+            </div>
+            <p class="stat-card-value">{{ ordenesPendientes }}</p>
+          </article>
+
+          <article class="stat-card stat-card--orange">
+            <div class="stat-card-header">
+              <span class="stat-card-icon stat-card-icon--on-tint" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+                  <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319z"/>
+                </svg>
+              </span>
+              <span class="stat-card-label">En Mantenimiento</span>
+            </div>
+            <p class="stat-card-value">{{ equiposMantenimiento }}</p>
+          </article>
+        </div>
+      </section>
 
       <table v-if="!loading && equipos.length">
         <thead>
@@ -221,9 +351,30 @@ onMounted(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="equipo in equipos" :key="equipo.id">
+          <tr v-if="!filteredEquipos.length">
+            <td class="table-empty-cell" colspan="7">
+              {{ searchQuery.trim() ? 'No hay equipos que coincidan con la búsqueda.' : 'No hay equipos para mostrar.' }}
+            </td>
+          </tr>
+          <template v-else>
+            <tr
+              v-for="equipo in filteredEquipos.slice(
+                (currentPage - 1) * PAGE_SIZE,
+                currentPage * PAGE_SIZE
+              )"
+              :key="equipo.id"
+            >
             <td>{{ equipo.id }}</td>
-            <td>{{ equipo.nombre_corto || 'N/A' }}</td>
+            <td>
+              <span
+                class="equipo-nombre-link"
+                role="button"
+                tabindex="0"
+                @click="openDetailModal(equipo)"
+                @keydown.enter.prevent="openDetailModal(equipo)"
+                @keydown.space.prevent="openDetailModal(equipo)"
+              >{{ equipo.nombre_corto || 'N/A' }}</span>
+            </td>
             <td>{{ equipo.modelo }}</td>
             <td>{{ equipo.marca }}</td>
             <td>{{ equipo.ubicacion_actual }}</td>
@@ -265,8 +416,39 @@ onMounted(() => {
               </button>
             </td>
           </tr>
+          </template>
         </tbody>
       </table>
+
+      <div
+        v-if="!loading && equipos.length && filteredEquipos.length"
+        class="table-pagination"
+        role="navigation"
+        aria-label="Paginación del listado de equipos"
+      >
+        <button
+          type="button"
+          class="btn-pagination"
+          :disabled="currentPage <= 1"
+          @click="irPaginaAnterior"
+        >
+          Anterior
+        </button>
+        <span class="table-pagination-meta">
+          Página {{ currentPage }} de {{ totalPages }}
+          <span class="table-pagination-range">
+            ({{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, filteredEquipos.length) }} de {{ filteredEquipos.length }})
+          </span>
+        </span>
+        <button
+          type="button"
+          class="btn-pagination"
+          :disabled="currentPage >= totalPages"
+          @click="irPaginaSiguiente"
+        >
+          Siguiente
+        </button>
+      </div>
     </main>
 
     <!-- Modal Crear/Editar Equipo -->
@@ -488,11 +670,202 @@ onMounted(() => {
 .header button { background-color: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
 
 .content { padding: 2rem; }
+
+.dashboard-resumen {
+  margin-bottom: 1.15rem;
+}
+.dashboard-resumen-title {
+  margin: 0 0 0.55rem 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.dashboard-resumen-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.85rem;
+}
+@media (max-width: 900px) {
+  .dashboard-resumen-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.stat-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.65rem 0.95rem;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.07);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.stat-card:hover {
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+.stat-card--neutral {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+}
+.stat-card--blue {
+  background: linear-gradient(145deg, #eef6ff 0%, #e3f0fc 100%);
+  border-color: rgba(52, 152, 219, 0.2);
+}
+.stat-card--orange {
+  background: linear-gradient(145deg, #fff8f0 0%, #ffedd5 100%);
+  border-color: rgba(230, 126, 34, 0.25);
+}
+.stat-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+.stat-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(44, 62, 80, 0.08);
+  color: #2c3e50;
+  flex-shrink: 0;
+}
+.stat-card-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.stat-card--blue .stat-card-icon {
+  background: rgba(52, 152, 219, 0.15);
+  color: #2874a6;
+}
+.stat-card--orange .stat-card-icon {
+  background: rgba(230, 126, 34, 0.18);
+  color: #c26d1a;
+}
+.stat-card-icon--on-tint {
+  background: rgba(255, 255, 255, 0.6);
+}
+.stat-card-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
+}
+.stat-card-value {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+.stat-card--blue .stat-card-value {
+  color: #1a5276;
+}
+.stat-card--orange .stat-card-value {
+  color: #9a3412;
+}
+
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
 th { background-color: #f8f9fa; font-weight: bold; }
 
-.top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.equipo-nombre-link {
+  color: #3498db;
+  cursor: pointer;
+  text-decoration: none;
+}
+.equipo-nombre-link:hover {
+  text-decoration: underline;
+}
+
+.top-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+.top-bar h2 {
+  margin: 0;
+}
+.top-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+.search-input {
+  min-width: 220px;
+  flex: 1 1 200px;
+  max-width: 360px;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  background: #fff;
+}
+.search-input::placeholder {
+  color: #94a3b8;
+}
+.search-input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.table-empty-cell {
+  text-align: center;
+  color: #64748b;
+  padding: 1.5rem 12px;
+  font-size: 0.95rem;
+}
+
+.table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem 0;
+}
+.table-pagination-meta {
+  font-size: 0.9rem;
+  color: #475569;
+  text-align: center;
+}
+.table-pagination-range {
+  display: block;
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 0.2rem;
+}
+.btn-pagination {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+.btn-pagination:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+.btn-pagination:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; }
 .btn-primary:hover { background-color: #2980b9; }
 .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem;}

@@ -1,10 +1,37 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import apiClient from '../services/api.js'
 
 const usuarios = ref([])
+const currentPage = ref(1)
+const pageSize = ref(10)
 const showModal = ref(false)
 const formData = ref({ nombre_completo: '', email: '', password: '', rol: 'tecnico' })
+
+const paginatedUsuarios = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return usuarios.value.slice(start, start + pageSize.value)
+})
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(usuarios.value.length / pageSize.value))
+)
+
+watch(
+  () => usuarios.value.length,
+  (len) => {
+    const tp = Math.max(1, Math.ceil(len / pageSize.value))
+    if (currentPage.value > tp) currentPage.value = tp
+  }
+)
+
+const irPaginaAnterior = () => {
+  if (currentPage.value > 1) currentPage.value -= 1
+}
+
+const irPaginaSiguiente = () => {
+  if (currentPage.value < totalPages.value) currentPage.value += 1
+}
 
 const fetchUsuarios = async () => {
   try {
@@ -64,7 +91,7 @@ onMounted(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in usuarios" :key="user.id">
+          <tr v-for="user in paginatedUsuarios" :key="user.id">
             <td>{{ user.id }}</td>
             <td><strong>{{ user.full_name || user.username }}</strong></td>
             <td>{{ user.email }}</td>
@@ -76,6 +103,33 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
+
+      <div
+        v-if="usuarios.length"
+        class="table-pagination"
+        role="navigation"
+        aria-label="Paginación de usuarios"
+      >
+        <button
+          type="button"
+          class="btn-pagination"
+          :disabled="currentPage <= 1"
+          @click="irPaginaAnterior"
+        >
+          Anterior
+        </button>
+        <span class="table-pagination-meta">
+          Página {{ currentPage }} de {{ totalPages }}
+        </span>
+        <button
+          type="button"
+          class="btn-pagination"
+          :disabled="currentPage >= totalPages"
+          @click="irPaginaSiguiente"
+        >
+          Siguiente
+        </button>
+      </div>
     </main>
 
     <!-- Modal Crear Usuario -->
@@ -132,4 +186,35 @@ th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
 .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; color: white; }
 .bg-orange { background-color: #e67e22; }
 .bg-gray { background-color: #95a5a6; }
+
+.table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem 0;
+}
+.table-pagination-meta {
+  font-size: 0.9rem;
+  color: #475569;
+}
+.btn-pagination {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.btn-pagination:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+.btn-pagination:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 </style>

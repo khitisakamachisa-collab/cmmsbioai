@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import apiClient from '../services/api.js'
 
 // --- Variables ---
@@ -7,6 +7,9 @@ const tareas = ref([])
 const equipos = ref([])
 const usuarios = ref([])
 const loading = ref(true)
+
+const currentPage = ref(1)
+const pageSize = ref(10)
 
 // --- Modal ---
 const showModal = ref(false)
@@ -106,6 +109,31 @@ const getStatusClass = (proximaFecha) => {
   return 'status-ok' // Verde: OK
 }
 
+const paginatedTareas = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return tareas.value.slice(start, start + pageSize.value)
+})
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(tareas.value.length / pageSize.value))
+)
+
+watch(
+  () => tareas.value.length,
+  (len) => {
+    const tp = Math.max(1, Math.ceil(len / pageSize.value))
+    if (currentPage.value > tp) currentPage.value = tp
+  }
+)
+
+const irPaginaAnterior = () => {
+  if (currentPage.value > 1) currentPage.value -= 1
+}
+
+const irPaginaSiguiente = () => {
+  if (currentPage.value < totalPages.value) currentPage.value += 1
+}
+
 onMounted(() => {
   fetchData()
 })
@@ -146,7 +174,7 @@ onMounted(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="tarea in tareas" :key="tarea.id">
+          <tr v-for="tarea in paginatedTareas" :key="tarea.id">
             <td>#{{ tarea.id }}</td>
             <td>{{ getEquipoNombre(tarea.equipo_id) }}</td>
             <td><strong>{{ tarea.titulo }}</strong></td>
@@ -173,6 +201,33 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
+
+      <div
+        v-if="!loading && tareas.length"
+        class="table-pagination"
+        role="navigation"
+        aria-label="Paginación de tareas preventivas"
+      >
+        <button
+          type="button"
+          class="btn-pagination"
+          :disabled="currentPage <= 1"
+          @click="irPaginaAnterior"
+        >
+          Anterior
+        </button>
+        <span class="table-pagination-meta">
+          Página {{ currentPage }} de {{ totalPages }}
+        </span>
+        <button
+          type="button"
+          class="btn-pagination"
+          :disabled="currentPage >= totalPages"
+          @click="irPaginaSiguiente"
+        >
+          Siguiente
+        </button>
+      </div>
     </main>
 
     <!-- Modal Crear/Editar -->
@@ -258,4 +313,35 @@ th { background-color: #f8f9fa; }
 .form-row { display: flex; gap: 1rem; }
 .form-row .form-group { flex: 1; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
+
+.table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem 0;
+}
+.table-pagination-meta {
+  font-size: 0.9rem;
+  color: #475569;
+}
+.btn-pagination {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.btn-pagination:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+.btn-pagination:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 </style>

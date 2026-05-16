@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import apiClient from '../services/api.js'
 
 // --- Variables Generales ---
@@ -8,6 +8,34 @@ const equipos = ref([])
 const estadosOT = ref([]) 
 const tecnicos = ref([])
 const loading = ref(true)
+
+const currentPage = ref(1)
+const pageSize = ref(10)
+
+const paginatedOrdenes = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return ordenes.value.slice(start, start + pageSize.value)
+})
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(ordenes.value.length / pageSize.value))
+)
+
+watch(
+  () => ordenes.value.length,
+  (len) => {
+    const tp = Math.max(1, Math.ceil(len / pageSize.value))
+    if (currentPage.value > tp) currentPage.value = tp
+  }
+)
+
+const irPaginaAnterior = () => {
+  if (currentPage.value > 1) currentPage.value -= 1
+}
+
+const irPaginaSiguiente = () => {
+  if (currentPage.value < totalPages.value) currentPage.value += 1
+}
 
 // --- Control de Modales ---
 const showModal = ref(false) // Modal Crear
@@ -230,7 +258,7 @@ onMounted(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="ot in ordenes" :key="ot.id">
+          <tr v-for="ot in paginatedOrdenes" :key="ot.id">
             <td>#{{ ot.id }}</td>
             <td>{{ getEquipoNombre(ot.equipo_id) }}</td>
             <td>
@@ -271,6 +299,33 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
+
+      <div
+        v-if="!loading && ordenes.length"
+        class="table-pagination"
+        role="navigation"
+        aria-label="Paginación del listado de órdenes"
+      >
+        <button
+          type="button"
+          class="btn-pagination"
+          :disabled="currentPage <= 1"
+          @click="irPaginaAnterior"
+        >
+          Anterior
+        </button>
+        <span class="table-pagination-meta">
+          Página {{ currentPage }} de {{ totalPages }}
+        </span>
+        <button
+          type="button"
+          class="btn-pagination"
+          :disabled="currentPage >= totalPages"
+          @click="irPaginaSiguiente"
+        >
+          Siguiente
+        </button>
+      </div>
     </main>
 
     <!-- Modal Crear OT (Igual que antes) -->
@@ -471,4 +526,35 @@ th { background-color: #f8f9fa; }
 .repuesto-selector { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
 .repuesto-lista { list-style: none; padding: 0; background: #f9f9f9; border: 1px solid #eee; }
 .repuesto-lista li { padding: 8px; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+
+.table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem 0;
+}
+.table-pagination-meta {
+  font-size: 0.9rem;
+  color: #475569;
+}
+.btn-pagination {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.btn-pagination:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+.btn-pagination:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 </style>

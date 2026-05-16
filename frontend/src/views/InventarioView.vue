@@ -1,10 +1,13 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import apiClient from '../services/api.js'
 
 const repuestos = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
+
+const currentPage = ref(1)
+const pageSize = ref(10)
 
 const showModal = ref(false)
 const isEditing = ref(false)
@@ -44,6 +47,35 @@ const filteredRepuestos = computed(() => {
     return nombre.includes(q) || material.includes(q)
   })
 })
+
+const paginatedRepuestos = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredRepuestos.value.slice(start, start + pageSize.value)
+})
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredRepuestos.value.length / pageSize.value))
+)
+
+watch(
+  () => filteredRepuestos.value.length,
+  (len) => {
+    const tp = Math.max(1, Math.ceil(len / pageSize.value))
+    if (currentPage.value > tp) currentPage.value = tp
+  }
+)
+
+watch(searchQuery, () => {
+  currentPage.value = 1
+})
+
+const irPaginaAnterior = () => {
+  if (currentPage.value > 1) currentPage.value -= 1
+}
+
+const irPaginaSiguiente = () => {
+  if (currentPage.value < totalPages.value) currentPage.value += 1
+}
 
 const isLowStock = (rep) => {
   const min = rep.nivel_stock_minimo
@@ -172,7 +204,7 @@ onMounted(() => {
             </td>
           </tr>
           <template v-else>
-            <tr v-for="rep in filteredRepuestos" :key="rep.id">
+            <tr v-for="rep in paginatedRepuestos" :key="rep.id">
               <td>#{{ rep.id }}</td>
               <td><strong>{{ rep.nombre_repuesto }}</strong></td>
               <td>{{ rep.numero_material || 'N/A' }}</td>
@@ -209,6 +241,33 @@ onMounted(() => {
           </template>
         </tbody>
       </table>
+
+      <div
+        v-if="!loading && repuestos.length && filteredRepuestos.length"
+        class="table-pagination"
+        role="navigation"
+        aria-label="Paginación del inventario"
+      >
+        <button
+          type="button"
+          class="btn-pagination"
+          :disabled="currentPage <= 1"
+          @click="irPaginaAnterior"
+        >
+          Anterior
+        </button>
+        <span class="table-pagination-meta">
+          Página {{ currentPage }} de {{ totalPages }}
+        </span>
+        <button
+          type="button"
+          class="btn-pagination"
+          :disabled="currentPage >= totalPages"
+          @click="irPaginaSiguiente"
+        >
+          Siguiente
+        </button>
+      </div>
 
       <div v-if="!loading && repuestos.length === 0" class="empty-state">No hay repuestos registrados.</div>
     </main>
@@ -536,5 +595,36 @@ th { background-color: #f8f9fa; font-weight: bold; }
   min-height: 50px;
   color: #444;
   font-size: 0.9rem;
+}
+
+.table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem 0;
+}
+.table-pagination-meta {
+  font-size: 0.9rem;
+  color: #475569;
+}
+.btn-pagination {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 0.5rem 1.1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.btn-pagination:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+.btn-pagination:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 </style>

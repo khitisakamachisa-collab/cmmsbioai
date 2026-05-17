@@ -16,6 +16,17 @@ const showModal = ref(false)
 const isEditing = ref(false)
 const formData = ref({})
 
+// --- Kit de mantenimiento ---
+const listaInventario = ref([])
+const selectedRepuestoId = ref(null)
+const selectedCantidad = ref(1)
+const repuestosSeleccionados = ref([])
+
+const fetchInventario = async () => {
+  const res = await apiClient.get('/repuestos/')
+  listaInventario.value = res.data
+}
+
 // --- Datos ---
 const fetchData = async () => {
   try {
@@ -36,7 +47,7 @@ const fetchData = async () => {
 }
 
 // --- Acciones CRUD ---
-const openCreateModal = () => {
+const openCreateModal = async () => {
   isEditing.value = false
   formData.value = {
     equipo_id: '',
@@ -45,23 +56,99 @@ const openCreateModal = () => {
     frecuencia_dias: 90,
     ultima_fecha: null
   }
-  showModal.value = true
+  repuestosSeleccionados.value = []
+  selectedRepuestoId.value = null
+  selectedCantidad.value = 1
+  try {
+    await fetchInventario()
+    showModal.value = true
+  } catch (error) {
+    console.error(error)
+    alert('Error al cargar inventario')
+  }
 }
 
-const openEditModal = (tarea) => {
+const openEditModal = async (tarea) => {
   isEditing.value = true
-  formData.value = { ...tarea }
-  if (tarea.ultima_fecha) formData.value.ultima_fecha = tarea.ultima_fecha.substring(0, 10)
-  showModal.value = true
+  selectedRepuestoId.value = null
+  selectedCantidad.value = 1
+  try {
+    const [resTarea] = await Promise.all([
+      apiClient.get(`/preventivo/${tarea.id}`),
+      fetchInventario()
+    ])
+    const fullTarea = resTarea.data
+    formData.value = { ...fullTarea }
+    if (fullTarea.ultima_fecha) {
+      formData.value.ultima_fecha = fullTarea.ultima_fecha.substring(0, 10)
+    }
+    repuestosSeleccionados.value = (fullTarea.repuestos_detalle || []).map((rep) => ({
+      repuesto_id: rep.repuesto_id,
+      nombre: rep.nombre_repuesto || `Repuesto #${rep.repuesto_id}`,
+      cantidad: rep.cantidad_requerida
+    }))
+    showModal.value = true
+  } catch (error) {
+    console.error(error)
+    alert('Error al cargar la tarea para editar')
+  }
+}
+
+const addRepuesto = () => {
+  if (!selectedRepuestoId.value || selectedCantidad.value < 1) return
+  const repInfo = listaInventario.value.find((r) => r.id === selectedRepuestoId.value)
+  if (!repInfo) return
+  if (repuestosSeleccionados.value.some((r) => r.repuesto_id === repInfo.id)) {
+    alert('Este repuesto ya está en el kit')
+    return
+  }
+  repuestosSeleccionados.value.push({
+    repuesto_id: repInfo.id,
+    nombre: repInfo.nombre_repuesto,
+    cantidad: selectedCantidad.value
+  })
+  selectedRepuestoId.value = null
+  selectedCantidad.value = 1
+}
+
+const removeRepuesto = (index) => {
+  repuestosSeleccionados.value.splice(index, 1)
+}
+
+const buildPayload = () => {
+  const payload = {
+    equipo_id: formData.value.equipo_id,
+    responsable_id: formData.value.responsable_id,
+    titulo: formData.value.titulo,
+    descripcion: formData.value.descripcion || null,
+    frecuencia_dias: Number(formData.value.frecuencia_dias),
+    ultima_fecha: formData.value.ultima_fecha || null,
+    repuestos: repuestosSeleccionados.value.map((r) => ({
+      repuesto_id: r.repuesto_id,
+      cantidad_requerida: Number(r.cantidad)
+    }))
+  }
+  if (isEditing.value) {
+    return {
+      titulo: payload.titulo,
+      descripcion: payload.descripcion,
+      frecuencia_dias: payload.frecuencia_dias,
+      responsable_id: payload.responsable_id,
+      ultima_fecha: payload.ultima_fecha,
+      repuestos: payload.repuestos
+    }
+  }
+  return payload
 }
 
 const saveTarea = async () => {
   try {
+    const payload = buildPayload()
     if (isEditing.value) {
-      await apiClient.put(`/preventivo/${formData.value.id}`, formData.value)
+      await apiClient.put(`/preventivo/${formData.value.id}`, payload)
       alert('Tarea actualizada')
     } else {
-      await apiClient.post('/preventivo/', formData.value)
+      await apiClient.post('/preventivo/', payload)
       alert('Tarea creada')
     }
     showModal.value = false
@@ -268,6 +355,45 @@ onMounted(() => {
             </select>
           </div>
 
+          <div class="form-group kit-section">
+            <h4>Kit de Mantenimiento</h4>
+            <p class="kit-hint">Repuestos necesarios para ejecutar esta tarea preventiva.</p>
+            <div class="repuesto-selector">
+              <select v-model="selectedRepuestoId">
+                <option :value="null">Seleccionar repuesto...</option>
+                <option
+                  v-for="rep in listaInventario"
+                  :key="rep.id"
+                  :value="rep.id"
+                >
+                  {{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})
+                </option>
+              </select>
+              <input
+                v-model.number="selectedCantidad"
+                type="number"
+                min="1"
+                class="cantidad-input"
+                placeholder="Cant."
+              >
+              <button type="button" class="btn-sm" @click="addRepuesto">Agregar</button>
+            </div>
+            <ul v-if="repuestosSeleccionados.length" class="repuesto-lista">
+              <li v-for="(item, idx) in repuestosSeleccionados" :key="item.repuesto_id">
+                <span>{{ item.cantidad }} x {{ item.nombre }}</span>
+                <button
+                  type="button"
+                  class="btn-remove-repuesto"
+                  title="Quitar"
+                  @click="removeRepuesto(idx)"
+                >
+                  X
+                </button>
+              </li>
+            </ul>
+            <p v-else class="kit-empty">No hay repuestos en el kit.</p>
+          </div>
+
           <div class="modal-actions">
             <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar</button>
@@ -343,5 +469,85 @@ th { background-color: #f8f9fa; }
 .btn-pagination:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.kit-section h4 {
+  margin: 0 0 0.35rem 0;
+  color: #2c3e50;
+  font-size: 1rem;
+}
+.kit-hint {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+.kit-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+.repuesto-selector {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.repuesto-selector select {
+  flex: 1;
+  min-width: 0;
+}
+.cantidad-input {
+  width: 80px;
+  padding: 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.btn-sm {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 0.5rem 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.btn-sm:hover {
+  background-color: #2980b9;
+}
+.repuesto-lista {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  background: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 4px;
+}
+.repuesto-lista li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+.repuesto-lista li:last-child {
+  border-bottom: none;
+}
+.btn-remove-repuesto {
+  background: #fee2e2;
+  color: #c0392b;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  line-height: 1;
+}
+.btn-remove-repuesto:hover {
+  background: #fecaca;
 }
 </style>

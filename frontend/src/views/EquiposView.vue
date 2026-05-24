@@ -200,7 +200,7 @@ const deleteEquipo = async (id) => {
 const openHistory = async (equipo) => {
   selectedEquipName.value = equipo.nombre_corto || equipo.modelo
   try {
-    const res = await apiClient.get(`/ordenes/?equipo_id=${equipo.id}`)
+    const res = await apiClient.get(`/historial/equipo/${equipo.id}`)
     historyData.value = res.data
     showHistoryModal.value = true
   } catch (error) {
@@ -642,37 +642,44 @@ onMounted(() => {
 
     <!-- Modal Historial -->
     <div v-if="showHistoryModal" class="modal-overlay" @click.self="showHistoryModal = false">
-      <div class="modal" style="width: 800px;">
+      <div class="modal" style="width: 850px;">
         <h3>Historial de Mantenimiento: {{ selectedEquipName }}</h3>
         <div v-if="historyData.length === 0" class="empty-state">
           Este equipo no tiene registros de mantenimiento aún.
         </div>
-        <table v-else class="history-table">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Título</th>
-              <th>Problema</th>
-              <th>Solución</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="ot in historyData" :key="ot.id">
-              <td>{{ new Date(ot.fecha_creacion).toLocaleDateString() }}</td>
-              <td><strong>{{ ot.titulo }}</strong></td>
-              <td style="font-size: 0.85rem">{{ ot.descripcion_falla }}</td>
-              <td style="font-size: 0.85rem; color: green">
-                {{ ot.acciones_realizadas || 'Pendiente' }}
-              </td>
-              <td>
-                <span class="state-badge">
-                  {{ ot.estado_id == 1 ? 'Pendiente' : (ot.estado_id == 3 ? 'Completada' : 'Otro') }}
+        <div v-else class="history-timeline">
+          <div v-for="evento in historyData" :key="evento.id" class="history-event">
+            <div class="history-event-header">
+              <span class="history-type-badge" :class="'badge-' + evento.tipo_evento">
+                {{ evento.tipo_evento?.toUpperCase() }}
+              </span>
+              <span class="history-date">{{ new Date(evento.fecha_evento).toLocaleDateString('es-BO', { year: 'numeric', month: 'short', day: 'numeric' }) }}</span>
+            </div>
+            <div class="history-event-body">
+              <p class="history-desc">{{ evento.descripcion }}</p>
+              <div class="history-details">
+                <span v-if="evento.tecnico_nombre" class="history-detail-item">
+                  <strong>Técnico:</strong> {{ evento.tecnico_nombre }}
                 </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <span v-if="evento.acciones_realizadas" class="history-detail-item">
+                  <strong>Acciones:</strong> {{ evento.acciones_realizadas }}
+                </span>
+                <span v-if="evento.tiempo_invertido" class="history-detail-item">
+                  <strong>Tiempo:</strong> {{ evento.tiempo_invertido }} h
+                </span>
+                <span v-if="evento.costo" class="history-detail-item">
+                  <strong>Costo:</strong> Bs {{ evento.costo.toFixed(2) }}
+                </span>
+                <span v-if="evento.repuestos_utilizados" class="history-detail-item">
+                  <strong>Repuestos:</strong> {{ evento.repuestos_utilizados }}
+                </span>
+                <span v-if="evento.ot_titulo" class="history-detail-item">
+                  <strong>OT:</strong> {{ evento.ot_titulo }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showHistoryModal = false">Cerrar</button>
         </div>
@@ -843,11 +850,20 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
 
 /* Historial */
-.history-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
-.history-table th, .history-table td { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
-.history-table th { background-color: #f8f9fa; }
+.history-timeline { max-height: 450px; overflow-y: auto; margin-top: 0.5rem; }
+.history-event { border-left: 3px solid #e2e8f0; padding: 0.75rem 1rem; margin-bottom: 0.75rem; border-radius: 0 6px 6px 0; background: #f8fafc; transition: background 0.2s; }
+.history-event:hover { background: #f1f5f9; }
+.history-event-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }
+.history-type-badge { padding: 2px 10px; border-radius: 10px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.03em; }
+.badge-preventivo { background: #27ae60; }
+.badge-correctivo { background: #e74c3c; }
+.badge-calibracion { background: #3498db; }
+.badge-otro { background: #9b59b6; }
+.history-date { font-size: 0.82rem; color: #64748b; margin-left: auto; }
+.history-desc { margin: 0 0 0.35rem 0; font-size: 0.92rem; font-weight: 600; color: #1e293b; }
+.history-details { display: flex; flex-wrap: wrap; gap: 0.2rem 1.2rem; font-size: 0.82rem; color: #475569; }
+.history-detail-item { display: inline-flex; gap: 0.25rem; }
 .empty-state { text-align: center; color: #888; padding: 2rem; }
-.state-badge { background: #eee; color: #333; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
 
 /* Detalles */
 .detail-grid { display: flex; gap: 2rem; margin-bottom: 1.5rem; }

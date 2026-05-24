@@ -6,6 +6,8 @@ import OrdenesView from '../views/OrdenesView.vue'
 import InventarioView from '../views/InventarioView.vue'
 import UsuariosView from '../views/UsuariosView.vue'
 import PreventivoView from '../views/PreventivoView.vue'
+import HistorialView from '../views/HistorialView.vue'
+import ReportesView from '../views/ReportesView.vue'
 
 
 const routes = [
@@ -43,6 +45,16 @@ const routes = [
     path: '/preventivo',
     name: 'preventivo',
     component: PreventivoView
+  },
+  {
+    path: '/historial',
+    name: 'historial',
+    component: HistorialView
+  },
+  {
+    path: '/reportes',
+    name: 'reportes',
+    component: ReportesView
   }
 ]
 

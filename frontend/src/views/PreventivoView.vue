@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
 import Navbar from '../components/Navbar.vue'
 
+const router = useRouter()
+
 // --- Variables ---
 const tareas = ref([])
 const equipos = ref([])
@@ -23,6 +25,11 @@ const listaInventario = ref([])
 const selectedRepuestoId = ref(null)
 const selectedCantidad = ref(1)
 const repuestosSeleccionados = ref([])
+
+// --- Modal Generar OT ---
+const showGenerarOTModal = ref(false)
+const generarOTData = ref({})
+const generarOTLoading = ref(false)
 
 const fetchInventario = async () => {
   const res = await apiClient.get('/repuestos/')
@@ -164,12 +171,52 @@ const saveTarea = async () => {
 const deleteTarea = async (id) => {
   if (confirm("¿Eliminar esta tarea preventiva?")) {
     try {
-      await apiClient.delete(`/preventivo/${id}`) // Asumiendo que implementaste DELETE en backend
+      await apiClient.delete(`/preventivo/${id}`)
       alert('Tarea eliminada')
       fetchData()
     } catch (e) {
       alert('Error al eliminar')
     }
+  }
+}
+
+// --- NUEVO: Generar OT desde preventivo ---
+const openGenerarOTModal = (tarea) => {
+  generarOTData.value = {
+    tarea_id: tarea.id,
+    titulo: tarea.titulo,
+    equipo: getEquipoNombre(tarea.equipo_id),
+    prioridad: 'Media',
+    tecnico_asignado_id: tarea.responsable_id || null,
+    fecha_vencimiento: tarea.proxima_fecha ? tarea.proxima_fecha.substring(0, 10) : null
+  }
+  showGenerarOTModal.value = true
+}
+
+const generarOT = async () => {
+  generarOTLoading.value = true
+  try {
+    const payload = {
+      prioridad: generarOTData.value.prioridad,
+      tecnico_asignado_id: generarOTData.value.tecnico_asignado_id || null,
+      fecha_vencimiento: generarOTData.value.fecha_vencimiento || null
+    }
+    const res = await apiClient.post(`/preventivo/${generarOTData.value.tarea_id}/generar-ot`, payload)
+    const otId = res.data.id
+    showGenerarOTModal.value = false
+    
+    // Preguntar si quiere ir a la OT para agregar repuestos
+    if (confirm(`OT #${otId} creada exitosamente. ¿Desea ir a editarla para agregar repuestos del kit?`)) {
+      router.push('/ordenes')
+    }
+    
+    fetchData()
+  } catch (error) {
+    const msg = error.response?.data?.detail || 'Error al generar OT'
+    alert(msg)
+    console.error(error)
+  } finally {
+    generarOTLoading.value = false
   }
 }
 
@@ -196,6 +243,20 @@ const getStatusClass = (proximaFecha) => {
   if (diffDays <= 7) return 'status-upcoming' // Amarillo: Próximo (7 días)
   
   return 'status-ok' // Verde: OK
+}
+
+const getStatusLabel = (proximaFecha) => {
+  if (!proximaFecha) return 'Sin fecha'
+  const today = new Date().setHours(0,0,0,0)
+  const dueDate = new Date(proximaFecha).setHours(0,0,0,0)
+  
+  if (dueDate < today) return 'Vencida'
+  if (dueDate === today) return 'Hoy'
+  
+  const diffDays = (dueDate - today) / (1000 * 60 * 60 * 24)
+  if (diffDays <= 7) return 'Próxima'
+  
+  return 'OK'
 }
 
 const paginatedTareas = computed(() => {
@@ -261,10 +322,15 @@ onMounted(() => {
             <td>{{ tarea.proxima_fecha || 'Pendiente' }}</td>
             <td>
               <span class="badge" :class="getStatusClass(tarea.proxima_fecha)">
-                {{ tarea.proxima_fecha ? new Date(tarea.proxima_fecha).toLocaleDateString() : 'Sin fecha' }}
+                {{ getStatusLabel(tarea.proxima_fecha) }}
               </span>
             </td>
             <td class="actions-cell">
+              <button class="btn-icon btn-generate-icon" title="Generar OT" @click="openGenerarOTModal(tarea)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
+                </svg>
+              </button>
               <button class="btn-icon" title="Editar" @click="openEditModal(tarea)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                    <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10z"/>
@@ -393,6 +459,56 @@ onMounted(() => {
         </form>
       </div>
     </div>
+
+    <!-- NUEVO: Modal Generar OT desde Preventivo -->
+    <div v-if="showGenerarOTModal" class="modal-overlay" @click.self="showGenerarOTModal = false">
+      <div class="modal" style="width: 480px;">
+        <h3>Generar Orden de Trabajo</h3>
+        <div class="generar-ot-info">
+          <p><strong>Tarea:</strong> {{ generarOTData.titulo }}</p>
+          <p><strong>Equipo:</strong> {{ generarOTData.equipo }}</p>
+        </div>
+        
+        <form @submit.prevent="generarOT">
+          <div class="form-group">
+            <label>Prioridad</label>
+            <select v-model="generarOTData.prioridad">
+              <option>Urgente</option>
+              <option>Alta</option>
+              <option>Media</option>
+              <option>Baja</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Técnico Asignado</label>
+            <select v-model="generarOTData.tecnico_asignado_id">
+              <option :value="null">-- Sin Asignar --</option>
+              <option v-for="u in usuarios" :key="u.id" :value="u.id">{{ u.full_name || u.username }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Fecha de Vencimiento</label>
+            <input v-model="generarOTData.fecha_vencimiento" type="date">
+          </div>
+
+          <div class="generar-ot-hint">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8 4a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 4zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
+            </svg>
+            <span>Se creará una OT vinculada a esta tarea preventiva. Los repuestos del kit se sugerirán al editar la OT.</span>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="showGenerarOTModal = false">Cancelar</button>
+            <button type="submit" class="btn-primary" :disabled="generarOTLoading">
+              {{ generarOTLoading ? 'Generando...' : 'Generar OT' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -405,6 +521,7 @@ th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
 th { background-color: #f8f9fa; }
 .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
 
 /* Iconos */
@@ -412,12 +529,14 @@ th { background-color: #f8f9fa; }
 .btn-icon { background: #f0f2f5; border: none; padding: 8px; border-radius: 6px; cursor: pointer; color: #555; }
 .btn-icon:hover { background: #dfe2e6; }
 .btn-danger-icon:hover { background: #fee2e2; color: #c0392b; }
+.btn-generate-icon:hover { background: #dbeafe; color: #2563eb; }
 
 /* Badges de Estado Preventivo */
 .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
 .status-ok { background-color: #d4edda; color: #155724; } /* Verde: OK */
 .status-upcoming { background-color: #fff3cd; color: #856404; } /* Amarillo: Próximo */
 .status-overdue { background-color: #f8d7da; color: #721c24; } /* Rojo: Vencido */
+.status-due-today { background-color: #ffeaa7; color: #856404; } /* Naranja: Hoy */
 .status-unknown { background-color: #e2e3e5; color: #383d41; }
 
 /* Modales */
@@ -539,5 +658,37 @@ th { background-color: #f8f9fa; }
 }
 .btn-remove-repuesto:hover {
   background: #fecaca;
+}
+
+/* Generar OT */
+.generar-ot-info {
+  background: #f0f7ff;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  border-left: 4px solid #3b82f6;
+  margin-bottom: 1rem;
+}
+.generar-ot-info p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+  color: #1e3a5f;
+}
+.generar-ot-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.82rem;
+  color: #78350f;
+  line-height: 1.4;
+}
+.generar-ot-hint svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #d97706;
 }
 </style>

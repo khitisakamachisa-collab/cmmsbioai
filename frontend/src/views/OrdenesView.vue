@@ -120,7 +120,7 @@ const openViewModal = async (ot) => {
 // --- NUEVO: Abrir Modal Editar (Lápiz) ---
 const openEditModal = async (ot) => {
   try {
-    // 1. Obtener datos frescos de la orden específica (SOLUCIONA BUG DE DATOS VACÍOS)
+    // 1. Obtener datos frescos de la orden específica
     const res = await apiClient.get(`/ordenes/${ot.id}`)
     const fullOt = res.data
     
@@ -133,13 +133,46 @@ const openEditModal = async (ot) => {
     // 3. Llenar formulario de edición
     editFormData.value = {
       estado_id: fullOt.estado_id,
-      prioridad: fullOt.prioridad || 'Media', // <--- AGREGAR ESTO
+      prioridad: fullOt.prioridad || 'Media',
       acciones_realizadas: fullOt.acciones_realizadas || '',
-      tiempo_real_invertido: fullOt.tiempo_real_investido || null,
-      tecnico_asignado_id: fullOt.tecnico_asignado_id || null // NUEVO
+      tiempo_real_invertido: fullOt.tiempo_real_invertido || null,
+      tecnico_asignado_id: fullOt.tecnico_asignado_id || null,
+      costo_adicional: fullOt.costo_adicional || null
     }
     
+    // 4. Pre-llenar repuestos existentes de la OT
     repuestosSeleccionados.value = []
+    if (fullOt.repuestos_usados && fullOt.repuestos_usados.length > 0) {
+      repuestosSeleccionados.value = fullOt.repuestos_usados.map(r => {
+        const repInfo = listaRepuestos.value.find(rp => rp.id === r.repuesto_id)
+        return {
+          repuesto_id: r.repuesto_id,
+          nombre: repInfo ? repInfo.nombre_repuesto : `Repuesto #${r.repuesto_id}`,
+          cantidad: r.cantidad_utilizada
+        }
+      })
+    }
+    
+    // 5. Si la OT viene de preventivo y no tiene repuestos, sugerir los del kit
+    if (fullOt.orden_preventiva_id && repuestosSeleccionados.value.length === 0) {
+      try {
+        const resTarea = await apiClient.get(`/preventivo/${fullOt.orden_preventiva_id}`)
+        const kitRepuestos = resTarea.data.repuestos_detalle || []
+        if (kitRepuestos.length > 0) {
+          repuestosSeleccionados.value = kitRepuestos.map(r => {
+            const repInfo = listaRepuestos.value.find(rp => rp.id === r.repuesto_id)
+            return {
+              repuesto_id: r.repuesto_id,
+              nombre: repInfo ? repInfo.nombre_repuesto : `Repuesto #${r.repuesto_id}`,
+              cantidad: r.cantidad_requerida
+            }
+          })
+        }
+      } catch (e) {
+        console.warn('No se pudieron cargar repuestos del kit preventivo', e)
+      }
+    }
+    
     showEditModal.value = true
   } catch (e) {
     console.error(e)
@@ -248,6 +281,7 @@ onMounted(() => {
             <th>Título</th>
             <th>Prioridad</th>
             <th>Estado</th>
+            <th>Origen</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -266,6 +300,12 @@ onMounted(() => {
                <span class="badge" :style="{ backgroundColor: getEstadoColor(ot.estado_id) }">
                  {{ estadosOT.find(e => e.id === ot.estado_id)?.nombre_estado || 'N/A' }}
                </span>
+            </td>
+            <td>
+              <span v-if="ot.orden_preventiva_id" class="badge badge-preventivo" title="Generada desde tarea preventiva">
+                Preventivo #{{ ot.orden_preventiva_id }}
+              </span>
+              <span v-else class="badge badge-correctivo">Correctivo</span>
             </td>
             <td class="actions-cell">
               <!-- Ojo: Ver Detalle -->
@@ -353,11 +393,12 @@ onMounted(() => {
             </span>
           </p>
 
-          <!-- AGREGAR ESTA LÍNEA -->
           <p><strong>Prioridad:</strong> 
             <span class="badge" :class="prioridadClass(selectedOT.prioridad)">{{ selectedOT.prioridad }}</span>
           </p>
-          <!-- -------------------- -->
+          <p v-if="selectedOT.orden_preventiva_id"><strong>Origen:</strong> 
+            <span class="badge badge-preventivo">Tarea Preventiva #{{ selectedOT.orden_preventiva_id }}</span>
+          </p>
    
           <hr>
           <p><strong>Título:</strong> {{ selectedOT.titulo }}</p>
@@ -491,6 +532,8 @@ th { background-color: #f8f9fa; }
 .urgente { background-color: #e74c3c; }
 .alta { background-color: #e67e22; }
 .media { background-color: #f1c40f; color: #333; }
+.badge-preventivo { background-color: #8b5cf6; color: white; font-size: 0.7rem; }
+.badge-correctivo { background-color: #6b7280; color: white; font-size: 0.7rem; }
 
 /* Iconos */
 .actions-cell { display: flex; gap: 0.5rem; }

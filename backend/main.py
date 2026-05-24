@@ -2,8 +2,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import create_db_and_tables, seed_database
-from models import Usuario, Equipo, EstadoEquipo, OrdenTrabajo, EstadoOT
-from api.routes import estados, users, equipos, ordenes, auth, repuestos, preventivo
+from models import Usuario, Equipo, EstadoEquipo, OrdenTrabajo, EstadoOT, EventoHistorial
+from api.routes import estados, users, equipos, ordenes, auth, repuestos, preventivo, historial, reportes
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,6 +32,8 @@ app.include_router(ordenes.router)
 app.include_router(auth.router)
 app.include_router(repuestos.router)
 app.include_router(preventivo.router)
+app.include_router(historial.router)
+app.include_router(reportes.router)
 
 @app.get("/")
 def root():

@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from typing import Optional
+from datetime import datetime, date, timedelta
 from database import get_session
 from models.ordenes import OrdenTrabajo, EstadoOT
+from models.preventivo import TareaPreventiva, TareaRepuesto
 from models.repuestos import Repuesto, OtRepuestoUtilizado
+from models.historial import EventoHistorial
 from schemas.orden_trabajo import OrdenTrabajoCreate, OrdenTrabajoRead, OrdenTrabajoUpdate
 
 router = APIRouter(prefix="/ordenes", tags=["Ordenes de Trabajo"])
@@ -40,34 +43,32 @@ def listar_ordenes(equipo_id: Optional[int] = None, session: Session = Depends(g
         ordenes = session.exec(select(OrdenTrabajo)).all()
     return ordenes
 
-# --- NUEVO: Endpoint para VER UNA OT por ID ---
-# --- Endpoint para VER UNA OT por ID (Corregido) ---
+# --- Endpoint para VER UNA OT por ID ---
 @router.get("/{ot_id}", response_model=OrdenTrabajoRead)
 def obtener_orden(ot_id: int, session: Session = Depends(get_session)):
     db_ot = session.get(OrdenTrabajo, ot_id)
     if not db_ot:
         raise HTTPException(status_code=404, detail="Orden de Trabajo no encontrada")
     
-    # 1. Buscar repuestos utilizados
+    # Buscar repuestos utilizados
     repuestos = session.exec(
         select(OtRepuestoUtilizado).where(OtRepuestoUtilizado.orden_trabajo_id == ot_id)
     ).all()
     
-    # 2. Convertir el objeto a diccionario para poder agregarle datos extra
     data = db_ot.model_dump()
-    
-    # 3. Agregar la lista de repuestos al diccionario
     data["repuestos_usados"] = repuestos
     
     return data
-# ----------------------------------------------
 
-# Endpoint para ACTUALIZAR (Cerrar) una OT con lógica de stock
+# Endpoint para ACTUALIZAR (Cerrar) una OT con lógica de stock + actualización de preventivo
 @router.put("/{ot_id}", response_model=OrdenTrabajoRead)
 def actualizar_orden(ot_id: int, ot_data: OrdenTrabajoUpdate, session: Session = Depends(get_session)):
     db_ot = session.get(OrdenTrabajo, ot_id)
     if not db_ot:
         raise HTTPException(status_code=404, detail="Orden de Trabajo no encontrada")
+    
+    # Guardar estado anterior para detectar cierre
+    estado_anterior_id = db_ot.estado_id
     
     ot_data_dict = ot_data.model_dump(exclude_unset=True)
     repuestos_recibidos = ot_data_dict.pop("repuestos_utilizados", None)
@@ -77,6 +78,22 @@ def actualizar_orden(ot_id: int, ot_data: OrdenTrabajoUpdate, session: Session =
         setattr(db_ot, key, value)
     
     # Lógica de Stock
+    # 1) Revertir repuestos previamente registrados para esta OT (si los hay)
+    repuestos_previos = session.exec(
+        select(OtRepuestoUtilizado).where(OtRepuestoUtilizado.orden_trabajo_id == ot_id)
+    ).all()
+    for rp in repuestos_previos:
+        # Devolver stock
+        rep_previo = session.get(Repuesto, rp.repuesto_id)
+        if rep_previo:
+            rep_previo.cantidad_disponible += rp.cantidad_utilizada
+            session.add(rep_previo)
+        session.delete(rp)
+    # Hacer flush para que los DELETE se apliquen antes de los INSERT
+    if repuestos_previos:
+        session.flush()
+
+    # 2) Insertar los nuevos repuestos utilizados
     if repuestos_recibidos:
         for item in repuestos_recibidos:
             rep_id = item['repuesto_id']
@@ -101,10 +118,69 @@ def actualizar_orden(ot_id: int, ot_data: OrdenTrabajoUpdate, session: Session =
     
     session.add(db_ot)
     session.commit()
-    session.refresh(db_ot)
-    return db_ot
+    
+    # === LÓGICA AL COMPLETAR UNA OT ===
+    # Verificar si el estado cambió a "Completada"
+    estado_completada = session.exec(
+        select(EstadoOT).where(EstadoOT.nombre_estado == "Completada")
+    ).first()
 
-# Endpoint para ELIMINAR (opcional, pero buena práctica tenerlo si el frontend lo usa)
+    if estado_completada and db_ot.estado_id == estado_completada.id:
+        # 1) Si la OT viene de preventivo, actualizar la tarea
+        if db_ot.orden_preventiva_id:
+            tarea = session.get(TareaPreventiva, db_ot.orden_preventiva_id)
+            if tarea:
+                hoy = date.today()
+                tarea.ultima_fecha = hoy
+                tarea.proxima_fecha = hoy + timedelta(days=tarea.frecuencia_dias)
+                session.add(tarea)
+                session.commit()
+
+        # 2) Insertar evento en el historial automáticamente
+        # Determinar tipo de evento
+        tipo_evento = "preventivo" if db_ot.orden_preventiva_id else "correctivo"
+
+        # Construir resumen de repuestos utilizados
+        repuestos_usados_txt = None
+        repuestos_list = session.exec(
+            select(OtRepuestoUtilizado).where(OtRepuestoUtilizado.orden_trabajo_id == ot_id)
+        ).all()
+        if repuestos_list:
+            partes = []
+            for ru in repuestos_list:
+                rep = session.get(Repuesto, ru.repuesto_id)
+                nombre = rep.nombre_repuesto if rep else f"Repuesto#{ru.repuesto_id}"
+                partes.append(f"{nombre} (x{ru.cantidad_utilizada})")
+            repuestos_usados_txt = ", ".join(partes)
+
+        evento = EventoHistorial(
+            equipo_id=db_ot.equipo_id,
+            orden_trabajo_id=db_ot.id,
+            tipo_evento=tipo_evento,
+            descripcion=db_ot.titulo,
+            tecnico_id=db_ot.tecnico_asignado_id,
+            fecha_evento=datetime.now(),
+            acciones_realizadas=db_ot.acciones_realizadas,
+            tiempo_invertido=db_ot.tiempo_real_invertido,
+            costo=db_ot.costo_adicional,
+            repuestos_utilizados=repuestos_usados_txt
+        )
+        session.add(evento)
+        session.commit()
+    
+    # Refresh DESPUÉS de todos los commits para que model_dump() tenga todos los datos
+    session.refresh(db_ot)
+    
+    # Preparar respuesta con repuestos
+    repuestos = session.exec(
+        select(OtRepuestoUtilizado).where(OtRepuestoUtilizado.orden_trabajo_id == ot_id)
+    ).all()
+    
+    data = db_ot.model_dump()
+    data["repuestos_usados"] = [r.model_dump() for r in repuestos]
+    return data
+
+# Endpoint para ELIMINAR
 @router.delete("/{ot_id}")
 def eliminar_orden(ot_id: int, session: Session = Depends(get_session)):
     db_ot = session.get(OrdenTrabajo, ot_id)

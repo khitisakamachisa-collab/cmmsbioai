@@ -7,11 +7,13 @@ from .ordenes import OrdenTrabajo, EstadoOT # <--- Agregar esto
 from .repuestos import Repuesto
 # AGREGAR ESTAS LÍNEAS:
 from .preventivo import TareaPreventiva, TareaRepuesto
+from .historial import EventoHistorial
 
 # Si tienes __all__, agrégalos allí también
 __all__ = [
     "Usuario", "Equipo", "EstadoEquipo", 
     "OrdenTrabajo", "EstadoOT", 
     "Repuesto", 
-    "TareaPreventiva", "TareaRepuesto" # AGREGAR AQUÍ
+    "TareaPreventiva", "TareaRepuesto",
+    "EventoHistorial"
 ]

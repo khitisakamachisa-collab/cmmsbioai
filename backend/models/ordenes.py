@@ -18,8 +18,8 @@ class OrdenTrabajo(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     equipo_id: int = Field(foreign_key="equipo.id")
     
-    # CAMBIO AQUÍ: Quitamos foreign_key="tareas_mp.id" porque esa tabla no existe aún
-    orden_preventiva_id: Optional[int] = Field(default=None) 
+    # FK a tarea preventiva (si la OT se generó desde preventivo)
+    orden_preventiva_id: Optional[int] = Field(default=None, foreign_key="tareapreventiva.id") 
     
     estado_id: int = Field(foreign_key="estadoot.id")
     

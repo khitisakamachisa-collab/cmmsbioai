@@ -9,6 +9,8 @@ const navLinks = [
   { path: '/ordenes', label: 'Ordenes' },
   { path: '/inventario', label: 'Inventario' },
   { path: '/preventivo', label: 'Preventivo' },
+  { path: '/historial', label: 'Historial' },
+  { path: '/reportes', label: 'Reportes' },
   { path: '/usuarios', label: 'Usuarios' }
 ]
 

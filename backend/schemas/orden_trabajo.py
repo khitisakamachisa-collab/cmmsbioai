@@ -7,12 +7,13 @@ class OrdenTrabajoBase(BaseModel):
     equipo_id: int
     estado_id: int
     prioridad: str = "Media"
-    tecnico_asignado_id: Optional[int] = None # NUEVO: Permitir asignar técnico
+    tecnico_asignado_id: Optional[int] = None
     titulo: str
     descripcion_falla: str
     fecha_vencimiento: Optional[date] = None
+    orden_preventiva_id: Optional[int] = None  # NUEVO: vincula OT con tarea preventiva
     
-    # Campos que antes faltaban o eran opcionales
+    # Campos de cierre
     acciones_realizadas: Optional[str] = None
     tiempo_real_invertido: Optional[float] = None
 
@@ -24,7 +25,8 @@ class OrdenTrabajoCreate(OrdenTrabajoBase):
 class OrdenTrabajoRead(OrdenTrabajoBase):
     id: int
     fecha_creacion: Optional[datetime] = None
-    repuestos_usados: Optional[List] = None # <--- AGREGA ESTA LÍNEA
+    costo_adicional: Optional[float] = None
+    repuestos_usados: Optional[List] = None
     class Config:
         from_attributes = True
 
@@ -32,10 +34,11 @@ class OrdenTrabajoRead(OrdenTrabajoBase):
 class OrdenTrabajoUpdate(BaseModel):
     estado_id: Optional[int] = None
     prioridad: Optional[str] = None
-    tecnico_asignado_id: Optional[int] = None # NUEVO: Permitir cambiar técnico
+    tecnico_asignado_id: Optional[int] = None
     titulo: Optional[str] = None
     descripcion_falla: Optional[str] = None
     acciones_realizadas: Optional[str] = None
     tiempo_real_invertido: Optional[float] = None
     fecha_vencimiento: Optional[date] = None
+    costo_adicional: Optional[float] = None
     repuestos_utilizados: Optional[List[dict]] = None

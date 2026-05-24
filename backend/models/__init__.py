@@ -8,6 +8,7 @@ from .repuestos import Repuesto
 # AGREGAR ESTAS LÍNEAS:
 from .preventivo import TareaPreventiva, TareaRepuesto
 from .historial import EventoHistorial
+from .documentos import DocumentoAdjunto
 
 # Si tienes __all__, agrégalos allí también
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "OrdenTrabajo", "EstadoOT", 
     "Repuesto", 
     "TareaPreventiva", "TareaRepuesto",
-    "EventoHistorial"
+    "EventoHistorial",
+    "DocumentoAdjunto"
 ]

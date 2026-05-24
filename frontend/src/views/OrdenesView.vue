@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
 import Navbar from '../components/Navbar.vue'
+import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'
 
 const router = useRouter()
 
@@ -46,6 +47,10 @@ const showModal = ref(false) // Modal Crear
 const showEditModal = ref(false) // Modal Editar (Lápiz)
 const showViewModal = ref(false) // Modal Ver (Ojo)
 const selectedOT = ref({}) // OT seleccionada
+
+// --- Variables Modal Documentos ---
+const showDocsModal = ref(false)
+const docsOT = ref({})
 
 // --- Variables para Repuestos ---
 const listaRepuestos = ref([])
@@ -256,6 +261,12 @@ const getEstadoColor = (id) => {
   return state && state.color ? state.color : '#95a5a6'
 }
 
+// --- Función para abrir Modal Documentos ---
+const openDocsModal = (ot) => {
+  docsOT.value = ot
+  showDocsModal.value = true
+}
+
 onMounted(() => {
   fetchData()
 })
@@ -329,6 +340,13 @@ onMounted(() => {
                   <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
                 </svg>
               </button>
+
+              <!-- Cuaderno: Documentos -->
+              <button class="btn-icon btn-doc-icon" title="Documentos Adjuntos" @click="openDocsModal(ot)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
+                </svg>
+              </button>
             </td>
           </tr>
         </tbody>
@@ -382,7 +400,7 @@ onMounted(() => {
 
     <!-- MODAL VER (Solo Lectura) -->
     <div v-if="showViewModal" class="modal-overlay" @click.self="showViewModal = false">
-      <div class="modal" style="width: 600px;">
+      <div class="modal" style="width: 650px;">
         <h3>Detalle de Orden #{{ selectedOT.id }}</h3>
         <div class="detail-box">
           <p><strong>Equipo:</strong> {{ getEquipoNombre(selectedOT.equipo_id) }}</p>
@@ -497,6 +515,17 @@ onMounted(() => {
         </form>
       </div>
     </div>
+
+    <!-- Modal Documentos Adjuntos -->
+    <div v-if="showDocsModal" class="modal-overlay" @click.self="showDocsModal = false">
+      <div class="modal modal-docs">
+        <h3>Documentos - OT #{{ docsOT.id }} ({{ docsOT.titulo }})</h3>
+        <DocumentosAdjuntos v-if="docsOT.id" :ordenTrabajoId="docsOT.id" />
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="showDocsModal = false">Cerrar</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -541,10 +570,12 @@ th { background-color: #f8f9fa; }
 .btn-icon:hover { background: #dfe2e6; }
 .btn-edit-icon:hover { background: #fff3cd; color: #856404; }
 .btn-danger-icon:hover { background: #fee2e2; color: #c0392b; }
+.btn-doc-icon:hover { background: #e8f4fd; color: #2563eb; }
 
 /* Modales */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
-.modal { background: white; padding: 2rem; border-radius: 8px; width: 600px; max-width: 90%; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+.modal { background: white; padding: 2rem; border-radius: 8px; width: 600px; max-width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+.modal-docs { width: 650px; }
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }

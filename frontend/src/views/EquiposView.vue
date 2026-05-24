@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
 import Navbar from '../components/Navbar.vue'
+import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'
 
 // --- Variables Generales ---
 const equipos = ref([])
@@ -29,6 +30,10 @@ const selectedEquipName = ref('')
 const showDetailModal = ref(false)
 const selectedEquipo = ref({})
 
+// --- Variables Modal Documentos ---
+const showDocsModal = ref(false)
+const docsEquipo = ref({})
+
 // --- Variables Modal Importar Excel ---
 const showImportModal = ref(false)
 const importFile = ref(null)
@@ -40,6 +45,12 @@ const importDragOver = ref(false)
 const openDetailModal = (equipo) => {
   selectedEquipo.value = equipo
   showDetailModal.value = true
+}
+
+// Función para abrir el modal de documentos
+const openDocsModal = (equipo) => {
+  docsEquipo.value = equipo
+  showDocsModal.value = true
 }
 
 // Helper para mostrar el nombre del técnico
@@ -422,6 +433,11 @@ onMounted(() => {
                   <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
                 </svg>
               </button>
+              <button class="btn-icon btn-doc-icon" title="Documentos Adjuntos" @click="openDocsModal(equipo)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
+                </svg>
+              </button>
             </td>
           </tr>
           </template>
@@ -688,7 +704,7 @@ onMounted(() => {
 
     <!-- Modal Ver Detalles -->
     <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
-      <div class="modal" style="width: 650px;">
+      <div class="modal" style="width: 700px;">
         <h3>Detalles del Equipo: {{ selectedEquipo.nombre_corto || selectedEquipo.modelo }}</h3>
         <div class="detail-grid">
           <div class="detail-column">
@@ -722,6 +738,17 @@ onMounted(() => {
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showDetailModal = false">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Documentos Adjuntos -->
+    <div v-if="showDocsModal" class="modal-overlay" @click.self="showDocsModal = false">
+      <div class="modal modal-docs">
+        <h3>Documentos - {{ docsEquipo.nombre_corto || docsEquipo.modelo }}</h3>
+        <DocumentosAdjuntos v-if="docsEquipo.id" :equipoId="docsEquipo.id" />
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="showDocsModal = false">Cerrar</button>
         </div>
       </div>
     </div>
@@ -837,10 +864,12 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .btn-icon:hover { background: #dfe2e6; color: #000; }
 .btn-danger-icon:hover { background: #fee2e2; color: #c0392b; }
 .btn-secondary-icon:hover { background: #e2e8f0; color: #475569; }
+.btn-doc-icon:hover { background: #e8f4fd; color: #2563eb; }
 
 /* Modales */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
-.modal { background: white; padding: 2rem; border-radius: 8px; width: 500px; max-width: 90%; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+.modal { background: white; padding: 2rem; border-radius: 8px; width: 500px; max-width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+.modal-docs { width: 650px; }
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: bold; }
 .form-group input, .form-group select { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; background-color: white; }

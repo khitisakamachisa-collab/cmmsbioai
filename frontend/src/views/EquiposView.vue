@@ -1,13 +1,13 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
+import Navbar from '../components/Navbar.vue'
 
 // --- Variables Generales ---
 const equipos = ref([])
-const ordenes = ref([])
-const estadosOT = ref([])
 const estados = ref([])
-const tecnicos = ref([]) // Variable para técnicos
+const tecnicos = ref([])
 const loading = ref(true)
 const error_msg = ref('')
 
@@ -17,18 +17,24 @@ const searchQuery = ref('')
 
 // --- Variables Modal ---
 const showModal = ref(false)
-const isEditing = ref(false) 
-const formData = ref({}) 
+const isEditing = ref(false)
+const formData = ref({})
 
 // --- Variables Historial ---
 const showHistoryModal = ref(false)
 const historyData = ref([])
 const selectedEquipName = ref('')
 
-// --- Variables Modal Detalle (NUEVO) ---
+// --- Variables Modal Detalle ---
 const showDetailModal = ref(false)
 const selectedEquipo = ref({})
 
+// --- Variables Modal Importar Excel ---
+const showImportModal = ref(false)
+const importFile = ref(null)
+const importing = ref(false)
+const importResult = ref(null)
+const importDragOver = ref(false)
 
 // Función para abrir el modal de detalles
 const openDetailModal = (equipo) => {
@@ -36,14 +42,12 @@ const openDetailModal = (equipo) => {
   showDetailModal.value = true
 }
 
-// Helper para mostrar el nombre del técnico (NUEVO)
+// Helper para mostrar el nombre del técnico
 const getTecnicoName = (id) => {
   if (!id) return 'Sin Asignar'
   const tec = tecnicos.value.find(t => t.id === id)
-  // Buscamos full_name (viene del backend), si no existe mostramos el username
   return tec ? (tec.full_name || tec.username) : 'Desconocido'
 }
-
 
 // --- Funciones de Datos (Fetch) ---
 const fetchEquipos = async () => {
@@ -76,40 +80,6 @@ const fetchTecnicos = async () => {
     console.error('Error al cargar técnicos', error)
   }
 }
-
-const fetchOrdenes = async () => {
-  try {
-    const response = await apiClient.get('/ordenes/')
-    ordenes.value = response.data
-  } catch (error) {
-    console.error('Error al cargar órdenes de trabajo', error)
-  }
-}
-
-const fetchEstadosOT = async () => {
-  try {
-    const response = await apiClient.get('/ordenes/estados/')
-    estadosOT.value = response.data
-  } catch (error) {
-    console.error('Error al cargar estados de OT', error)
-  }
-}
-
-const totalEquipos = computed(() => equipos.value.length)
-
-const ordenesPendientes = computed(() => {
-  const cerrados = new Set(['completada', 'cerrada'])
-  return ordenes.value.filter((ot) => {
-    const est = estadosOT.value.find((e) => e.id === ot.estado_id)
-    if (!est) return true
-    const nombre = (est.nombre_estado || '').trim().toLowerCase()
-    return !cerrados.has(nombre)
-  }).length
-})
-
-const equiposMantenimiento = computed(() =>
-  equipos.value.filter((eq) => Number(eq.estado_id) === 2).length
-)
 
 const filteredEquipos = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -147,10 +117,8 @@ const irPaginaSiguiente = () => {
 }
 
 // --- Funciones del Modal ---
-
 const openCreateModal = () => {
   isEditing.value = false
-  // Inicializamos formulario con TODOS los campos (antiguos y nuevos)
   formData.value = {
     nombre_corto: '',
     modelo: '',
@@ -159,12 +127,11 @@ const openCreateModal = () => {
     fecha_adquisicion: '',
     ubicacion_actual: '',
     estado_id: 1,
-    // Nuevos campos inicializados
     registro_sanitario_bolivia: '',
     proveedor_principal: '',
     descripcion: '',
     calibracion_proxima: '',
-    responsable_tecnico_id: null // null = sin asignar
+    responsable_tecnico_id: null
   }
   showModal.value = true
 }
@@ -173,7 +140,6 @@ const openEditModal = (equipo) => {
   isEditing.value = true
   formData.value = { ...equipo }
   
-  // Ajustes de formato de fecha para inputs date
   if (equipo.fecha_adquisicion) {
     formData.value.fecha_adquisicion = equipo.fecha_adquisicion.substring(0, 10)
   }
@@ -190,7 +156,6 @@ const saveEquipo = async () => {
   try {
     const payload = { ...formData.value };
 
-    // Limpieza de campos vacíos a null (opcional pero recomendado para la BD)
     if (payload.fecha_adquisicion === "") payload.fecha_adquisicion = null;
     if (payload.calibracion_proxima === "") payload.calibracion_proxima = null;
     if (payload.responsable_tecnico_id === "") payload.responsable_tecnico_id = null;
@@ -243,6 +208,104 @@ const openHistory = async (equipo) => {
   }
 }
 
+// --- Funciones Importar Excel ---
+const openImportModal = () => {
+  importFile.value = null
+  importResult.value = null
+  importing.value = false
+  importDragOver.value = false
+  showImportModal.value = true
+}
+
+const handleFileSelect = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    importFile.value = file
+    importResult.value = null
+  }
+}
+
+const handleDragOver = (e) => {
+  e.preventDefault()
+  importDragOver.value = true
+}
+
+const handleDragLeave = (e) => {
+  e.preventDefault()
+  importDragOver.value = false
+}
+
+const handleDrop = (e) => {
+  e.preventDefault()
+  importDragOver.value = false
+  const file = e.dataTransfer.files[0]
+  if (file) {
+    importFile.value = file
+    importResult.value = null
+  }
+}
+
+const downloadTemplate = async () => {
+  try {
+    const response = await apiClient.get('/equipos/plantilla-excel', {
+      responseType: 'blob'
+    })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    const contentDisposition = response.headers['content-disposition']
+    let filename = 'CMMS-BioAI_Plantilla_Equipos.xlsx'
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?(.+?)"?$/)
+      if (match) filename = match[1]
+    }
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    alert('Error al descargar la plantilla')
+    console.error(error)
+  }
+}
+
+const uploadExcel = async () => {
+  if (!importFile.value) {
+    alert('Seleccione un archivo primero')
+    return
+  }
+  if (!importFile.value.name.toLowerCase().endsWith('.xlsx')) {
+    alert('Solo se aceptan archivos .xlsx')
+    return
+  }
+  try {
+    importing.value = true
+    importResult.value = null
+    const formData = new FormData()
+    formData.append('file', importFile.value)
+    const response = await apiClient.post('/equipos/import-excel', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    importResult.value = response.data
+    fetchEquipos() // Refrescar la lista
+  } catch (error) {
+    if (error.response && error.response.data && error.response.data.detail) {
+      alert('Error: ' + error.response.data.detail)
+    } else {
+      alert('Error al importar el archivo')
+    }
+    console.error(error)
+  } finally {
+    importing.value = false
+  }
+}
+
+const resetImport = () => {
+  importFile.value = null
+  importResult.value = null
+}
+
 // --- Helpers para Vista ---
 const getNombreEstado = (id) => {
   const estado = estados.value.find(e => e.id === id)
@@ -258,28 +321,16 @@ onMounted(() => {
   fetchEquipos()
   fetchEstados()
   fetchTecnicos()
-  fetchOrdenes()
-  fetchEstadosOT()
 })
 </script>
 
 <template>
   <div class="dashboard-container">
-    <header class="header">
-      <h1>CMMS-BioAI</h1>
-      <nav>
-        <router-link to="/dashboard">Equipos</router-link> |
-        <router-link to="/ordenes">Órdenes</router-link> |
-        <router-link to="/inventario">Inventario</router-link> |
-        <router-link to="/preventivo">Preventivo</router-link> |
-        <router-link to="/usuarios">Usuarios</router-link>
-      </nav>
-      <button @click="$router.push('/')">Cerrar Sesión</button>
-    </header>
+    <Navbar @logout="$router.push('/')" />
 
     <main class="content">
       <div class="top-bar">
-        <h2>Listado de Equipos</h2>
+        <h2>Gestión de Equipos Médicos</h2>
         <div class="top-bar-actions">
           <input
             v-model="searchQuery"
@@ -289,55 +340,19 @@ onMounted(() => {
             autocomplete="off"
             aria-label="Buscar equipos por nombre, marca o modelo"
           >
+          <button class="btn-import" @click="openImportModal" title="Cargar equipos desde Excel">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+              <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+            </svg>
+            Cargar Excel
+          </button>
           <button class="btn-primary" @click="openCreateModal">+ Nuevo Equipo</button>
         </div>
       </div>
       
       <div v-if="loading">Cargando equipos...</div>
       <div v-if="error_msg" class="error">{{ error_msg }}</div>
-
-      <section v-if="!loading" class="dashboard-resumen" aria-label="Resumen del dashboard">
-        <h3 class="dashboard-resumen-title">Dashboard Resumen</h3>
-        <div class="dashboard-resumen-grid">
-          <article class="stat-card stat-card--neutral">
-            <div class="stat-card-header">
-              <span class="stat-card-icon" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M11 2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12h.5a.5.5 0 0 1 0 1H.5a.5.5 0 0 1 0-1H1v-3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3h1V7h1v8h1V2z"/>
-                </svg>
-              </span>
-              <span class="stat-card-label">Total Equipos</span>
-            </div>
-            <p class="stat-card-value">{{ totalEquipos }}</p>
-          </article>
-
-          <article class="stat-card stat-card--blue">
-            <div class="stat-card-header">
-              <span class="stat-card-icon stat-card-icon--on-tint" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M14 1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.414A2 2 0 0 0 3 11.586l-2 2V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12.793a.5.5 0 0 0 .854.353l2.853-2.853A1 1 0 0 1 4.414 12H14a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
-                  <path d="M5 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm4 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm4 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
-                </svg>
-              </span>
-              <span class="stat-card-label">OT Pendientes</span>
-            </div>
-            <p class="stat-card-value">{{ ordenesPendientes }}</p>
-          </article>
-
-          <article class="stat-card stat-card--orange">
-            <div class="stat-card-header">
-              <span class="stat-card-icon stat-card-icon--on-tint" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
-                  <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319z"/>
-                </svg>
-              </span>
-              <span class="stat-card-label">En Mantenimiento</span>
-            </div>
-            <p class="stat-card-value">{{ equiposMantenimiento }}</p>
-          </article>
-        </div>
-      </section>
 
       <table v-if="!loading && equipos.length">
         <thead>
@@ -380,35 +395,27 @@ onMounted(() => {
             <td>{{ equipo.marca }}</td>
             <td>{{ equipo.ubicacion_actual }}</td>
             <td>
-              <!-- Usamos el color dinámico directamente -->
               <span class="badge" :style="{ backgroundColor: getEstadoColor(equipo.estado_id) }">
                 {{ getNombreEstado(equipo.estado_id) }}
               </span>
             </td>
             <td class="actions-cell">
-                <!-- NUEVO: Botón Ver Detalle (Icono Ojo) -->
               <button class="btn-icon" title="Ver Detalles" @click="openDetailModal(equipo)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
                 </svg>
               </button>
-
-              <!-- Botón Editar (Icono Lápiz) -->
               <button class="btn-icon" title="Editar" @click="openEditModal(equipo)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
                 </svg>
               </button>
-
-              <!-- Botón Eliminar (Icono Papelera) -->
               <button class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteEquipo(equipo.id)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
                   <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
                 </svg>
               </button>
-
-              <!-- Botón Historial (Icono Reloj) -->
               <button class="btn-icon btn-secondary-icon" title="Ver Historial" @click="openHistory(equipo)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
@@ -452,18 +459,118 @@ onMounted(() => {
       </div>
     </main>
 
+    <!-- Modal Importar Excel -->
+    <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
+      <div class="modal" style="width: 580px;">
+        <h3>Importar Equipos desde Excel</h3>
+
+        <!-- Paso 1: Selección de archivo -->
+        <div v-if="!importResult && !importing">
+          <div
+            class="drop-zone"
+            :class="{ 'drop-zone--active': importDragOver, 'drop-zone--has-file': importFile }"
+            @dragover="handleDragOver"
+            @dragleave="handleDragLeave"
+            @drop="handleDrop"
+            @click="$refs.fileInput.click()"
+          >
+            <div v-if="!importFile" class="drop-zone-content">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16" style="color: #94a3b8;">
+                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+              </svg>
+              <p class="drop-zone-text">Arrastre su archivo Excel aquí</p>
+              <p class="drop-zone-subtext">o haga clic para seleccionar</p>
+            </div>
+            <div v-else class="drop-zone-content">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="currentColor" viewBox="0 0 16 16" style="color: #27ae60;">
+                <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1zm-3.5 8l-1.5-1.5L5 10l1 1 3-3 .5.5-3.5 3.5z"/>
+              </svg>
+              <p class="drop-zone-filename">{{ importFile.name }}</p>
+              <p class="drop-zone-subtext">{{ (importFile.size / 1024).toFixed(1) }} KB</p>
+            </div>
+          </div>
+          <input ref="fileInput" type="file" accept=".xlsx" style="display: none;" @change="handleFileSelect">
+
+          <div class="import-info">
+            <p><strong>Formato:</strong> Archivo .xlsx con encabezados en la primera fila.</p>
+            <p><strong>Columnas obligatorias:</strong> modelo, numero_serie, marca, fecha_adquisicion</p>
+            <p>Si el numero_serie ya existe, el equipo se <strong>actualizará</strong> con los nuevos datos.</p>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="showImportModal = false">Cancelar</button>
+            <button type="button" class="btn-outline" @click="downloadTemplate" title="Descargar plantilla con datos de ejemplo">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: -2px; margin-right: 4px;">
+                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+              </svg>
+              Descargar Plantilla
+            </button>
+            <button type="button" class="btn-primary" :disabled="!importFile" @click="uploadExcel">
+              Importar
+            </button>
+          </div>
+        </div>
+
+        <!-- Paso 2: Procesando -->
+        <div v-if="importing" class="import-progress">
+          <div class="spinner"></div>
+          <p style="text-align: center; color: #475569;">Importando equipos...</p>
+        </div>
+
+        <!-- Paso 3: Resultados -->
+        <div v-if="importResult && !importing">
+          <div class="import-result">
+            <div class="result-summary">
+              <div class="result-item result-success">
+                <span class="result-number">{{ importResult.exitosos }}</span>
+                <span class="result-label">Nuevos</span>
+              </div>
+              <div class="result-item result-updated">
+                <span class="result-number">{{ importResult.actualizados }}</span>
+                <span class="result-label">Actualizados</span>
+              </div>
+              <div class="result-item result-failed">
+                <span class="result-number">{{ importResult.fallidos }}</span>
+                <span class="result-label">Fallidos</span>
+              </div>
+              <div class="result-item result-total">
+                <span class="result-number">{{ importResult.total_procesados }}</span>
+                <span class="result-label">Total</span>
+              </div>
+            </div>
+
+            <!-- Errores detallados -->
+            <div v-if="importResult.errores && importResult.errores.length > 0" class="import-errors">
+              <h4>Detalle de errores</h4>
+              <div class="error-list">
+                <div v-for="(err, idx) in importResult.errores" :key="idx" class="error-item">
+                  <span class="error-fila">Fila {{ err.fila }}</span>
+                  <span class="error-serie">(Serie: {{ err.numero_serie }})</span>
+                  <span class="error-msg">{{ err.errores.join(', ') }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="resetImport">Importar otro archivo</button>
+            <button type="button" class="btn-primary" @click="showImportModal = false">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal Crear/Editar Equipo -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal">
         <h3>{{ isEditing ? 'Editar Equipo' : 'Registrar Nuevo Equipo' }}</h3>
         <form @submit.prevent="saveEquipo">
-          
-          <!-- Fila 1: Identificación -->
           <div class="form-group">
             <label>Nombre Corto</label>
             <input v-model="formData.nombre_corto" type="text" placeholder="Ej: Monitor UCI 02">
           </div>
-
           <div class="form-row">
             <div class="form-group">
               <label>Marca *</label>
@@ -474,13 +581,10 @@ onMounted(() => {
               <input v-model="formData.modelo" type="text" required>
             </div>
           </div>
-
           <div class="form-group">
             <label>Número de Serie *</label>
             <input v-model="formData.numero_serie" type="text" required placeholder="Único">
           </div>
-
-          <!-- Fila 2: Fechas Importantes -->
           <div class="form-row">
             <div class="form-group">
               <label>Fecha Adquisición *</label>
@@ -491,8 +595,6 @@ onMounted(() => {
               <input v-model="formData.calibracion_proxima" type="date">
             </div>
           </div>
-
-          <!-- Fila 3: Ubicación y Estado -->
           <div class="form-row">
             <div class="form-group">
               <label>Ubicación</label>
@@ -507,8 +609,6 @@ onMounted(() => {
               </select>
             </div>
           </div>
-
-          <!-- Fila 4: Datos Administrativos (NUEVOS) -->
           <div class="form-row">
             <div class="form-group">
               <label>Registro Sanitario</label>
@@ -519,25 +619,19 @@ onMounted(() => {
               <input v-model="formData.proveedor_principal" type="text" placeholder="Empresa proveedora">
             </div>
           </div>
-
-          <!-- Fila 5: Responsable (NUEVO) -->
           <div class="form-group">
             <label>Técnico Responsable (Opcional)</label>
             <select v-model="formData.responsable_tecnico_id">
               <option :value="null">-- Sin Asignar --</option>
               <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
-              <!-- Mostramos full_name, y si no existe, mostramos username -->
-              {{ tec.full_name || tec.username }}
+                {{ tec.full_name || tec.username }}
               </option>
             </select>
           </div>
-
-          <!-- Descripción (NUEVO) -->
           <div class="form-group">
             <label>Descripción / Notas</label>
             <textarea v-model="formData.descripcion" rows="3" placeholder="Detalles adicionales del equipo..."></textarea>
           </div>
-
           <div class="modal-actions">
             <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar</button>
@@ -550,11 +644,9 @@ onMounted(() => {
     <div v-if="showHistoryModal" class="modal-overlay" @click.self="showHistoryModal = false">
       <div class="modal" style="width: 800px;">
         <h3>Historial de Mantenimiento: {{ selectedEquipName }}</h3>
-        
         <div v-if="historyData.length === 0" class="empty-state">
           Este equipo no tiene registros de mantenimiento aún.
         </div>
-
         <table v-else class="history-table">
           <thead>
             <tr>
@@ -574,26 +666,24 @@ onMounted(() => {
                 {{ ot.acciones_realizadas || 'Pendiente' }}
               </td>
               <td>
-                 <span class="state-badge">
-                   {{ ot.estado_id == 1 ? 'Pendiente' : (ot.estado_id == 3 ? 'Completada' : 'Otro') }}
-                 </span>
+                <span class="state-badge">
+                  {{ ot.estado_id == 1 ? 'Pendiente' : (ot.estado_id == 3 ? 'Completada' : 'Otro') }}
+                </span>
               </td>
             </tr>
           </tbody>
         </table>
-
         <div class="modal-actions">
           <button class="btn-secondary" @click="showHistoryModal = false">Cerrar</button>
         </div>
       </div>
     </div>
-    <!-- Modal Ver Detalles (NUEVO) -->
+
+    <!-- Modal Ver Detalles -->
     <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
       <div class="modal" style="width: 650px;">
         <h3>Detalles del Equipo: {{ selectedEquipo.nombre_corto || selectedEquipo.modelo }}</h3>
-        
         <div class="detail-grid">
-          <!-- Columna Izquierda -->
           <div class="detail-column">
             <h4>Identificación</h4>
             <p><strong>ID:</strong> {{ selectedEquipo.id }}</p>
@@ -602,8 +692,6 @@ onMounted(() => {
             <p><strong>Nº Serie:</strong> {{ selectedEquipo.numero_serie }}</p>
             <p><strong>Ubicación:</strong> {{ selectedEquipo.ubicacion_actual || 'N/A' }}</p>
           </div>
-
-          <!-- Columna Derecha -->
           <div class="detail-column">
             <h4>Administrativo</h4>
             <p><strong>Estado:</strong> 
@@ -617,8 +705,6 @@ onMounted(() => {
             <p><strong>Próx. Calibración:</strong> {{ selectedEquipo.calibracion_proxima || 'N/A' }}</p>
           </div>
         </div>
-
-        <!-- Fila Completa -->
         <div class="detail-full">
           <h4>Responsable y Notas</h4>
           <p><strong>Técnico Responsable:</strong> {{ getTecnicoName(selectedEquipo.responsable_tecnico_id) }}</p>
@@ -627,7 +713,6 @@ onMounted(() => {
             {{ selectedEquipo.descripcion || 'Sin descripción adicional.' }}
           </div>
         </div>
-
         <div class="modal-actions">
           <button class="btn-secondary" @click="showDetailModal = false">Cerrar</button>
         </div>
@@ -637,152 +722,8 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ESTILOS PARA ARREGLAR TEXTO LARGO EN DETALLES Y HISTORIAL */
-
-/* Para el modal de detalles del equipo */
-.detail-full, .description-box {
-  word-break: break-all; /* Rompe palabras largas tipo kkkkkk */
-  overflow-y: auto;      /* Activa scroll si es muy alto */
-  max-height: 150px;     /* Altura máxima */
-  white-space: pre-wrap; /* Respeta los enters del usuario */
-}
-
-/* Para la tabla de historial */
-.history-table td {
-  word-break: break-all; /* Rompe palabras en la tabla */
-  max-width: 200px;      /* Ancho máximo para forzar el salto */
-}
-
-/* Para el modal de Ordenes (si lo necesitas allá también) */
-.detail-box {
-  word-break: break-all;
-  overflow-y: auto;
-  max-height: 200px;
-}
-/* Estilos Existentes */
-.btn-edit { background-color: #f39c12; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; }
-.btn-danger { background-color: #c0392b; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; }
-.btn-sm { font-size: 0.85rem; }
-
 .dashboard-container { padding: 0; }
-.header { background-color: #2c3e50; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-.header nav a { color: white; text-decoration: none; margin-right: 15px; font-weight: bold; }
-.header nav a:hover { text-decoration: underline; }
-.header button { background-color: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
-
 .content { padding: 2rem; }
-
-.dashboard-resumen {
-  margin-bottom: 1.15rem;
-}
-.dashboard-resumen-title {
-  margin: 0 0 0.55rem 0;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #475569;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-.dashboard-resumen-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.85rem;
-}
-@media (max-width: 900px) {
-  .dashboard-resumen-grid {
-    grid-template-columns: 1fr;
-  }
-}
-.stat-card {
-  background: #fff;
-  border-radius: 10px;
-  padding: 0.65rem 0.95rem;
-  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.07);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
-}
-.stat-card:hover {
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.1);
-  transform: translateY(-1px);
-}
-.stat-card--neutral {
-  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-}
-.stat-card--blue {
-  background: linear-gradient(145deg, #eef6ff 0%, #e3f0fc 100%);
-  border-color: rgba(52, 152, 219, 0.2);
-}
-.stat-card--orange {
-  background: linear-gradient(145deg, #fff8f0 0%, #ffedd5 100%);
-  border-color: rgba(230, 126, 34, 0.25);
-}
-.stat-card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-.stat-card-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(44, 62, 80, 0.08);
-  color: #2c3e50;
-  flex-shrink: 0;
-}
-.stat-card-icon svg {
-  width: 17px;
-  height: 17px;
-}
-.stat-card--blue .stat-card-icon {
-  background: rgba(52, 152, 219, 0.15);
-  color: #2874a6;
-}
-.stat-card--orange .stat-card-icon {
-  background: rgba(230, 126, 34, 0.18);
-  color: #c26d1a;
-}
-.stat-card-icon--on-tint {
-  background: rgba(255, 255, 255, 0.6);
-}
-.stat-card-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  line-height: 1.25;
-}
-.stat-card-value {
-  margin: 0;
-  font-size: 1.6rem;
-  font-weight: 700;
-  line-height: 1.15;
-  color: #1e293b;
-  letter-spacing: -0.02em;
-}
-.stat-card--blue .stat-card-value {
-  color: #1a5276;
-}
-.stat-card--orange .stat-card-value {
-  color: #9a3412;
-}
-
-table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-th { background-color: #f8f9fa; font-weight: bold; }
-
-.equipo-nombre-link {
-  color: #3498db;
-  cursor: pointer;
-  text-decoration: none;
-}
-.equipo-nombre-link:hover {
-  text-decoration: underline;
-}
 
 .top-bar {
   display: flex;
@@ -792,9 +733,7 @@ th { background-color: #f8f9fa; font-weight: bold; }
   gap: 0.75rem 1rem;
   margin-bottom: 1rem;
 }
-.top-bar h2 {
-  margin: 0;
-}
+.top-bar h2 { margin: 0; }
 .top-bar-actions {
   display: flex;
   flex-wrap: wrap;
@@ -812,21 +751,21 @@ th { background-color: #f8f9fa; font-weight: bold; }
   box-sizing: border-box;
   background: #fff;
 }
-.search-input::placeholder {
-  color: #94a3b8;
-}
+.search-input::placeholder { color: #94a3b8; }
 .search-input:focus {
   outline: none;
   border-color: #3498db;
   box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
 }
 
-.table-empty-cell {
-  text-align: center;
-  color: #64748b;
-  padding: 1.5rem 12px;
-  font-size: 0.95rem;
-}
+table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background-color: #f8f9fa; font-weight: bold; }
+
+.equipo-nombre-link { color: #3498db; cursor: pointer; text-decoration: none; }
+.equipo-nombre-link:hover { text-decoration: underline; }
+
+.table-empty-cell { text-align: center; color: #64748b; padding: 1.5rem 12px; font-size: 0.95rem; }
 
 .table-pagination {
   display: flex;
@@ -837,17 +776,8 @@ th { background-color: #f8f9fa; font-weight: bold; }
   margin-top: 1rem;
   padding: 0.75rem 0;
 }
-.table-pagination-meta {
-  font-size: 0.9rem;
-  color: #475569;
-  text-align: center;
-}
-.table-pagination-range {
-  display: block;
-  font-size: 0.8rem;
-  color: #64748b;
-  margin-top: 0.2rem;
-}
+.table-pagination-meta { font-size: 0.9rem; color: #475569; text-align: center; }
+.table-pagination-range { display: block; font-size: 0.8rem; color: #64748b; margin-top: 0.2rem; }
 .btn-pagination {
   background-color: #3498db;
   color: white;
@@ -859,75 +789,32 @@ th { background-color: #f8f9fa; font-weight: bold; }
   font-size: 0.9rem;
   transition: background-color 0.2s ease, opacity 0.2s ease;
 }
-.btn-pagination:hover:not(:disabled) {
-  background-color: #2980b9;
-}
-.btn-pagination:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
+.btn-pagination:hover:not(:disabled) { background-color: #2980b9; }
+.btn-pagination:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; }
 .btn-primary:hover { background-color: #2980b9; }
-.btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem;}
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
 
-/* NUEVO: Estilos para badges de estado */
-.badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; color: white; background-color: #95a5a6; } /* Default gris */
-.operativo { background-color: #27ae60; } /* Verde */
-.mantenimiento { background-color: #e67e22; } /* Naranja */
-
-/* Modales */
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
-.modal { background: white; padding: 2rem; border-radius: 8px; width: 500px; max-width: 90%; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
-.form-group { margin-bottom: 1rem; }
-.form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: bold; }
-
-/* NUEVO: Estilo para inputs y selects */
-.form-group input, 
-.form-group select { 
-  width: 100%; 
-  padding: 0.6rem; 
-  border: 1px solid #ccc; 
-  border-radius: 4px; 
-  box-sizing: border-box; 
-  background-color: white; /* Para que el select no se vea raro en algunos navegadores */
+.btn-import {
+  background-color: #27ae60; color: white; border: none; padding: 0.6rem 1.1rem;
+  border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem;
+  display: flex; align-items: center; gap: 0.4rem; transition: background-color 0.2s;
 }
+.btn-import:hover { background-color: #219a52; }
+.btn-import svg { flex-shrink: 0; }
 
-/* NUEVO: Fila de formulario para poner campos lado a lado */
-.form-row { display: flex; gap: 1rem; }
-.form-row .form-group { flex: 1; }
-
-.modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
-
-/* Estilos Historial */
-.history-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
-.history-table th, .history-table td { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
-.history-table th { background-color: #f8f9fa; }
-.empty-state { text-align: center; color: #888; padding: 2rem; }
-.state-badge { background: #eee; color: #333; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
-
-/* Clases de colores para los estados */
-.bg-green { background-color: #27ae60; color: white; } /* Operativo */
-.bg-orange { background-color: #e67e22; color: white; } /* Mantenimiento */
-.bg-red { background-color: #c0392b; color: white; } /* Dado de Baja */
-.bg-gray { background-color: #95a5a6; color: white; } /* Reserva / Default */
-.bg-blue { background-color:rgb(78, 101, 202); color: white; } /*  */
-.bg-default { background-color: #7f8c8d; color: white; } /* Otros */
-
-/* Asegúrate de que la clase .badge base tenga padding */
-.badge { 
-  padding: 4px 8px; 
-  border-radius: 12px; 
-  font-size: 0.8rem; 
-  font-weight: bold;
+.btn-outline {
+  background-color: transparent; color: #3498db; border: 1.5px solid #3498db;
+  padding: 0.45rem 0.9rem; border-radius: 4px; cursor: pointer; font-weight: 600;
+  font-size: 0.85rem; transition: all 0.2s; display: flex; align-items: center;
 }
-/* Estilos para Iconos de Acción */
-.actions-cell {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
+.btn-outline:hover { background-color: #ebf5fb; }
 
+.badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; color: white; }
+
+.actions-cell { display: flex; gap: 0.5rem; align-items: center; }
 .btn-icon {
   background: #f0f2f5;
   border: none;
@@ -940,76 +827,129 @@ th { background-color: #f8f9fa; font-weight: bold; }
   color: #555;
   transition: all 0.2s;
 }
+.btn-icon:hover { background: #dfe2e6; color: #000; }
+.btn-danger-icon:hover { background: #fee2e2; color: #c0392b; }
+.btn-secondary-icon:hover { background: #e2e8f0; color: #475569; }
 
-.btn-icon:hover {
-  background: #dfe2e6;
-  color: #000;
+/* Modales */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
+.modal { background: white; padding: 2rem; border-radius: 8px; width: 500px; max-width: 90%; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: bold; }
+.form-group input, .form-group select { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; background-color: white; }
+.form-group textarea { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; resize: vertical; font-family: inherit; }
+.form-row { display: flex; gap: 1rem; }
+.form-row .form-group { flex: 1; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
+
+/* Historial */
+.history-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem; }
+.history-table th, .history-table td { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
+.history-table th { background-color: #f8f9fa; }
+.empty-state { text-align: center; color: #888; padding: 2rem; }
+.state-badge { background: #eee; color: #333; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
+
+/* Detalles */
+.detail-grid { display: flex; gap: 2rem; margin-bottom: 1.5rem; }
+.detail-column { flex: 1; }
+.detail-column h4 { margin-bottom: 0.8rem; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 0.3rem; }
+.detail-column p { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #555; }
+.detail-full { width: 100%; background: #f8f9fa; padding: 1rem; border-radius: 6px; }
+.detail-full h4 { margin-top: 0; margin-bottom: 0.5rem; color: #2c3e50; }
+.description-box {
+  background: white; padding: 0.8rem; border: 1px solid #e0e0e0; border-radius: 4px;
+  min-height: 50px; color: #444; font-size: 0.9rem;
+  word-break: break-word; overflow-y: auto; max-height: 150px; white-space: pre-wrap;
 }
 
-.btn-danger-icon:hover {
-  background: #fee2e2;
-  color: #c0392b;
+/* === Importar Excel === */
+.drop-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  margin-bottom: 1rem;
+  background: #f8fafc;
 }
+.drop-zone:hover { border-color: #3498db; background: #f0f7ff; }
+.drop-zone--active { border-color: #3498db; background: #e8f4fd; border-style: solid; }
+.drop-zone--has-file { border-color: #27ae60; border-style: solid; background: #f0fdf4; }
+.drop-zone-content { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+.drop-zone-text { font-size: 1rem; font-weight: 600; color: #475569; margin: 0; }
+.drop-zone-subtext { font-size: 0.85rem; color: #94a3b8; margin: 0; }
+.drop-zone-filename { font-size: 0.95rem; font-weight: 600; color: #27ae60; margin: 0; word-break: break-all; }
 
-.btn-secondary-icon:hover {
-  background: #e2e8f0;
+.import-info {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
   color: #475569;
 }
+.import-info p { margin: 0.2rem 0; }
 
-/* Estilo para area de texto */
-.form-group textarea {
-  width: 100%; 
-  padding: 0.6rem; 
-  border: 1px solid #ccc; 
-  border-radius: 4px; 
-  box-sizing: border-box; 
-  resize: vertical; /* Permite redimensionar solo verticalmente */
-  font-family: inherit;
+.import-progress {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
 }
-  /* Estilos para el Modal de Detalles */
-  .detail-grid {
-    display: flex;
-    gap: 2rem;
-    margin-bottom: 1.5rem;
-  }
 
-  .detail-column {
-    flex: 1;
-  }
+.spinner {
+  width: 40px; height: 40px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #3498db;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-  .detail-column h4 {
-    margin-bottom: 0.8rem;
-    color: #2c3e50;
-    border-bottom: 2px solid #eee;
-    padding-bottom: 0.3rem;
-  }
+.import-result { margin-bottom: 1rem; }
 
-  .detail-column p {
-    margin: 0 0 0.5rem 0;
-    font-size: 0.9rem;
-    color: #555;
-  }
+.result-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.result-item {
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+.result-number { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+.result-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #64748b; }
 
-  .detail-full {
-    width: 100%;
-    background: #f8f9fa;
-    padding: 1rem;
-    border-radius: 6px;
-  }
+.result-success { background: #f0fdf4; }
+.result-success .result-number { color: #16a34a; }
+.result-updated { background: #eff6ff; }
+.result-updated .result-number { color: #2563eb; }
+.result-failed { background: #fef2f2; }
+.result-failed .result-number { color: #dc2626; }
+.result-total { background: #f8fafc; border: 1px solid #e2e8f0; }
+.result-total .result-number { color: #1e293b; }
 
-  .detail-full h4 {
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-    color: #2c3e50;
-  }
-
-  .description-box {
-    background: white;
-    padding: 0.8rem;
-    border: 1px solid #e0e0e0;
-    border-radius: 4px;
-    min-height: 50px;
-    color: #444;
-    font-size: 0.9rem;
-  }
+.import-errors {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+.import-errors h4 { margin: 0 0 0.5rem 0; color: #991b1b; font-size: 0.9rem; }
+.error-list { max-height: 200px; overflow-y: auto; }
+.error-item {
+  padding: 0.35rem 0;
+  font-size: 0.83rem;
+  color: #7f1d1d;
+  border-bottom: 1px solid #fecaca;
+}
+.error-item:last-child { border-bottom: none; }
+.error-fila { font-weight: 700; }
+.error-serie { color: #991b1b; font-size: 0.8rem; }
+.error-msg { color: #b91c1c; }
 </style>

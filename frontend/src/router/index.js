@@ -1,10 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '../views/LoginView.vue'
-import DashboardView from '../views/DashboardView.vue'
-import OrdenesView from '../views/OrdenesView.vue' // <--- Importar nueva vista
-import InventarioView from '../views/InventarioView.vue' // <--- Nuevo
-import UsuariosView from '../views/UsuariosView.vue' // Importar
-import PreventivoView from '../views/PreventivoView.vue' // <--- AGREGA ESTA LÍNEA
+import HomeDashboard from '../views/HomeDashboard.vue'
+import EquiposView from '../views/EquiposView.vue'
+import OrdenesView from '../views/OrdenesView.vue'
+import InventarioView from '../views/InventarioView.vue'
+import UsuariosView from '../views/UsuariosView.vue'
+import PreventivoView from '../views/PreventivoView.vue'
 
 
 const routes = [
@@ -14,12 +15,17 @@ const routes = [
     component: LoginView
   },
   {
-    path: '/dashboard',
-    name: 'dashboard',
-    component: DashboardView
+    path: '/inicio',
+    name: 'inicio',
+    component: HomeDashboard
   },
   {
-    path: '/ordenes', // <--- Nueva Ruta
+    path: '/equipos',
+    name: 'equipos',
+    component: EquiposView
+  },
+  {
+    path: '/ordenes',
     name: 'ordenes',
     component: OrdenesView
   },
@@ -33,7 +39,6 @@ const routes = [
     name: 'usuarios',
     component: UsuariosView
   },
-  // ... dentro del array routes ...
   {
     path: '/preventivo',
     name: 'preventivo',

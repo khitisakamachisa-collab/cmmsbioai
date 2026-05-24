@@ -1,8 +1,0 @@
-backend/
-├── database.py         # Conexión a la DB
-├── main.py             # Punto de entrada
-├── requirements.txt    # Dependencias
-└── models/
-    ├── __init__.py     # Para importar modelos fácilmente
-    ├── users.py        # Modelo Usuario
-    └── equipos.py      # Modelo Equipo y Estados

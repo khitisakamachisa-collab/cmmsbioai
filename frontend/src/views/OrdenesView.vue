@@ -1,6 +1,10 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
+import Navbar from '../components/Navbar.vue'
+
+const router = useRouter()
 
 // --- Variables Generales ---
 const ordenes = ref([])
@@ -226,17 +230,7 @@ onMounted(() => {
 
 <template>
   <div class="dashboard-container">
-    <header class="header">
-      <h1>CMMS-BioAI</h1>
-      <nav>
-        <router-link to="/dashboard">Equipos</router-link> |
-        <router-link to="/ordenes">Órdenes</router-link> |
-        <router-link to="/inventario">Inventario</router-link> |
-        <router-link to="/preventivo">Preventivo</router-link> |
-        <router-link to="/usuarios">Usuarios</router-link>
-      </nav>
-      <button @click="$router.push('/')">Cerrar Sesión</button>
-    </header>
+    <Navbar @logout="$router.push('/')" />
 
     <main class="content">
       <div class="top-bar">
@@ -394,45 +388,14 @@ onMounted(() => {
       <div class="modal" style="width: 650px;">
         <h3>Editar / Cerrar OT #{{ selectedOT.id }}</h3>
         
-            <!-- DENTRO DEL FORMULARIO DE EDICIÓN (Lápiz) -->
-
-        <div class="form-group">
-          <label>Nuevo Estado *</label>
-          <select v-model="editFormData.estado_id" required>
-            <option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option>
-          </select>
-        </div>
-
-        <!-- NUEVO: Cambiar Técnico Asignado -->
-        <div class="form-group">
-          <label>Técnico Asignado</label>
-          <select v-model="editFormData.tecnico_asignado_id">
-            <option :value="null">-- Sin Asignar --</option>
-            <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
-              {{ tec.full_name || tec.username }}
-            </option>
-          </select>
-        </div>
-
-                <!-- Dentro del MODAL EDITAR, después del selector de Técnico -->
-        <div class="form-group">
-          <label>Prioridad</label>
-          <select v-model="editFormData.prioridad">
-            <option>Urgente</option>
-            <option>Alta</option>
-            <option>Media</option>
-            <option>Baja</option>
-          </select>
-        </div>
-
-        <!-- ... resto del formulario (acciones, tiempo, etc) ... -->
-
+        <!-- Información de la OT (solo lectura) -->
         <div class="ot-details">
           <p><strong>Equipo:</strong> {{ getEquipoNombre(selectedOT.equipo_id) }}</p>
           <p><strong>Falla:</strong> {{ selectedOT.descripcion_falla }}</p>
         </div>
 
         <form @submit.prevent="updateOrden">
+          <!-- Estado -->
           <div class="form-group">
             <label>Nuevo Estado *</label>
             <select v-model="editFormData.estado_id" required>
@@ -440,6 +403,31 @@ onMounted(() => {
             </select>
           </div>
 
+          <!-- Técnico Asignado -->
+          <div class="form-group">
+            <label>Técnico Asignado</label>
+            <select v-model="editFormData.tecnico_asignado_id">
+              <option :value="null">-- Sin Asignar --</option>
+              <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
+                {{ tec.full_name || tec.username }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Prioridad -->
+          <div class="form-group">
+            <label>Prioridad</label>
+            <select v-model="editFormData.prioridad">
+              <option>Urgente</option>
+              <option>Alta</option>
+              <option>Media</option>
+              <option>Baja</option>
+            </select>
+          </div>
+
+          <hr>
+
+          <!-- Acciones Realizadas -->
           <div class="form-group">
             <label>Acciones Realizadas</label>
             <textarea v-model="editFormData.acciones_realizadas" rows="4" placeholder="Describa la reparación..."></textarea>
@@ -490,10 +478,8 @@ onMounted(() => {
   margin: 0.5rem 0;
 }
 
-/* Estilos (Mantener los mismos que la versión anterior, agregar .detail-box) */
-.header { background-color: #2c3e50; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-.header nav a { color: white; text-decoration: none; margin-right: 15px; font-weight: bold; }
-.header button { background-color: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+/* Estilos */
+.dashboard-container { padding: 0; }
 .content { padding: 2rem; }
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; }
 th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }

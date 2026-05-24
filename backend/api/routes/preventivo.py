@@ -43,21 +43,25 @@ def crear_tarea(tarea: TareaPreventivaCreate, session: Session = Depends(get_ses
     session.commit()
     session.refresh(nueva_tarea)
     
-    # 3. Guardar Repuestos (Corrección del error de dict)
+    # 3. Guardar Repuestos
     if tarea.repuestos:
         for rep in tarea.repuestos:
-            # Usamos corchetes porque 'rep' es un diccionario
             nuevo_rep = TareaRepuesto(
                 tarea_preventiva_id=nueva_tarea.id,
-                repuesto_id=rep["repuesto_id"],
-                cantidad_requerida=rep["cantidad_requerida"]
+                repuesto_id=rep.repuesto_id,
+                cantidad_requerida=rep.cantidad_requerida
             )
             session.add(nuevo_rep)
         session.commit()
 
-    # Preparar respuesta
+    # Refrescar la tarea DESPUÉS de todos los commits
+    # (el segundo commit expira los atributos del objeto)
+    session.refresh(nueva_tarea)
+
+    # Preparar respuesta - convertir TODO a diccionarios
     res = nueva_tarea.model_dump()
-    res["repuestos_detalle"] = get_repuestos_detalle(session, nueva_tarea.id)
+    repuestos_db = get_repuestos_detalle(session, nueva_tarea.id)
+    res["repuestos_detalle"] = [r.model_dump() for r in repuestos_db]
     return res
 
 # --- Endpoint para VER DETALLE ---
@@ -97,7 +101,7 @@ def actualizar_tarea(tarea_id: int, tarea_data: TareaPreventivaUpdate, session: 
         session.exec(
             TareaRepuesto.__table__.delete().where(TareaRepuesto.tarea_preventiva_id == tarea_id)
         )
-        # Agregar nuevos
+        # Agregar nuevos (model_dump ya convirtió a diccionarios)
         for rep in tarea_dict["repuestos"]:
             nuevo = TareaRepuesto(
                 tarea_preventiva_id=tarea_id,

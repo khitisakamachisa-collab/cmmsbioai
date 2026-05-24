@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from database import get_session
-from models.users import Usuario # Importamos del archivo user.py existente
-from passlib.context import CryptContext
+from models.users import Usuario
+from utils.security import get_password_hash  # Usar el mismo bcrypt que auth.py
 
 router = APIRouter(prefix="/users", tags=["Users"])
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @router.get("/")
 def listar_usuarios(session: Session = Depends(get_session)):
@@ -19,11 +18,8 @@ def crear_usuario(usuario_data: dict, session: Session = Depends(get_session)):
     if existe:
         raise HTTPException(status_code=400, detail="El email ya está registrado")
 
-    import hashlib # Agrega esto al inicio del archivo
-
-    # ... dentro de la función ...
-    # Encriptar usando SHA256 (método estándar de Python, compatible con todo)
-    hashed_password = hashlib.sha256(usuario_data["password"].encode()).hexdigest()
+    # Hashear contraseña con bcrypt (mismo método que usa auth.py para verificar)
+    hashed_password = get_password_hash(usuario_data["password"])
     
     nuevo_usuario = Usuario(
         username=usuario_data["email"], # Usamos email como username

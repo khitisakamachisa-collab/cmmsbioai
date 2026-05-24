@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
+import Navbar from '../components/Navbar.vue'
 
 const repuestos = ref([])
 const loading = ref(true)
@@ -13,6 +15,13 @@ const showModal = ref(false)
 const isEditing = ref(false)
 const showDetailModal = ref(false)
 const selectedRepuesto = ref({})
+
+// --- Variables Modal Importar Excel ---
+const showImportModal = ref(false)
+const importFile = ref(null)
+const importing = ref(false)
+const importResult = ref(null)
+const importDragOver = ref(false)
 
 const emptyForm = () => ({
   nombre_repuesto: '',
@@ -149,6 +158,104 @@ const deleteRepuesto = async (id) => {
   }
 }
 
+// --- Funciones Importar Excel ---
+const openImportModal = () => {
+  importFile.value = null
+  importResult.value = null
+  importing.value = false
+  importDragOver.value = false
+  showImportModal.value = true
+}
+
+const handleFileSelect = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    importFile.value = file
+    importResult.value = null
+  }
+}
+
+const handleDragOver = (e) => {
+  e.preventDefault()
+  importDragOver.value = true
+}
+
+const handleDragLeave = (e) => {
+  e.preventDefault()
+  importDragOver.value = false
+}
+
+const handleDrop = (e) => {
+  e.preventDefault()
+  importDragOver.value = false
+  const file = e.dataTransfer.files[0]
+  if (file) {
+    importFile.value = file
+    importResult.value = null
+  }
+}
+
+const downloadTemplate = async () => {
+  try {
+    const response = await apiClient.get('/repuestos/plantilla-excel', {
+      responseType: 'blob'
+    })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    const contentDisposition = response.headers['content-disposition']
+    let filename = 'CMMS-BioAI_Plantilla_Repuestos.xlsx'
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?(.+?)"?$/)
+      if (match) filename = match[1]
+    }
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    alert('Error al descargar la plantilla')
+    console.error(error)
+  }
+}
+
+const uploadExcel = async () => {
+  if (!importFile.value) {
+    alert('Seleccione un archivo primero')
+    return
+  }
+  if (!importFile.value.name.toLowerCase().endsWith('.xlsx')) {
+    alert('Solo se aceptan archivos .xlsx')
+    return
+  }
+  try {
+    importing.value = true
+    importResult.value = null
+    const formData = new FormData()
+    formData.append('file', importFile.value)
+    const response = await apiClient.post('/repuestos/import-excel', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    importResult.value = response.data
+    fetchRepuestos()
+  } catch (error) {
+    if (error.response && error.response.data && error.response.data.detail) {
+      alert('Error: ' + error.response.data.detail)
+    } else {
+      alert('Error al importar el archivo')
+    }
+    console.error(error)
+  } finally {
+    importing.value = false
+  }
+}
+
+const resetImport = () => {
+  importFile.value = null
+  importResult.value = null
+}
+
 onMounted(() => {
   fetchRepuestos()
 })
@@ -156,17 +263,7 @@ onMounted(() => {
 
 <template>
   <div class="dashboard-container">
-    <header class="header">
-      <h1>CMMS-BioAI</h1>
-      <nav>
-        <router-link to="/dashboard">Equipos</router-link> |
-        <router-link to="/ordenes">Órdenes</router-link> |
-        <router-link to="/inventario">Inventario</router-link> |
-        <router-link to="/preventivo">Preventivo</router-link> |
-        <router-link to="/usuarios">Usuarios</router-link>
-      </nav>
-      <button type="button" @click="$router.push('/')">Cerrar Sesión</button>
-    </header>
+    <Navbar @logout="$router.push('/')" />
 
     <main class="content">
       <div class="top-bar">
@@ -180,6 +277,13 @@ onMounted(() => {
             autocomplete="off"
             aria-label="Buscar repuestos"
           >
+          <button class="btn-import" @click="openImportModal" title="Cargar repuestos desde Excel">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+              <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+            </svg>
+            Cargar Excel
+          </button>
           <button type="button" class="btn-primary" @click="openCreateModal">+ Agregar Repuesto</button>
         </div>
       </div>
@@ -271,6 +375,108 @@ onMounted(() => {
 
       <div v-if="!loading && repuestos.length === 0" class="empty-state">No hay repuestos registrados.</div>
     </main>
+
+    <!-- Modal Importar Excel -->
+    <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
+      <div class="modal" style="width: 580px;">
+        <h3>Importar Repuestos desde Excel</h3>
+
+        <!-- Paso 1: Selección de archivo -->
+        <div v-if="!importResult && !importing">
+          <div
+            class="drop-zone"
+            :class="{ 'drop-zone--active': importDragOver, 'drop-zone--has-file': importFile }"
+            @dragover="handleDragOver"
+            @dragleave="handleDragLeave"
+            @drop="handleDrop"
+            @click="$refs.fileInput.click()"
+          >
+            <div v-if="!importFile" class="drop-zone-content">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16" style="color: #94a3b8;">
+                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+              </svg>
+              <p class="drop-zone-text">Arrastre su archivo Excel aquí</p>
+              <p class="drop-zone-subtext">o haga clic para seleccionar</p>
+            </div>
+            <div v-else class="drop-zone-content">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="currentColor" viewBox="0 0 16 16" style="color: #27ae60;">
+                <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1zm-3.5 8l-1.5-1.5L5 10l1 1 3-3 .5.5-3.5 3.5z"/>
+              </svg>
+              <p class="drop-zone-filename">{{ importFile.name }}</p>
+              <p class="drop-zone-subtext">{{ (importFile.size / 1024).toFixed(1) }} KB</p>
+            </div>
+          </div>
+          <input ref="fileInput" type="file" accept=".xlsx" style="display: none;" @change="handleFileSelect">
+
+          <div class="import-info">
+            <p><strong>Formato:</strong> Archivo .xlsx con encabezados en la primera fila.</p>
+            <p><strong>Columnas obligatorias:</strong> nombre_repuesto, cantidad_disponible</p>
+            <p>Si el numero_material ya existe, el repuesto se <strong>actualizará</strong>.</p>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="showImportModal = false">Cancelar</button>
+            <button type="button" class="btn-outline" @click="downloadTemplate" title="Descargar plantilla con datos de ejemplo">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: -2px; margin-right: 4px;">
+                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+              </svg>
+              Descargar Plantilla
+            </button>
+            <button type="button" class="btn-primary" :disabled="!importFile" @click="uploadExcel">
+              Importar
+            </button>
+          </div>
+        </div>
+
+        <!-- Paso 2: Procesando -->
+        <div v-if="importing" class="import-progress">
+          <div class="spinner"></div>
+          <p style="text-align: center; color: #475569;">Importando repuestos...</p>
+        </div>
+
+        <!-- Paso 3: Resultados -->
+        <div v-if="importResult && !importing">
+          <div class="import-result">
+            <div class="result-summary">
+              <div class="result-item result-success">
+                <span class="result-number">{{ importResult.exitosos }}</span>
+                <span class="result-label">Nuevos</span>
+              </div>
+              <div class="result-item result-updated">
+                <span class="result-number">{{ importResult.actualizados }}</span>
+                <span class="result-label">Actualizados</span>
+              </div>
+              <div class="result-item result-failed">
+                <span class="result-number">{{ importResult.fallidos }}</span>
+                <span class="result-label">Fallidos</span>
+              </div>
+              <div class="result-item result-total">
+                <span class="result-number">{{ importResult.total_procesados }}</span>
+                <span class="result-label">Total</span>
+              </div>
+            </div>
+
+            <div v-if="importResult.errores && importResult.errores.length > 0" class="import-errors">
+              <h4>Detalle de errores</h4>
+              <div class="error-list">
+                <div v-for="(err, idx) in importResult.errores" :key="idx" class="error-item">
+                  <span class="error-fila">Fila {{ err.fila }}</span>
+                  <span class="error-serie">({{ err.nombre }})</span>
+                  <span class="error-msg">{{ err.errores.join(', ') }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="resetImport">Importar otro archivo</button>
+            <button type="button" class="btn-primary" @click="showImportModal = false">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal Crear / Editar -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
@@ -365,29 +571,6 @@ onMounted(() => {
 
 <style scoped>
 .dashboard-container { padding: 0; }
-.header {
-  background-color: #2c3e50;
-  color: white;
-  padding: 1rem 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.header nav a {
-  color: white;
-  text-decoration: none;
-  margin-right: 15px;
-  font-weight: bold;
-}
-.header nav a:hover { text-decoration: underline; }
-.header button {
-  background-color: #e74c3c;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-}
 
 .content { padding: 2rem; }
 
@@ -462,6 +645,7 @@ th { background-color: #f8f9fa; font-weight: bold; }
   font-size: 1rem;
 }
 .btn-primary:hover { background-color: #2980b9; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-secondary {
   background-color: #95a5a6;
   color: white;
@@ -471,6 +655,21 @@ th { background-color: #f8f9fa; font-weight: bold; }
   cursor: pointer;
   font-size: 0.9rem;
 }
+
+.btn-import {
+  background-color: #27ae60; color: white; border: none; padding: 0.6rem 1.1rem;
+  border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem;
+  display: flex; align-items: center; gap: 0.4rem; transition: background-color 0.2s;
+}
+.btn-import:hover { background-color: #219a52; }
+.btn-import svg { flex-shrink: 0; }
+
+.btn-outline {
+  background-color: transparent; color: #3498db; border: 1.5px solid #3498db;
+  padding: 0.45rem 0.9rem; border-radius: 4px; cursor: pointer; font-weight: 600;
+  font-size: 0.85rem; transition: all 0.2s; display: flex; align-items: center;
+}
+.btn-outline:hover { background-color: #ebf5fb; }
 
 .actions-cell {
   display: flex;
@@ -627,4 +826,95 @@ th { background-color: #f8f9fa; font-weight: bold; }
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* === Importar Excel === */
+.drop-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  margin-bottom: 1rem;
+  background: #f8fafc;
+}
+.drop-zone:hover { border-color: #3498db; background: #f0f7ff; }
+.drop-zone--active { border-color: #3498db; background: #e8f4fd; border-style: solid; }
+.drop-zone--has-file { border-color: #27ae60; border-style: solid; background: #f0fdf4; }
+.drop-zone-content { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+.drop-zone-text { font-size: 1rem; font-weight: 600; color: #475569; margin: 0; }
+.drop-zone-subtext { font-size: 0.85rem; color: #94a3b8; margin: 0; }
+.drop-zone-filename { font-size: 0.95rem; font-weight: 600; color: #27ae60; margin: 0; word-break: break-all; }
+
+.import-info {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: #475569;
+}
+.import-info p { margin: 0.2rem 0; }
+
+.import-progress {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.spinner {
+  width: 40px; height: 40px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #3498db;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.import-result { margin-bottom: 1rem; }
+
+.result-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.result-item {
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+}
+.result-number { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+.result-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #64748b; }
+
+.result-success { background: #f0fdf4; }
+.result-success .result-number { color: #16a34a; }
+.result-updated { background: #eff6ff; }
+.result-updated .result-number { color: #2563eb; }
+.result-failed { background: #fef2f2; }
+.result-failed .result-number { color: #dc2626; }
+.result-total { background: #f8fafc; border: 1px solid #e2e8f0; }
+.result-total .result-number { color: #1e293b; }
+
+.import-errors {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+.import-errors h4 { margin: 0 0 0.5rem 0; color: #991b1b; font-size: 0.9rem; }
+.error-list { max-height: 200px; overflow-y: auto; }
+.error-item {
+  padding: 0.35rem 0;
+  font-size: 0.83rem;
+  color: #7f1d1d;
+  border-bottom: 1px solid #fecaca;
+}
+.error-item:last-child { border-bottom: none; }
+.error-fila { font-weight: 700; }
+.error-serie { color: #991b1b; font-size: 0.8rem; }
+.error-msg { color: #b91c1c; }
 </style>

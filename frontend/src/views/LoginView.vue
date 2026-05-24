@@ -30,8 +30,8 @@ const handleLogin = async () => {
     // Guardamos el token en localStorage (memoria del navegador)
     localStorage.setItem('token', token)
     
-    // Redirigimos al Dashboard
-    router.push('/dashboard')
+    // Redirigimos al Inicio
+    router.push('/inicio')
 
   } catch (error) {
     if (error.response && error.response.status === 400) {

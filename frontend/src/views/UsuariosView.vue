@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
+import Navbar from '../components/Navbar.vue'
 
 const usuarios = ref([])
 const currentPage = ref(1)
@@ -63,17 +65,7 @@ onMounted(() => {
 
 <template>
   <div class="dashboard-container">
-    <header class="header">
-      <h1>CMMS-BioAI</h1>
-      <nav>
-        <router-link to="/dashboard">Equipos</router-link> |
-        <router-link to="/ordenes">Órdenes</router-link> |
-        <router-link to="/inventario">Inventario</router-link> |
-        <router-link to="/preventivo">Preventivo</router-link> |
-        <router-link to="/usuarios">Usuarios</router-link>
-      </nav>
-      <button @click="$router.push('/')">Cerrar Sesión</button>
-    </header>
+    <Navbar @logout="$router.push('/')" />
 
     <main class="content">
       <div class="top-bar">
@@ -168,9 +160,7 @@ onMounted(() => {
 
 <style scoped>
 /* Estilos necesarios para que se vea igual que DashboardView */
-.header { background-color: #2c3e50; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-.header nav a { color: white; text-decoration: none; margin-right: 15px; font-weight: bold; }
-.header button { background-color: #e74c3c; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; }
+.dashboard-container { padding: 0; }
 .content { padding: 2rem; }
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; }
 th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }

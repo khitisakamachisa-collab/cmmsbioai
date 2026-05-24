@@ -4,7 +4,7 @@ Usuario: jperez
 Contraseña: miclave123
 Dale a Iniciar Sesión.
 
-
+admin / admin123
 
 1. Para el Backend (Python/FastAPI)
 Abre una terminal y ejecuta estos comandos uno por uno:

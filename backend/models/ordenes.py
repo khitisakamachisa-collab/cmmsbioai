@@ -35,4 +35,6 @@ class OrdenTrabajo(SQLModel, table=True):
     # Campos de cierre
     acciones_realizadas: Optional[str] = None
     tiempo_real_invertido: Optional[float] = None
-    costo_adicional: Optional[float] = None
+    unidad_tiempo: Optional[str] = Field(default="horas")  # "horas" o "dias"
+    costo_adicional: Optional[float] = None  # Costo general de la OT
+    costos_adicionales: Optional[float] = None  # Costos adicionales (externos, transporte, etc.)

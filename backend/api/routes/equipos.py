@@ -4,11 +4,13 @@ from sqlmodel import Session, select
 from database import get_session
 from models.equipos import Equipo
 from models.estados import EstadoEquipo
-from models.users import Usuario # Asegúrate de que esta ruta sea correcta
+from models.users import Usuario
 from schemas.equipo import EquipoCreate, EquipoRead, EquipoUpdate
 from datetime import date, datetime
 from io import BytesIO
 import openpyxl
+import os
+import uuid
 
 router = APIRouter(prefix="/equipos", tags=["Equipos"])
 
@@ -60,6 +62,50 @@ def eliminar_equipo(equipo_id: int, session: Session = Depends(get_session)):
     session.delete(db_equipo)
     session.commit()
     return {"ok": True, "message": "Equipo eliminado"}
+
+# ---------------------------------------------------------
+# ENDPOINT: SUBIR IMAGEN PRINCIPAL DE EQUIPO
+# ---------------------------------------------------------
+@router.post("/{equipo_id}/upload_imagen")
+async def upload_imagen_equipo(equipo_id: int, file: UploadFile = File(...), session: Session = Depends(get_session)):
+    """
+    Sube una imagen principal para un equipo.
+    Guarda el archivo en uploads/equipos/ y actualiza imagen_ruta.
+    """
+    db_equipo = session.get(Equipo, equipo_id)
+    if not db_equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    
+    # Validar tipo de archivo
+    allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"Tipo de archivo no permitido. Use JPEG, PNG, GIF, WebP o BMP.")
+    
+    # Validar tamaño (5MB máximo)
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="La imagen no debe superar 5MB")
+    
+    # Crear carpeta si no existe
+    uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "equipos")
+    os.makedirs(uploads_dir, exist_ok=True)
+    
+    # Generar nombre único
+    ext = os.path.splitext(file.filename)[1] if file.filename else ".jpg"
+    unique_name = f"{uuid.uuid4().hex[:8]}_{equipo_id}{ext}"
+    file_path = os.path.join(uploads_dir, unique_name)
+    
+    # Guardar archivo
+    with open(file_path, "wb") as f:
+        f.write(contents)
+    
+    # Actualizar imagen_ruta en la BD
+    db_equipo.imagen_ruta = f"uploads/equipos/{unique_name}"
+    session.add(db_equipo)
+    session.commit()
+    session.refresh(db_equipo)
+    
+    return {"ok": True, "imagen_ruta": db_equipo.imagen_ruta}
 
 # ---------------------------------------------------------
 # ENDPOINT CORREGIDO: LEE DE LA BASE DE DATOS
@@ -127,8 +173,8 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
     
     # Columnas esperadas (en orden)
     COLUMNAS = [
-        'nombre_corto', 'modelo', 'numero_serie', 'marca', 'fecha_adquisicion',
-        'ubicacion_actual', 'estado', 'proveedor_principal', 'registro_sanitario_bolivia',
+        'nombre_corto', 'modelo', 'numero_serie', 'numero_material', 'marca', 'fecha_adquisicion',
+        'fecha_fin_garantia', 'ubicacion_actual', 'estado', 'proveedor_principal', 'registro_sanitario_bolivia',
         'descripcion', 'calibracion_proxima', 'responsable_username'
     ]
     OBLIGATORIAS = {'modelo', 'numero_serie', 'marca', 'fecha_adquisicion'}
@@ -218,7 +264,15 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
                 try:
                     fecha_cal = _parse_date(cal_str)
                 except ValueError:
-                    # No es fatal, solo se ignora
+                    pass
+            
+            # Parsear fecha_fin_garantia (opcional)
+            garantia_str = get_val('fecha_fin_garantia')
+            fecha_garantia = None
+            if garantia_str:
+                try:
+                    fecha_garantia = _parse_date(garantia_str)
+                except ValueError:
                     pass
             
             # Resolver estado_id
@@ -252,8 +306,10 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
                 # ACTUALIZAR (upsert)
                 equipo_existente.nombre_corto = get_val('nombre_corto') or equipo_existente.nombre_corto
                 equipo_existente.modelo = get_val('modelo') or equipo_existente.modelo
+                equipo_existente.numero_material = get_val('numero_material') or equipo_existente.numero_material
                 equipo_existente.marca = get_val('marca') or equipo_existente.marca
                 equipo_existente.fecha_adquisicion = fecha_adq
+                equipo_existente.fecha_fin_garantia = fecha_garantia or equipo_existente.fecha_fin_garantia
                 equipo_existente.ubicacion_actual = get_val('ubicacion_actual') or equipo_existente.ubicacion_actual
                 equipo_existente.estado_id = estado_id
                 equipo_existente.proveedor_principal = get_val('proveedor_principal') or equipo_existente.proveedor_principal
@@ -269,8 +325,10 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
                     nombre_corto=get_val('nombre_corto'),
                     modelo=get_val('modelo'),
                     numero_serie=num_serie,
+                    numero_material=get_val('numero_material'),
                     marca=get_val('marca'),
                     fecha_adquisicion=fecha_adq,
+                    fecha_fin_garantia=fecha_garantia,
                     ubicacion_actual=get_val('ubicacion_actual'),
                     estado_id=estado_id,
                     proveedor_principal=get_val('proveedor_principal'),
@@ -333,8 +391,8 @@ def descargar_plantilla_excel(session: Session = Depends(get_session)):
     
     # Encabezados
     encabezados = [
-        'nombre_corto', 'modelo', 'numero_serie', 'marca', 'fecha_adquisicion',
-        'ubicacion_actual', 'estado', 'proveedor_principal', 'registro_sanitario_bolivia',
+        'nombre_corto', 'modelo', 'numero_serie', 'numero_material', 'marca', 'fecha_adquisicion',
+        'fecha_fin_garantia', 'ubicacion_actual', 'estado', 'proveedor_principal', 'registro_sanitario_bolivia',
         'descripcion', 'calibracion_proxima', 'responsable_username'
     ]
     ws.append(encabezados)
@@ -358,64 +416,64 @@ def descargar_plantilla_excel(session: Session = Depends(get_session)):
     
     # Datos de ejemplo - Equipos de biolaboratorio
     datos_demo = [
-        ["Microscopio Olympus CX23", "CX23", "MIC-OLY-001", "Olympus", "2023-03-15",
-         "Lab. Microbiología", "Operativo", "Olympus Bolivia", "RS-BOL-2023-001",
+        ["Microscopio Olympus CX23", "CX23", "MIC-OLY-001", "MAT-CX23-A", "Olympus", "2023-03-15",
+         "2025-03-15", "Lab. Microbiología", "Operativo", "Olympus Bolivia", "RS-BOL-2023-001",
          "Microscopio binocular para microbiología clínica", "2025-03-15", ""],
         
-        ["Centrífuga Eppendorf 5424", "5424", "CEN-EPP-002", "Eppendorf", "2022-07-20",
-         "Lab. Hematología", "Operativo", "Eppendorf Latam", "RS-BOL-2022-045",
+        ["Centrífuga Eppendorf 5424", "5424", "CEN-EPP-002", "MAT-5424-B", "Eppendorf", "2022-07-20",
+         "2024-07-20", "Lab. Hematología", "Operativo", "Eppendorf Latam", "RS-BOL-2022-045",
          "Centrífuga de mesa 24 tubos, rotor FA-45-24-11", "2024-07-20", ""],
         
-        ["Autoclave Steris Amsco 3043", "3043", "AUT-STR-003", "Steris", "2021-01-10",
-         "Central de Esterilización", "Operativo", "Steris Corporation", "",
+        ["Autoclave Steris Amsco 3043", "3043", "AUT-STR-003", "", "Steris", "2021-01-10",
+         "2023-01-10", "Central de Esterilización", "Operativo", "Steris Corporation", "",
          "Autoclave hospitalaria vertical, 400L capacidad", "2025-01-10", ""],
         
-        ["Analizador Bioquímico Cobas c311", "c311", "ANA-ROC-004", "Roche", "2023-06-01",
-         "Lab. Bioquímica", "Operativo", "Roche Diagnostics Bolivia", "RS-BOL-2023-089",
+        ["Analizador Bioquímico Cobas c311", "c311", "ANA-ROC-004", "MAT-C311-V2", "Roche", "2023-06-01",
+         "2025-06-01", "Lab. Bioquímica", "Operativo", "Roche Diagnostics Bolivia", "RS-BOL-2023-089",
          "Analizador bioquímico automatizado, 120 pruebas/h", "2025-06-01", ""],
         
-        ["Monitor de Signos Vitales Mindray", "uMEC10", "MON-MIN-005", "Mindray", "2022-11-05",
-         "UCI Box 3", "En Mantenimiento", "Mindray Bolivia", "RS-BOL-2022-112",
+        ["Monitor de Signos Vitales Mindray", "uMEC10", "MON-MIN-005", "", "Mindray", "2022-11-05",
+         "2024-11-05", "UCI Box 3", "En Mantenimiento", "Mindray Bolivia", "RS-BOL-2022-112",
          "Monitor multiparámetro con SpO2, ECG, NIBP, Temp", "2024-11-05", ""],
         
-        ["Electrocardiógrafo GE MAC 2000", "MAC 2000", "ELE-GEE-006", "GE Healthcare", "2020-09-15",
-         "Cardiología", "Operativo", "GE Healthcare Latam", "RS-BOL-2020-034",
+        ["Electrocardiógrafo GE MAC 2000", "MAC 2000", "ELE-GEE-006", "", "GE Healthcare", "2020-09-15",
+         "2022-09-15", "Cardiología", "Operativo", "GE Healthcare Latam", "RS-BOL-2020-034",
          "ECG 12 derivaciones con interpretación", "2024-09-15", ""],
         
-        ["Espectrofotómetro Thermo Genesys 30", "Genesys 30", "ESP-THM-007", "Thermo Fisher", "2023-02-28",
-         "Lab. Investigación", "Operativo", "Thermo Fisher Scientific", "",
+        ["Espectrofotómetro Thermo Genesys 30", "Genesys 30", "ESP-THM-007", "MAT-GEN30", "Thermo Fisher", "2023-02-28",
+         "2025-02-28", "Lab. Investigación", "Operativo", "Thermo Fisher Scientific", "",
          "Espectrofotómetro visible, rango 325-1100nm", "2025-02-28", ""],
         
-        ["Balanza Analítica Sartorius", "Quintix 224", "BAL-SAR-008", "Sartorius", "2021-08-12",
-         "Lab. Control Calidad", "Operativo", "Sartorius Bolivia", "",
+        ["Balanza Analítica Sartorius", "Quintix 224", "BAL-SAR-008", "", "Sartorius", "2021-08-12",
+         "2023-08-12", "Lab. Control Calidad", "Operativo", "Sartorius Bolivia", "",
          "Balanza analítica 220g / 0.1mg, calibración interna", "2024-08-12", ""],
         
-        ["Desfibrilador Zoll R Series", "R Series", "DES-ZOL-009", "Zoll", "2022-04-18",
-         "Emergencias", "Operativo", "Zoll Medical", "RS-BOL-2022-078",
+        ["Desfibrilador Zoll R Series", "R Series", "DES-ZOL-009", "MAT-RS-PRO", "Zoll", "2022-04-18",
+         "2024-04-18", "Emergencias", "Operativo", "Zoll Medical", "RS-BOL-2022-078",
          "Desfibrilador biphasic con monitor y marcapasos", "2025-04-18", ""],
         
-        ["Incubadora CO2 Thermo Heracell", "Heracell VIOS 160i", "INC-THM-010", "Thermo Fisher", "2023-09-01",
-         "Lab. Cultivo Celular", "Fuera de Servicio", "Thermo Fisher Scientific", "",
+        ["Incubadora CO2 Thermo Heracell", "Heracell VIOS 160i", "INC-THM-010", "", "Thermo Fisher", "2023-09-01",
+         "2025-09-01", "Lab. Cultivo Celular", "Fuera de Servicio", "Thermo Fisher Scientific", "",
          "Incubadora CO2 con control de O2, 170L", "2025-09-01", ""],
         
-        ["Bomba de Infusión B. Braun", "Infusomat Space", "BOM-BRA-011", "B. Braun", "2022-12-10",
-         "UCI Box 1", "Operativo", "B. Braun Bolivia", "RS-BOL-2022-156",
+        ["Bomba de Infusión B. Braun", "Infusomat Space", "BOM-BRA-011", "MAT-INF-SP2", "B. Braun", "2022-12-10",
+         "2024-12-10", "UCI Box 1", "Operativo", "B. Braun Bolivia", "RS-BOL-2022-156",
          "Bomba de infusión volumétrica con modo PCA", "2024-12-10", ""],
         
-        ["Termociclador Bio-Rad T100", "T100", "TER-BIO-012", "Bio-Rad", "2021-05-22",
-         "Lab. Biología Molecular", "Operativo", "Bio-Rad Latam", "",
+        ["Termociclador Bio-Rad T100", "T100", "TER-BIO-012", "", "Bio-Rad", "2021-05-22",
+         "2023-05-22", "Lab. Biología Molecular", "Operativo", "Bio-Rad Latam", "",
          "Termociclador PCR 96 pocillos, gradiente", "2025-05-22", ""],
         
-        ["Respirador Dräger Evita V500", "Evita V500", "RES-DRA-013", "Dräger", "2023-01-15",
-         "UCI Box 5", "En Mantenimiento", "Dräger Bolivia", "RS-BOL-2023-003",
+        ["Respirador Dräger Evita V500", "Evita V500", "RES-DRA-013", "", "Dräger", "2023-01-15",
+         "2025-01-15", "UCI Box 5", "En Mantenimiento", "Dräger Bolivia", "RS-BOL-2023-003",
          "Ventilador de UCI con modos avanzados", "2025-01-15", ""],
         
-        ["Pipeta Automática Hamilton", "Microlab STARlet", "PIP-HAM-014", "Hamilton", "2022-03-08",
-         "Lab. Automatización", "Operativo", "Hamilton Company", "",
-         "Pipeta automatizada 8 canales, 1-1000μL", "2025-03-08", ""],
+        ["Pipeta Automática Hamilton", "Microlab STARlet", "PIP-HAM-014", "MAT-STAR-V3", "Hamilton", "2022-03-08",
+         "2024-03-08", "Lab. Automatización", "Operativo", "Hamilton Company", "",
+         "Pipeta automatizada 8 canales, 1-1000uL", "2025-03-08", ""],
         
-        ["Cámara de Flujo Laminar Esco", "A2 Class", "CAM-ESC-015", "Esco", "2020-06-25",
-         "Lab. Microbiología", "Operativo", "Esco Technologies", "",
+        ["Cámara de Flujo Laminar Esco", "A2 Class", "CAM-ESC-015", "", "Esco", "2020-06-25",
+         "2022-06-25", "Lab. Microbiología", "Operativo", "Esco Technologies", "",
          "Cabina de seguridad biológica Clase II Tipo A2", "2024-06-25", ""],
     ]
     
@@ -432,7 +490,7 @@ def descargar_plantilla_excel(session: Session = Depends(get_session)):
             cell.alignment = data_align
     
     # Ajustar anchos de columna
-    anchos = [28, 18, 18, 18, 18, 24, 18, 24, 24, 40, 18, 22]
+    anchos = [28, 18, 18, 16, 18, 18, 18, 24, 18, 24, 24, 40, 18, 22]
     for i, ancho in enumerate(anchos, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = ancho
     

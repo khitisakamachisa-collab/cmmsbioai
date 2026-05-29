@@ -16,8 +16,10 @@ class Equipo(SQLModel, table=True):
     nombre_corto: Optional[str] = None
     modelo: str
     numero_serie: str = Field(unique=True, index=True)
+    numero_material: Optional[str] = None  # Número de material (variante del modelo)
     marca: str
     fecha_adquisicion: date
+    fecha_fin_garantia: Optional[date] = None  # Fecha fin de garantía
     registro_sanitario_bolivia: Optional[str] = None
     ubicacion_actual: Optional[str] = None
     proveedor_principal: Optional[str] = None

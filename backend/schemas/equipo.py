@@ -7,15 +7,17 @@ class EquipoBase(BaseModel):
     nombre_corto: Optional[str] = None
     modelo: str
     numero_serie: str
+    numero_material: Optional[str] = None  # Número de material (variante del modelo)
     marca: str
     fecha_adquisicion: date
-    registro_sanitario_bolivia: Optional[str] = None # NUEVO
+    fecha_fin_garantia: Optional[date] = None  # Fecha fin de garantía
+    registro_sanitario_bolivia: Optional[str] = None
     ubicacion_actual: Optional[str] = None
-    proveedor_principal: Optional[str] = None # NUEVO
-    descripcion: Optional[str] = None # NUEVO
-    # imagen_ruta: Optional[str] = None # Lo dejamos comentado por ahora
-    calibracion_proxima: Optional[date] = None # NUEVO
-    responsable_tecnico_id: Optional[int] = None # NUEVO
+    proveedor_principal: Optional[str] = None
+    descripcion: Optional[str] = None
+    imagen_ruta: Optional[str] = None
+    calibracion_proxima: Optional[date] = None
+    responsable_tecnico_id: Optional[int] = None
     estado_id: Optional[int] = 1
 
 # Para CREAR (Hereda del base)
@@ -27,20 +29,22 @@ class EquipoRead(EquipoBase):
     id: int
 
     class Config:
-        from_attributes = True # (Antes orm_mode = True)
+        from_attributes = True
 
 # Para ACTUALIZAR (Todos opcionales para poder editar solo lo que queramos)
 class EquipoUpdate(BaseModel):
     nombre_corto: Optional[str] = None
     modelo: Optional[str] = None
     numero_serie: Optional[str] = None
+    numero_material: Optional[str] = None
     marca: Optional[str] = None
     fecha_adquisicion: Optional[date] = None
-    registro_sanitario_bolivia: Optional[str] = None # NUEVO
+    fecha_fin_garantia: Optional[date] = None
+    registro_sanitario_bolivia: Optional[str] = None
     ubicacion_actual: Optional[str] = None
-    proveedor_principal: Optional[str] = None # NUEVO
-    descripcion: Optional[str] = None # NUEVO
-    calibracion_proxima: Optional[date] = None # NUEVO
-    responsable_tecnico_id: Optional[int] = None # NUEVO
+    proveedor_principal: Optional[str] = None
+    descripcion: Optional[str] = None
+    imagen_ruta: Optional[str] = None
+    calibracion_proxima: Optional[date] = None
+    responsable_tecnico_id: Optional[int] = None
     estado_id: Optional[int] = None
-    

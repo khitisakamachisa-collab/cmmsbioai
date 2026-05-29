@@ -141,6 +141,7 @@ const openCreateModal = () => {
     registro_sanitario_bolivia: '',
     proveedor_principal: '',
     descripcion: '',
+    imagen_ruta: '',
     calibracion_proxima: '',
     responsable_tecnico_id: null
   }
@@ -636,6 +637,10 @@ onMounted(() => {
             </div>
           </div>
           <div class="form-group">
+            <label>Imagen del Equipo (ruta)</label>
+            <input v-model="formData.imagen_ruta" type="text" placeholder="Ruta de la imagen del equipo">
+          </div>
+          <div class="form-group">
             <label>Técnico Responsable (Opcional)</label>
             <select v-model="formData.responsable_tecnico_id">
               <option :value="null">-- Sin Asignar --</option>
@@ -731,6 +736,7 @@ onMounted(() => {
         <div class="detail-full">
           <h4>Responsable y Notas</h4>
           <p><strong>Técnico Responsable:</strong> {{ getTecnicoName(selectedEquipo.responsable_tecnico_id) }}</p>
+          <p v-if="selectedEquipo.imagen_ruta"><strong>Imagen:</strong> {{ selectedEquipo.imagen_ruta }}</p>
           <p><strong>Descripción:</strong></p>
           <div class="description-box">
             {{ selectedEquipo.descripcion || 'Sin descripción adicional.' }}

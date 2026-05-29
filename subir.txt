@@ -1,0 +1,32 @@
+Pasos para subir tu proyecto a GitHub
+Ir a la carpeta del proyecto
+
+bash
+cd D:\Maestria\Modulo 6\CMMS\CMMS
+Verificar que el remoto está configurado
+
+bash
+git remote -v
+Debe mostrar:
+
+Código
+origin  https://github.com/khitisakamachisa-collab/cmmsbioai.git (fetch)
+origin  https://github.com/khitisakamachisa-collab/cmmsbioai.git (push)
+Agregar todos los cambios
+
+bash
+git add .
+Crear un commit con mensaje descriptivo
+
+bash
+git commit -m "Actualización con mejoras del proyecto"
+Subir al repositorio remoto (rama main)
+
+bash
+git push origin main
+⚠️ Si da error de "non-fast-forward"
+Esto pasa si el remoto tiene cambios distintos. En ese caso:
+
+bash
+git push origin main --force
+(solo úsalo si estás seguro de que tu versión local es la que debe quedar en GitHub, porque sobrescribe lo remoto).

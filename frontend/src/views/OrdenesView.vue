@@ -16,23 +16,60 @@ const loading = ref(true)
 
 const currentPage = ref(1)
 const pageSize = ref(10)
+const searchQuery = ref('')
+
+// Tipos de OT para el menú de selección de Título
+const tiposOT = [
+  'Correctivo',
+  'Preventivo',
+  'Predictivo',
+  'Calibración',
+  'Inspección',
+  'Actualización',
+  'Diagnóstico',
+  'Prueba/Validación',
+  'Limpieza',
+  'Cambio de repuesto',
+  'Grasa/Lubricación',
+  'Instalación',
+  'Retiro/Dado de baja',
+  'Transferencia',
+  'Auditoría',
+  'Otro'
+]
+
+const filteredOrdenes = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return ordenes.value
+  return ordenes.value.filter((ot) => {
+    const titulo = String(ot.titulo ?? '').toLowerCase()
+    const falla = String(ot.descripcion_falla ?? '').toLowerCase()
+    const id = String(ot.id ?? '')
+    const equipo = getEquipoNombre(ot.equipo_id).toLowerCase()
+    return titulo.includes(q) || falla.includes(q) || id.includes(q) || equipo.includes(q)
+  })
+})
 
 const paginatedOrdenes = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return ordenes.value.slice(start, start + pageSize.value)
+  return filteredOrdenes.value.slice(start, start + pageSize.value)
 })
 
 const totalPages = computed(() =>
-  Math.max(1, Math.ceil(ordenes.value.length / pageSize.value))
+  Math.max(1, Math.ceil(filteredOrdenes.value.length / pageSize.value))
 )
 
 watch(
-  () => ordenes.value.length,
+  () => filteredOrdenes.value.length,
   (len) => {
     const tp = Math.max(1, Math.ceil(len / pageSize.value))
     if (currentPage.value > tp) currentPage.value = tp
   }
 )
+
+watch(searchQuery, () => {
+  currentPage.value = 1
+})
 
 const irPaginaAnterior = () => {
   if (currentPage.value > 1) currentPage.value -= 1
@@ -65,16 +102,20 @@ const formData = ref({
   prioridad: 'Media',
   titulo: '',
   descripcion_falla: '',
-  tecnico_asignado_id: null
+  tecnico_asignado_id: null,
+  unidad_tiempo: 'horas'
 })
 
 // Formulario Editar
 const editFormData = ref({
   estado_id: '',
-  prioridad: 'Media', // <--- AGREGAR ESTO
+  prioridad: 'Media',
   acciones_realizadas: '',
   tiempo_real_invertido: null,
-  tecnico_asignado_id: null // NUEVO
+  unidad_tiempo: 'horas',
+  tecnico_asignado_id: null,
+  costo_adicional: null,
+  costos_adicionales: null
 })
 
 // --- Funciones de Datos ---
@@ -103,7 +144,7 @@ const saveOrden = async () => {
     await apiClient.post('/ordenes/', formData.value)
     alert('Orden creada')
     showModal.value = false
-    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null }
+    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas' }
     fetchData() 
   } catch (error) {
     alert('Error al crear OT')
@@ -141,8 +182,10 @@ const openEditModal = async (ot) => {
       prioridad: fullOt.prioridad || 'Media',
       acciones_realizadas: fullOt.acciones_realizadas || '',
       tiempo_real_invertido: fullOt.tiempo_real_invertido || null,
+      unidad_tiempo: fullOt.unidad_tiempo || 'horas',
       tecnico_asignado_id: fullOt.tecnico_asignado_id || null,
-      costo_adicional: fullOt.costo_adicional || null
+      costo_adicional: fullOt.costo_adicional || null,
+      costos_adicionales: fullOt.costos_adicionales || null
     }
     
     // 4. Pre-llenar repuestos existentes de la OT
@@ -279,7 +322,16 @@ onMounted(() => {
     <main class="content">
       <div class="top-bar">
         <h2>Listado de Órdenes de Trabajo</h2>
-        <button class="btn-primary" @click="showModal = true">+ Nueva Orden</button>
+        <div class="top-bar-actions">
+          <input
+            v-model="searchQuery"
+            type="search"
+            class="search-input"
+            placeholder="Buscar por título, equipo, ID..."
+            autocomplete="off"
+          >
+          <button class="btn-primary" @click="showModal = true">+ Nueva Orden</button>
+        </div>
       </div>
 
       <div v-if="loading">Cargando...</div>
@@ -380,7 +432,7 @@ onMounted(() => {
       </div>
     </main>
 
-    <!-- Modal Crear OT (Igual que antes) -->
+    <!-- Modal Crear OT -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal">
         <h3>Nueva Orden de Trabajo</h3>
@@ -391,7 +443,7 @@ onMounted(() => {
             <div class="form-group"><label>Prioridad</label><select v-model="formData.prioridad"><option>Urgente</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
           </div>
           <div class="form-group"><label>Técnico Asignado</label><select v-model="formData.tecnico_asignado_id"><option :value="null">-- Sin Asignar --</option><option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">{{ tec.full_name || tec.username }}</option></select></div>
-          <div class="form-group"><label>Título</label><input v-model="formData.titulo" required></div>
+          <div class="form-group"><label>Título / Tipo de OT *</label><select v-model="formData.titulo" required><option value="" disabled>Seleccione tipo...</option><option v-for="t in tiposOT" :key="t" :value="t">{{ t }}</option></select></div>
           <div class="form-group"><label>Descripción</label><textarea v-model="formData.descripcion_falla" required></textarea></div>
           <div class="modal-actions"><button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button><button type="submit" class="btn-primary">Crear</button></div>
         </form>
@@ -400,41 +452,50 @@ onMounted(() => {
 
     <!-- MODAL VER (Solo Lectura) -->
     <div v-if="showViewModal" class="modal-overlay" @click.self="showViewModal = false">
-      <div class="modal" style="width: 650px;">
+      <div class="modal" style="width: 700px;">
         <h3>Detalle de Orden #{{ selectedOT.id }}</h3>
-        <div class="detail-box">
-          <p><strong>Equipo:</strong> {{ getEquipoNombre(selectedOT.equipo_id) }}</p>
-          <p><strong>Técnico:</strong> {{ getTecnicoNombre(selectedOT.tecnico_asignado_id) }}</p>
-          <p><strong>Estado:</strong> 
-            <span class="badge" :style="{ backgroundColor: getEstadoColor(selectedOT.estado_id) }">
-              {{ estadosOT.find(e => e.id === selectedOT.estado_id)?.nombre_estado }}
-            </span>
-          </p>
-
-          <p><strong>Prioridad:</strong> 
-            <span class="badge" :class="prioridadClass(selectedOT.prioridad)">{{ selectedOT.prioridad }}</span>
-          </p>
-          <p v-if="selectedOT.orden_preventiva_id"><strong>Origen:</strong> 
-            <span class="badge badge-preventivo">Tarea Preventiva #{{ selectedOT.orden_preventiva_id }}</span>
-          </p>
-   
-          <hr>
-          <p><strong>Título:</strong> {{ selectedOT.titulo }}</p>
-          <p><strong>Descripción Falla:</strong><br>{{ selectedOT.descripcion_falla }}</p>
-          <hr>
-          <p><strong>Acciones Realizadas:</strong><br>
-            <span style="color: #27ae60">{{ selectedOT.acciones_realizadas || 'Pendiente de registro' }}</span>
-          </p>
-          <p><strong>Tiempo Invertido:</strong> {{ selectedOT.tiempo_real_invertido || 0 }} horas</p>
-            <!-- AGREGAR ESTO -->
-            <hr>
-            <p><strong>Repuestos Utilizados:</strong></p>
-            <ul v-if="selectedOT.repuestos_usados && selectedOT.repuestos_usados.length">
-              <li v-for="rep in selectedOT.repuestos_usados" :key="rep.repuesto_id">
-                {{ rep.cantidad_utilizada }} unidad(es) - ID Repuesto: {{ rep.repuesto_id }}
-              </li>
-            </ul>
-            <p v-else><em>Sin repuestos registrados.</em></p>
+        <div class="detail-grid-view">
+          <div class="detail-column">
+            <h4>Información General</h4>
+            <p><strong>Equipo:</strong> {{ getEquipoNombre(selectedOT.equipo_id) }}</p>
+            <p><strong>Título / Tipo:</strong> {{ selectedOT.titulo }}</p>
+            <p><strong>Prioridad:</strong> 
+              <span class="badge" :class="prioridadClass(selectedOT.prioridad)">{{ selectedOT.prioridad }}</span>
+            </p>
+            <p><strong>Estado:</strong> 
+              <span class="badge" :style="{ backgroundColor: getEstadoColor(selectedOT.estado_id) }">
+                {{ estadosOT.find(e => e.id === selectedOT.estado_id)?.nombre_estado }}
+              </span>
+            </p>
+            <p v-if="selectedOT.orden_preventiva_id"><strong>Origen:</strong> 
+              <span class="badge badge-preventivo">Preventivo #{{ selectedOT.orden_preventiva_id }}</span>
+            </p>
+          </div>
+          <div class="detail-column">
+            <h4>Asignación y Tiempos</h4>
+            <p><strong>Técnico:</strong> {{ getTecnicoNombre(selectedOT.tecnico_asignado_id) }}</p>
+            <p><strong>Fecha Creación:</strong> {{ selectedOT.fecha_creacion ? new Date(selectedOT.fecha_creacion).toLocaleDateString('es-BO') : 'N/A' }}</p>
+            <p><strong>Tiempo Invertido:</strong> {{ selectedOT.tiempo_real_invertido || 0 }} {{ selectedOT.unidad_tiempo === 'dias' ? 'días' : 'horas' }}</p>
+            <p><strong>Costo General:</strong> {{ selectedOT.costo_adicional ? 'Bs. ' + Number(selectedOT.costo_adicional).toFixed(2) : '-' }}</p>
+            <p><strong>Costos Adicionales:</strong> {{ selectedOT.costos_adicionales ? 'Bs. ' + Number(selectedOT.costos_adicionales).toFixed(2) : '-' }}</p>
+          </div>
+        </div>
+        <div class="detail-full-view">
+          <h4>Descripción de Falla</h4>
+          <div class="description-box">{{ selectedOT.descripcion_falla }}</div>
+        </div>
+        <div class="detail-full-view" v-if="selectedOT.acciones_realizadas">
+          <h4>Acciones Realizadas</h4>
+          <div class="description-box" style="color: #27ae60;">{{ selectedOT.acciones_realizadas }}</div>
+        </div>
+        <div class="detail-full-view">
+          <h4>Repuestos Utilizados</h4>
+          <ul v-if="selectedOT.repuestos_usados && selectedOT.repuestos_usados.length" class="repuesto-detail-list">
+            <li v-for="rep in selectedOT.repuestos_usados" :key="rep.repuesto_id">
+              {{ rep.cantidad_utilizada }} x Repuesto #{{ rep.repuesto_id }}
+            </li>
+          </ul>
+          <p v-else style="color: #888;"><em>Sin repuestos registrados.</em></p>
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showViewModal = false">Cerrar</button>
@@ -444,57 +505,72 @@ onMounted(() => {
 
     <!-- MODAL EDITAR (Formulario) -->
     <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
-      <div class="modal" style="width: 650px;">
+      <div class="modal" style="width: 700px;">
         <h3>Editar / Cerrar OT #{{ selectedOT.id }}</h3>
         
         <!-- Información de la OT (solo lectura) -->
         <div class="ot-details">
           <p><strong>Equipo:</strong> {{ getEquipoNombre(selectedOT.equipo_id) }}</p>
+          <p><strong>Título:</strong> {{ selectedOT.titulo }}</p>
           <p><strong>Falla:</strong> {{ selectedOT.descripcion_falla }}</p>
         </div>
 
         <form @submit.prevent="updateOrden">
-          <!-- Estado -->
-          <div class="form-group">
-            <label>Nuevo Estado *</label>
-            <select v-model="editFormData.estado_id" required>
-              <option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option>
-            </select>
+          <!-- Estado y Prioridad lado a lado -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Nuevo Estado *</label>
+              <select v-model="editFormData.estado_id" required>
+                <option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Prioridad</label>
+              <select v-model="editFormData.prioridad">
+                <option>Urgente</option><option>Alta</option><option>Media</option><option>Baja</option>
+              </select>
+            </div>
           </div>
 
-          <!-- Técnico Asignado -->
-          <div class="form-group">
-            <label>Técnico Asignado</label>
-            <select v-model="editFormData.tecnico_asignado_id">
-              <option :value="null">-- Sin Asignar --</option>
-              <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
-                {{ tec.full_name || tec.username }}
-              </option>
-            </select>
+          <!-- Técnico y Tiempo lado a lado (con unidad_tiempo) -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Técnico Asignado</label>
+              <select v-model="editFormData.tecnico_asignado_id">
+                <option :value="null">-- Sin Asignar --</option>
+                <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
+                  {{ tec.full_name || tec.username }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Tiempo Invertido</label>
+              <div style="display: flex; gap: 8px;">
+                <input v-model="editFormData.tiempo_real_invertido" type="number" step="0.5" min="0" placeholder="Ej: 1.5" style="flex: 1;">
+                <select v-model="editFormData.unidad_tiempo" style="width: 100px;">
+                  <option value="horas">Horas</option>
+                  <option value="dias">Días</option>
+                </select>
+              </div>
+            </div>
           </div>
-
-          <!-- Prioridad -->
-          <div class="form-group">
-            <label>Prioridad</label>
-            <select v-model="editFormData.prioridad">
-              <option>Urgente</option>
-              <option>Alta</option>
-              <option>Media</option>
-              <option>Baja</option>
-            </select>
-          </div>
-
-          <hr>
 
           <!-- Acciones Realizadas -->
           <div class="form-group">
             <label>Acciones Realizadas</label>
-            <textarea v-model="editFormData.acciones_realizadas" rows="4" placeholder="Describa la reparación..."></textarea>
+            <textarea v-model="editFormData.acciones_realizadas" rows="3" placeholder="Describa la reparación..."></textarea>
           </div>
 
-          <div class="form-group">
-            <label>Tiempo Real (Horas)</label>
-            <input v-model="editFormData.tiempo_real_invertido" type="number" step="0.5" min="0" placeholder="Ej: 1.5">
+          <!-- Costos lado a lado -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Costo General (Bs.)</label>
+              <input v-model="editFormData.costo_adicional" type="number" step="1" min="0" placeholder="Costos directos de la OT">
+            </div>
+            <div class="form-group">
+              <label>Costos Adicionales (Bs.)</label>
+              <input v-model="editFormData.costos_adicionales" type="number" step="1" min="0" placeholder="Externos, transporte, etc.">
+            </div>
           </div>
 
           <hr>
@@ -554,7 +630,14 @@ onMounted(() => {
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; }
 th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
 th { background-color: #f8f9fa; }
-.top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.top-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.75rem; }
+.top-bar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
+.search-input {
+  min-width: 200px; flex: 1 1 200px; max-width: 320px;
+  padding: 0.55rem 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;
+  font-size: 0.95rem; box-sizing: border-box; background: #fff;
+}
+.search-input:focus { outline: none; border-color: #3498db; box-shadow: 0 0 0 2px rgba(52,152,219,0.2); }
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
 .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
 .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; color: white; font-weight: bold; }
@@ -563,6 +646,21 @@ th { background-color: #f8f9fa; }
 .media { background-color: #f1c40f; color: #333; }
 .badge-preventivo { background-color: #8b5cf6; color: white; font-size: 0.7rem; }
 .badge-correctivo { background-color: #6b7280; color: white; font-size: 0.7rem; }
+
+/* Detail grid for View modal */
+.detail-grid-view { display: flex; gap: 2rem; margin-bottom: 1.5rem; }
+.detail-column { flex: 1; }
+.detail-column h4 { margin-bottom: 0.8rem; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 0.3rem; }
+.detail-column p { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #555; }
+.detail-full-view { width: 100%; background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
+.detail-full-view h4 { margin-top: 0; margin-bottom: 0.5rem; color: #2c3e50; }
+.description-box {
+  background: white; padding: 0.8rem; border: 1px solid #e0e0e0; border-radius: 4px;
+  min-height: 40px; color: #444; font-size: 0.9rem;
+  word-break: break-word; overflow-y: auto; max-height: 150px; white-space: pre-wrap;
+}
+.repuesto-detail-list { list-style: none; padding: 0; margin: 0; }
+.repuesto-detail-list li { padding: 4px 0; font-size: 0.9rem; color: #555; border-bottom: 1px solid #eee; }
 
 /* Iconos */
 .actions-cell { display: flex; gap: 0.5rem; }
@@ -579,6 +677,8 @@ th { background-color: #f8f9fa; }
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+.form-row { display: flex; gap: 1rem; }
+.form-row .form-group { flex: 1; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
 .detail-box { background: #f8f9fa; padding: 1rem; border-radius: 4px; }
 .detail-box p { margin: 0.5rem 0; }

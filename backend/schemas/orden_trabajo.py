@@ -11,11 +11,12 @@ class OrdenTrabajoBase(BaseModel):
     titulo: str
     descripcion_falla: str
     fecha_vencimiento: Optional[date] = None
-    orden_preventiva_id: Optional[int] = None  # NUEVO: vincula OT con tarea preventiva
+    orden_preventiva_id: Optional[int] = None
     
     # Campos de cierre
     acciones_realizadas: Optional[str] = None
     tiempo_real_invertido: Optional[float] = None
+    unidad_tiempo: Optional[str] = "horas"  # "horas" o "dias"
 
 # Esquema para Crear
 class OrdenTrabajoCreate(OrdenTrabajoBase):
@@ -26,6 +27,7 @@ class OrdenTrabajoRead(OrdenTrabajoBase):
     id: int
     fecha_creacion: Optional[datetime] = None
     costo_adicional: Optional[float] = None
+    costos_adicionales: Optional[float] = None
     repuestos_usados: Optional[List] = None
     class Config:
         from_attributes = True
@@ -39,6 +41,8 @@ class OrdenTrabajoUpdate(BaseModel):
     descripcion_falla: Optional[str] = None
     acciones_realizadas: Optional[str] = None
     tiempo_real_invertido: Optional[float] = None
+    unidad_tiempo: Optional[str] = None
     fecha_vencimiento: Optional[date] = None
     costo_adicional: Optional[float] = None
+    costos_adicionales: Optional[float] = None
     repuestos_utilizados: Optional[List[dict]] = None

@@ -42,20 +42,33 @@ def seed_database():
             session.add(admin)
             print("✅ Seed: Usuario admin creado (admin / admin123)")
 
-        # === 2. Seed: Estados de Equipo ===
+        # === 2. Seed: Estados de Equipo (19 estados biomédicos) ===
         equipo_estado_count = session.exec(select(EstadoEquipo)).first()
         if not equipo_estado_count:
             estados_equipo = [
-                EstadoEquipo(id=1, nombre_estado="Operativo", color="#27ae60"),
-                EstadoEquipo(id=2, nombre_estado="En Mantenimiento", color="#f39c12"),
-                EstadoEquipo(id=3, nombre_estado="Averiado (Pendiente Reparación)", color="#e74c3c"),
-                EstadoEquipo(id=4, nombre_estado="Retirado/Dado de Baja", color="#7f8c8d"),
-                EstadoEquipo(id=5, nombre_estado="En Reserva", color="#3498db"),
-                EstadoEquipo(id=6, nombre_estado="En Tránsito", color="#9b59b6"),
+                EstadoEquipo(id=1,  nombre_estado="Operativo",              color="#27ae60"),
+                EstadoEquipo(id=2,  nombre_estado="En mantenimiento",       color="#f39c12"),
+                EstadoEquipo(id=3,  nombre_estado="En reparación",          color="#e74c3c"),
+                EstadoEquipo(id=4,  nombre_estado="Fuera de servicio",      color="#7f8c8d"),
+                EstadoEquipo(id=5,  nombre_estado="En espera/Standby",     color="#3498db"),
+                EstadoEquipo(id=6,  nombre_estado="En calibración",        color="#9b59b6"),
+                EstadoEquipo(id=7,  nombre_estado="En inspección",         color="#1abc9c"),
+                EstadoEquipo(id=8,  nombre_estado="Esp. Repuesto",         color="#e67e22"),
+                EstadoEquipo(id=9,  nombre_estado="Bloqueado/LOTO",        color="#c0392b"),
+                EstadoEquipo(id=10, nombre_estado="En almacén",            color="#95a5a6"),
+                EstadoEquipo(id=11, nombre_estado="Almacén repuestos",     color="#795548"),
+                EstadoEquipo(id=12, nombre_estado="Retirado/Baja",         color="#636e72"),
+                EstadoEquipo(id=13, nombre_estado="En transporte",         color="#0984e3"),
+                EstadoEquipo(id=14, nombre_estado="En préstamo",           color="#6c5ce7"),
+                EstadoEquipo(id=15, nombre_estado="En certificación",      color="#00b894"),
+                EstadoEquipo(id=16, nombre_estado="En modificación",       color="#fdcb6e"),
+                EstadoEquipo(id=17, nombre_estado="Condición crítica",     color="#d63031"),
+                EstadoEquipo(id=18, nombre_estado="Degradado",             color="#e17055"),
+                EstadoEquipo(id=19, nombre_estado="En monitoreo",          color="#00cec9"),
             ]
             for estado in estados_equipo:
                 session.add(estado)
-            print("✅ Seed: 6 estados de equipo creados")
+            print("✅ Seed: 19 estados de equipo creados")
 
         # === 3. Seed: Estados de Orden de Trabajo ===
         ot_estado_count = session.exec(select(EstadoOT)).first()
@@ -63,12 +76,12 @@ def seed_database():
             estados_ot = [
                 EstadoOT(id=1, nombre_estado="Abierta", color="#3b82f6"),
                 EstadoOT(id=2, nombre_estado="En Proceso", color="#f39c12"),
-                EstadoOT(id=3, nombre_estado="Bloqueada (Esp. Repuestos)", color="#e67e22"),
+                EstadoOT(id=3, nombre_estado="Esp. Repuesto", color="#e67e22"),
                 EstadoOT(id=4, nombre_estado="Completada", color="#27ae60"),
                 EstadoOT(id=5, nombre_estado="Cancelada", color="#95a5a6"),
             ]
             for estado in estados_ot:
                 session.add(estado)
-            print("✅ Seed: 5 estados de orden de trabajo creados")
+            print("✅ Seed: 5 estados de orden de trabajo creados (con 'Esp. Repuesto')")
 
         session.commit()

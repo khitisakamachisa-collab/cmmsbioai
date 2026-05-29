@@ -1,0 +1,9 @@
+| Version | Modulo | Descripcion |
+|---------|--------|-------------|
+| v0.1.0 | **Base** | CRUD Equipos, Ordenes, Repuestos, Usuarios + Auth JWT/bcrypt |
+| v0.2.0 | **Dashboard + Excel** | Graficos Chart.js, importacion/exportacion Excel Equipos |
+| v0.3.0 | **Preventivo + Seed** | Tareas preventivas, Excel Repuestos, seed automatico de BD |
+| v0.4.0 | **Historial** | Timeline de mantenimiento, registro automatico al completar OT |
+| v0.5.0 | **Reportes** | 6 reportes con graficos (costos, disponibilidad, cumplimiento, etc.) |
+| v0.6.0 | **Documentos** | Subida/descarga/eliminacion de archivos, drag-and-drop, categorias |
+

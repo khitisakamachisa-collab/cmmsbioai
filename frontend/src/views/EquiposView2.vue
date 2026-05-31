@@ -872,7 +872,18 @@ onMounted(() => {
         <div class="detail-full">
           <h4>Responsable y Notas</h4>
           <p><strong>Técnico Responsable:</strong> {{ getTecnicoName(selectedEquipo.responsable_tecnico_id) }}</p>
-          <p v-if="selectedEquipo.imagen_ruta"><strong>Imagen del Equipo:</strong> <a :href="`/uploads/${selectedEquipo.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(selectedEquipo.imagen_ruta) }}</a></p>
+          <div v-if="selectedEquipo.imagen_ruta" style="margin-bottom: 0.8rem;">
+            <strong>Imagen del Equipo:</strong>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.3rem;">
+              <a :href="`/uploads/${selectedEquipo.imagen_ruta}`" target="_blank" class="imagen-link">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: -2px; margin-right: 3px;">
+                  <path d="M10.5 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/>
+                  <path d="M2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4H2zm.5 2a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1zm9 2.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0z"/>
+                </svg>
+                {{ getImagenNombre(selectedEquipo.imagen_ruta) }}
+              </a>
+            </div>
+          </div>
           <p><strong>Descripción:</strong></p>
           <div class="description-box">
             {{ selectedEquipo.descripcion || 'Sin descripción adicional.' }}
@@ -1013,7 +1024,7 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .btn-subir-imagen:disabled { opacity: 0.5; cursor: not-allowed; }
 .imagen-link {
   color: #2563eb; text-decoration: none; font-weight: 600; font-size: 0.88rem;
-  display: inline; transition: color 0.2s;
+  display: inline-flex; align-items: center; gap: 3px; transition: color 0.2s;
 }
 .imagen-link:hover { color: #1d4ed8; text-decoration: underline; }
 .imagen-upload-controls { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }

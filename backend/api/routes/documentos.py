@@ -6,12 +6,10 @@ from sqlmodel import Session, select
 from typing import Optional, List
 from database import get_session
 from models.documentos import DocumentoAdjunto
+from models.equipos import Equipo
+from config import get_dir
 
 router = APIRouter(prefix="/documentos", tags=["Documentos Adjuntos"])
-
-# Directorio base para almacenar archivos subidos
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
 
 # Extensiones y MIME types permitidos
 ALLOWED_EXTENSIONS = {
@@ -73,9 +71,20 @@ async def subir_documento(
 
     # Determinar subdirectorio
     if orden_trabajo_id:
-        subdir = UPLOAD_DIR / f"ot_{orden_trabajo_id}"
+        subdir = get_dir("ot_documentos") / f"ot_{orden_trabajo_id}"
+    elif equipo_id:
+        # Estructura: uploads/EQUIPOS/EXXXX_numero_serie/DOC/
+        equipo = session.get(Equipo, equipo_id)
+        if equipo:
+            equipo_code = f"E{equipo_id:04d}"
+            serie_safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (equipo.numero_serie or "SN"))
+            folder_name = f"{equipo_code}_{serie_safe}"
+            subdir = get_dir("equipos_documentos") / folder_name / "DOC"
+        else:
+            # Fallback si no se encuentra el equipo
+            subdir = get_dir("uploads_base") / f"equipo_{equipo_id}"
     else:
-        subdir = UPLOAD_DIR / f"equipo_{equipo_id}"
+        subdir = get_dir("uploads_base")
     subdir.mkdir(parents=True, exist_ok=True)
 
     # Usar el nombre original del archivo; si ya existe, agregar sufijo (1), (2), etc.
@@ -160,10 +169,10 @@ def listar_documentos(
     return resultado
 
 
-# --- ENDPOINT: Descargar documento ---
-@router.get("/{doc_id}/descargar")
-def descargar_documento(doc_id: int, session: Session = Depends(get_session)):
-    """Descarga un documento adjunto por su ID."""
+# --- ENDPOINT: Ver documento (abre en navegador) ---
+@router.get("/{doc_id}/ver")
+def ver_documento(doc_id: int, session: Session = Depends(get_session)):
+    """Abre un documento en el navegador (inline). Para PDF, imagenes, texto, etc."""
     doc = session.get(DocumentoAdjunto, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
@@ -175,7 +184,28 @@ def descargar_documento(doc_id: int, session: Session = Depends(get_session)):
     return FileResponse(
         path=str(file_path),
         filename=doc.nombre_archivo,
-        media_type=doc.tipo_archivo
+        media_type=doc.tipo_archivo,
+        content_disposition_type="inline"
+    )
+
+
+# --- ENDPOINT: Descargar documento ---
+@router.get("/{doc_id}/descargar")
+def descargar_documento(doc_id: int, session: Session = Depends(get_session)):
+    """Descarga un documento adjunto por su ID (fuerza descarga)."""
+    doc = session.get(DocumentoAdjunto, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    file_path = Path(doc.ruta_archivo)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Archivo fisico no encontrado en el servidor")
+
+    return FileResponse(
+        path=str(file_path),
+        filename=doc.nombre_archivo,
+        media_type=doc.tipo_archivo,
+        content_disposition_type="attachment"
     )
 
 

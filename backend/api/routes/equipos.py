@@ -11,6 +11,8 @@ from io import BytesIO
 import openpyxl
 import os
 import uuid
+from pathlib import Path
+from config import get_dir
 
 router = APIRouter(prefix="/equipos", tags=["Equipos"])
 
@@ -65,12 +67,13 @@ def eliminar_equipo(equipo_id: int, session: Session = Depends(get_session)):
 
 # ---------------------------------------------------------
 # ENDPOINT: SUBIR IMAGEN PRINCIPAL DE EQUIPO
+# Estructura: uploads/EQUIPOS/EXXXX_numero_serie/EXXXX_numero_serie.ext
 # ---------------------------------------------------------
 @router.post("/{equipo_id}/upload_imagen")
 async def upload_imagen_equipo(equipo_id: int, file: UploadFile = File(...), session: Session = Depends(get_session)):
     """
     Sube una imagen principal para un equipo.
-    Guarda el archivo en uploads/equipos/ y actualiza imagen_ruta.
+    Guarda en uploads/EQUIPOS/EXXXX_numero_serie/EXXXX_numero_serie.ext
     """
     db_equipo = session.get(Equipo, equipo_id)
     if not db_equipo:
@@ -79,33 +82,72 @@ async def upload_imagen_equipo(equipo_id: int, file: UploadFile = File(...), ses
     # Validar tipo de archivo
     allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"]
     if file.content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail=f"Tipo de archivo no permitido. Use JPEG, PNG, GIF, WebP o BMP.")
+        raise HTTPException(status_code=400, detail="Tipo de archivo no permitido. Use JPEG, PNG, GIF, WebP o BMP.")
     
     # Validar tamaño (5MB máximo)
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="La imagen no debe superar 5MB")
     
-    # Crear carpeta si no existe
-    uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads", "equipos")
-    os.makedirs(uploads_dir, exist_ok=True)
+    # Generar código de equipo: E0001, E0002, etc.
+    equipo_code = f"E{equipo_id:04d}"
+    # Usar numero_serie para el nombre de carpeta (sanitizar)
+    serie_safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (db_equipo.numero_serie or "SN"))
+    folder_name = f"{equipo_code}_{serie_safe}"
     
-    # Generar nombre único
+    # Crear carpeta: uploads/EQUIPOS/EXXXX_serie/
+    uploads_dir = get_dir("equipos_imagenes") / folder_name
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Nombre del archivo: EXXXX_serie.ext (misma extensión original)
     ext = os.path.splitext(file.filename)[1] if file.filename else ".jpg"
-    unique_name = f"{uuid.uuid4().hex[:8]}_{equipo_id}{ext}"
-    file_path = os.path.join(uploads_dir, unique_name)
+    filename = f"{folder_name}{ext}"
+    file_path = uploads_dir / filename
+    
+    # Si ya existe una imagen previa con otra extensión, eliminarla
+    for old_ext in [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"]:
+        old_path = uploads_dir / f"{folder_name}{old_ext}"
+        if old_path.exists() and old_path != file_path:
+            old_path.unlink()
     
     # Guardar archivo
-    with open(file_path, "wb") as f:
+    with open(str(file_path), "wb") as f:
         f.write(contents)
     
-    # Actualizar imagen_ruta en la BD
-    db_equipo.imagen_ruta = f"uploads/equipos/{unique_name}"
+    # Actualizar imagen_ruta en la BD (ruta relativa para servir vía /uploads/)
+    imagen_ruta = f"EQUIPOS/{folder_name}/{filename}"
+    db_equipo.imagen_ruta = imagen_ruta
     session.add(db_equipo)
     session.commit()
     session.refresh(db_equipo)
     
-    return {"ok": True, "imagen_ruta": db_equipo.imagen_ruta}
+    return {"ok": True, "imagen_ruta": db_equipo.imagen_ruta, "nombre_archivo": file.filename}
+
+
+# ---------------------------------------------------------
+# ENDPOINT: ELIMINAR IMAGEN PRINCIPAL DE EQUIPO
+# ---------------------------------------------------------
+@router.delete("/{equipo_id}/imagen")
+def eliminar_imagen_equipo(equipo_id: int, session: Session = Depends(get_session)):
+    """Elimina la imagen principal de un equipo (archivo + BD)."""
+    db_equipo = session.get(Equipo, equipo_id)
+    if not db_equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    
+    if not db_equipo.imagen_ruta:
+        raise HTTPException(status_code=400, detail="Este equipo no tiene imagen")
+    
+    # Eliminar archivo físico
+    file_path = get_dir("uploads_base") / db_equipo.imagen_ruta
+    if file_path.exists():
+        file_path.unlink()
+    
+    # Limpiar BD
+    db_equipo.imagen_ruta = None
+    session.add(db_equipo)
+    session.commit()
+    
+    return {"ok": True, "message": "Imagen eliminada"}
 
 # ---------------------------------------------------------
 # ENDPOINT CORREGIDO: LEE DE LA BASE DE DATOS

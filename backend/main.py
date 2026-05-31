@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from database import create_db_and_tables, seed_database
 from models import Usuario, Equipo, EstadoEquipo, OrdenTrabajo, EstadoOT, EventoHistorial, DocumentoAdjunto
 from api.routes import estados, users, equipos, ordenes, auth, repuestos, preventivo, historial, reportes, documentos
+from config import get_dir
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,11 +38,9 @@ app.include_router(historial.router)
 app.include_router(reportes.router)
 app.include_router(documentos.router)
 
-# Servir archivos estaticos (documentos subidos)
-import os
-uploads_dir = os.path.join(os.path.dirname(__file__), "uploads")
-os.makedirs(uploads_dir, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+# Servir archivos estaticos (documentos subidos) - usa config.py
+uploads_dir = get_dir("uploads_base")
+app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 @app.get("/")
 def root():

@@ -255,7 +255,7 @@ const updateOrden = async () => {
     if (payload.tiempo_real_invertido === "" || payload.tiempo_real_invertido === null) {
       payload.tiempo_real_invertido = null;
     } else {
-      payload.tiempo_real_investido = parseFloat(payload.tiempo_real_invertido);
+      payload.tiempo_real_invertido = parseFloat(payload.tiempo_real_invertido);
     }
 
     await apiClient.put(`/ordenes/${selectedOT.value.id}`, payload)
@@ -565,11 +565,11 @@ onMounted(() => {
           <div class="form-row">
             <div class="form-group">
               <label>Costo General (Bs.)</label>
-              <input v-model="editFormData.costo_adicional" type="number" step="1" min="0" placeholder="Costos directos de la OT">
+              <input v-model="editFormData.costo_adicional" type="number" step="0.01" min="0" placeholder="Costos directos de la OT">
             </div>
             <div class="form-group">
               <label>Costos Adicionales (Bs.)</label>
-              <input v-model="editFormData.costos_adicionales" type="number" step="1" min="0" placeholder="Externos, transporte, etc.">
+              <input v-model="editFormData.costos_adicionales" type="number" step="0.01" min="0" placeholder="Externos, transporte, etc.">
             </div>
           </div>
 

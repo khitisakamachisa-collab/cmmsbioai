@@ -122,6 +122,12 @@ const uploadFiles = async () => {
   fetchDocumentos()
 }
 
+const verDocumento = (doc) => {
+  const baseUrl = apiClient.defaults.baseURL || ''
+  const url = `${baseUrl}/documentos/${doc.id}/ver`
+  window.open(url, '_blank')
+}
+
 const descargarDocumento = async (doc) => {
   try {
     const response = await apiClient.get(`/documentos/${doc.id}/descargar`, {
@@ -225,7 +231,7 @@ onMounted(() => {
       <div v-for="doc in documentos" :key="doc.id" class="doc-item">
         <div class="doc-icon">{{ getFileIcon(doc.tipo_archivo) }}</div>
         <div class="doc-info">
-          <span class="doc-name" @click="descargarDocumento(doc)" title="Click para descargar">{{ doc.nombre_archivo }}</span>
+          <span class="doc-name" @click="verDocumento(doc)" title="Click para ver">{{ doc.nombre_archivo }}</span>
           <div class="doc-meta">
             <span class="doc-badge" :class="'doc-badge--' + doc.categoria">{{ getCategoriaLabel(doc.categoria) }}</span>
             <span class="doc-size">{{ formatSize(doc.tamanio_bytes) }}</span>
@@ -235,6 +241,11 @@ onMounted(() => {
           <p v-if="doc.descripcion" class="doc-desc">{{ doc.descripcion }}</p>
         </div>
         <div class="doc-actions">
+          <button class="btn-doc-action" title="Ver / Abrir" @click="verDocumento(doc)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+            </svg>
+          </button>
           <button class="btn-doc-action" title="Descargar" @click="descargarDocumento(doc)">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
               <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>

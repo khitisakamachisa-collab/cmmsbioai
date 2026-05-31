@@ -323,13 +323,18 @@ onMounted(() => {
       <div class="top-bar">
         <h2>Listado de Órdenes de Trabajo</h2>
         <div class="top-bar-actions">
-          <input
-            v-model="searchQuery"
-            type="search"
-            class="search-input"
-            placeholder="Buscar por título, equipo, ID..."
-            autocomplete="off"
-          >
+          <div class="search-wrapper">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+            </svg>
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="search-input"
+              placeholder="Titulo, equipo, ID..."
+              autocomplete="off"
+            >
+          </div>
           <button class="btn-primary" @click="showModal = true">+ Nueva Orden</button>
         </div>
       </div>
@@ -632,11 +637,17 @@ th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
 th { background-color: #f8f9fa; }
 .top-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 0.75rem; }
 .top-bar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
-.search-input {
-  min-width: 200px; flex: 1 1 200px; max-width: 320px;
-  padding: 0.55rem 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px;
-  font-size: 0.95rem; box-sizing: border-box; background: #fff;
+.search-wrapper {
+  position: relative; display: flex; align-items: center;
+  min-width: 200px; flex: 1 1 180px; max-width: 320px;
 }
+.search-icon { position: absolute; left: 10px; color: #94a3b8; pointer-events: none; z-index: 1; }
+.search-input {
+  width: 100%; padding: 0.55rem 0.85rem 0.55rem 2.2rem;
+  border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem;
+  box-sizing: border-box; background: #fff;
+}
+.search-input::placeholder { color: #94a3b8; }
 .search-input:focus { outline: none; border-color: #3498db; box-shadow: 0 0 0 2px rgba(52,152,219,0.2); }
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
 .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }

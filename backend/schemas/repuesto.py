@@ -19,7 +19,7 @@ class RepuestoRead(BaseModel):
     unidad_medida: str
     ubicacion_almacen: Optional[str] = None
     nivel_stock_minimo: Optional[int] = None
-    imagen: Optional[str] = None
+    imagen_ruta: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -33,3 +33,4 @@ class RepuestoUpdate(BaseModel):
     unidad_medida: Optional[str] = None
     ubicacion_almacen: Optional[str] = None
     nivel_stock_minimo: Optional[int] = None
+    imagen_ruta: Optional[str] = None

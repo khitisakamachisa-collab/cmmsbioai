@@ -4,7 +4,8 @@ import apiClient from '../services/api.js'
 
 const props = defineProps({
   ordenTrabajoId: { type: Number, default: null },
-  equipoId: { type: Number, default: null }
+  equipoId: { type: Number, default: null },
+  repuestoId: { type: Number, default: null }
 })
 
 const documentos = ref([])
@@ -46,13 +47,14 @@ const getCategoriaLabel = (cat) => {
 }
 
 const fetchDocumentos = async () => {
-  if (!props.ordenTrabajoId && !props.equipoId) return
+  if (!props.ordenTrabajoId && !props.equipoId && !props.repuestoId) return
 
   loading.value = true
   try {
     const params = {}
     if (props.ordenTrabajoId) params.orden_trabajo_id = props.ordenTrabajoId
     if (props.equipoId) params.equipo_id = props.equipoId
+    if (props.repuestoId) params.repuesto_id = props.repuestoId
 
     const res = await apiClient.get('/documentos/', { params })
     documentos.value = res.data
@@ -98,6 +100,7 @@ const uploadFiles = async () => {
       formData.append('file', file)
       if (props.ordenTrabajoId) formData.append('orden_trabajo_id', props.ordenTrabajoId)
       if (props.equipoId) formData.append('equipo_id', props.equipoId)
+      if (props.repuestoId) formData.append('repuesto_id', props.repuestoId)
       if (descripcion.value) formData.append('descripcion', descripcion.value)
       formData.append('categoria', categoria.value)
 
@@ -159,7 +162,7 @@ const eliminarDocumento = async (doc) => {
   }
 }
 
-watch([() => props.ordenTrabajoId, () => props.equipoId], () => {
+watch([() => props.ordenTrabajoId, () => props.equipoId, () => props.repuestoId], () => {
   fetchDocumentos()
 })
 

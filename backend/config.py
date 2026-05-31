@@ -112,6 +112,30 @@ def get_dir(key: str) -> Path:
 # ─── Variables de conveniencia (las más usadas) ───
 UPLOADS_DIR = get_dir("uploads_base")
 
+
+def sanitize_filename(text: str, default: str = "SN") -> str:
+    """
+    Sanitiza texto para usar en nombres de carpeta/archivo.
+
+    Solo permite caracteres ASCII alfanumericos, guiones y guiones bajos.
+    Los caracteres no ASCII (acentos, eñes, etc.) se reemplazan por '_'.
+    Esto evita problemas de codificacion en diferentes sistemas operativos.
+
+    Ejemplo:
+        sanitize_filename("Inspección") -> "Inspecci_n"
+        sanitize_filename("MIC-OLY-001") -> "MIC-OLY-001"
+        sanitize_filename("") -> "SN"
+    """
+    if not text:
+        return default
+    result = "".join(c if c.isascii() and (c.isalnum() or c in "-_") else "_" for c in text)
+    # Eliminar múltiples guiones bajos consecutivos
+    while "__" in result:
+        result = result.replace("__", "_")
+    # Eliminar guiones bajos al inicio/final
+    result = result.strip("_")
+    return result if result else default
+
 # ─── Info de debug (se muestra al iniciar el servidor) ───
 print(f"[config.py] BACKEND_DIR = {BACKEND_DIR}")
 print(f"[config.py] UPLOADS_DIR  = {UPLOADS_DIR}")

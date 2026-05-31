@@ -446,14 +446,19 @@ onMounted(() => {
       <div class="top-bar">
         <h2>Gestión de Equipos Médicos</h2>
         <div class="top-bar-actions">
-          <input
-            v-model="searchQuery"
-            type="search"
-            class="search-input"
-            placeholder="Buscar por nombre, marca o modelo..."
-            autocomplete="off"
-            aria-label="Buscar equipos por nombre, marca o modelo"
-          >
+          <div class="search-wrapper">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+            </svg>
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="search-input"
+              placeholder="Nombre, marca, modelo..."
+              autocomplete="off"
+              aria-label="Buscar equipos"
+            >
+          </div>
           <button class="btn-import" @click="openImportModal" title="Cargar equipos desde Excel">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
               <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
@@ -916,14 +921,27 @@ onMounted(() => {
   align-items: center;
   gap: 0.65rem;
 }
+.search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 200px;
+  flex: 1 1 180px;
+  max-width: 320px;
+}
+.search-icon {
+  position: absolute;
+  left: 10px;
+  color: #94a3b8;
+  pointer-events: none;
+  z-index: 1;
+}
 .search-input {
-  min-width: 220px;
-  flex: 1 1 200px;
-  max-width: 360px;
-  padding: 0.55rem 0.85rem;
+  width: 100%;
+  padding: 0.55rem 0.85rem 0.55rem 2.2rem;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   box-sizing: border-box;
   background: #fff;
 }

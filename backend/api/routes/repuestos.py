@@ -6,8 +6,11 @@ from models.repuestos import Repuesto
 from schemas.repuesto import RepuestoCreate, RepuestoRead, RepuestoUpdate
 from io import BytesIO
 from datetime import datetime as dt
+from pathlib import Path
 import openpyxl
+import os
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from config import get_dir
 
 router = APIRouter(prefix="/repuestos", tags=["Inventario"])
 
@@ -323,6 +326,78 @@ async def importar_repuestos_excel(file: UploadFile = File(...), session: Sessio
 # ============================================================
 # RUTAS DINÁMICAS (van DESPUÉS de las estáticas)
 # ============================================================
+
+# ---------------------------------------------------------
+# ENDPOINT: SUBIR IMAGEN PRINCIPAL DE REPUESTO
+# Estructura: uploads/INVENTARIO/I0001_nombre/I0001_nombre.ext
+# ---------------------------------------------------------
+@router.post("/{rep_id}/upload_imagen")
+async def upload_imagen_repuesto(rep_id: int, file: UploadFile = File(...), session: Session = Depends(get_session)):
+    """Sube una imagen principal para un repuesto."""
+    db_rep = session.get(Repuesto, rep_id)
+    if not db_rep:
+        raise HTTPException(status_code=404, detail="Repuesto no encontrado")
+
+    allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Tipo de archivo no permitido. Use JPEG, PNG, GIF, WebP o BMP.")
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="La imagen no debe superar 5MB")
+
+    rep_code = f"I{rep_id:04d}"
+    nombre_safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (db_rep.nombre_repuesto or "SN"))
+    folder_name = f"{rep_code}_{nombre_safe}"
+
+    uploads_dir = get_dir("inventario_imagenes") / folder_name
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = os.path.splitext(file.filename)[1] if file.filename else ".jpg"
+    filename = f"{folder_name}{ext}"
+    file_path = uploads_dir / filename
+
+    # Eliminar imagen previa con otra extension
+    for old_ext in [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"]:
+        old_path = uploads_dir / f"{folder_name}{old_ext}"
+        if old_path.exists() and old_path != file_path:
+            old_path.unlink()
+
+    with open(str(file_path), "wb") as f:
+        f.write(contents)
+
+    imagen_ruta = f"INVENTARIO/{folder_name}/{filename}"
+    db_rep.imagen_ruta = imagen_ruta
+    session.add(db_rep)
+    session.commit()
+    session.refresh(db_rep)
+
+    return {"ok": True, "imagen_ruta": db_rep.imagen_ruta, "nombre_archivo": file.filename}
+
+
+# ---------------------------------------------------------
+# ENDPOINT: ELIMINAR IMAGEN PRINCIPAL DE REPUESTO
+# ---------------------------------------------------------
+@router.delete("/{rep_id}/imagen")
+def eliminar_imagen_repuesto(rep_id: int, session: Session = Depends(get_session)):
+    """Elimina la imagen principal de un repuesto (archivo + BD)."""
+    db_rep = session.get(Repuesto, rep_id)
+    if not db_rep:
+        raise HTTPException(status_code=404, detail="Repuesto no encontrado")
+
+    if not db_rep.imagen_ruta:
+        raise HTTPException(status_code=400, detail="Este repuesto no tiene imagen")
+
+    file_path = get_dir("uploads_base") / db_rep.imagen_ruta
+    if file_path.exists():
+        file_path.unlink()
+
+    db_rep.imagen_ruta = None
+    session.add(db_rep)
+    session.commit()
+
+    return {"ok": True, "message": "Imagen eliminada"}
+
 
 @router.get("/{rep_id}", response_model=RepuestoRead)
 def obtener_repuesto(rep_id: int, session: Session = Depends(get_session)):

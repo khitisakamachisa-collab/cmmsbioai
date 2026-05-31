@@ -73,7 +73,7 @@ def eliminar_equipo(equipo_id: int, session: Session = Depends(get_session)):
 async def upload_imagen_equipo(equipo_id: int, file: UploadFile = File(...), session: Session = Depends(get_session)):
     """
     Sube una imagen principal para un equipo.
-    Guarda en uploads/EQUIPOS/EXXXX_numero_serie/EXXXX_numero_serie.ext
+    Guarda en uploads/EQUIPOS/EXXXX_Modelo_serie/EXXXX_Modelo_serie.ext
     """
     db_equipo = session.get(Equipo, equipo_id)
     if not db_equipo:
@@ -91,9 +91,10 @@ async def upload_imagen_equipo(equipo_id: int, file: UploadFile = File(...), ses
     
     # Generar código de equipo: E0001, E0002, etc.
     equipo_code = f"E{equipo_id:04d}"
-    # Usar numero_serie para el nombre de carpeta (sanitizar)
+    # Usar modelo y numero_serie para el nombre de carpeta (sanitizar)
+    modelo_safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (db_equipo.modelo or "SM"))
     serie_safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (db_equipo.numero_serie or "SN"))
-    folder_name = f"{equipo_code}_{serie_safe}"
+    folder_name = f"{equipo_code}_{modelo_safe}_{serie_safe}"
     
     # Crear carpeta: uploads/EQUIPOS/EXXXX_serie/
     uploads_dir = get_dir("equipos_imagenes") / folder_name

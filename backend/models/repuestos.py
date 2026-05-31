@@ -10,7 +10,7 @@ class Repuesto(SQLModel, table=True):
     unidad_medida: str = Field(default="unidad")
     ubicacion_almacen: Optional[str] = None
     nivel_stock_minimo: Optional[int] = None
-    imagen: Optional[str] = None # Ruta a imagen opcional
+    imagen_ruta: Optional[str] = None # Ruta relativa a imagen (ej: INVENTARIO/I0001_xxx/I0001_xxx.jpg)
     
     # --- Nueva Tabla Intermedia ---
 

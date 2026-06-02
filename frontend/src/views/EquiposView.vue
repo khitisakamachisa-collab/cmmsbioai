@@ -384,13 +384,39 @@ const downloadTemplate = async () => {
   }
 }
 
+const downloadTemplateCSV = async () => {
+  try {
+    const response = await apiClient.get('/equipos/plantilla-csv', {
+      responseType: 'blob'
+    })
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }))
+    const link = document.createElement('a')
+    link.href = url
+    const contentDisposition = response.headers['content-disposition']
+    let filename = 'CMMS-BioAI_Plantilla_Equipos.csv'
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?(.+?)"?$/)
+      if (match) filename = match[1]
+    }
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    alert('Error al descargar la plantilla CSV')
+    console.error(error)
+  }
+}
+
 const uploadExcel = async () => {
   if (!importFile.value) {
     alert('Seleccione un archivo primero')
     return
   }
-  if (!importFile.value.name.toLowerCase().endsWith('.xlsx')) {
-    alert('Solo se aceptan archivos .xlsx')
+  const ext = importFile.value.name.toLowerCase()
+  if (!ext.endsWith('.xlsx') && !ext.endsWith('.csv')) {
+    alert('Solo se aceptan archivos .xlsx o .csv')
     return
   }
   try {
@@ -597,7 +623,7 @@ onMounted(() => {
                 <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
                 <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
               </svg>
-              <p class="drop-zone-text">Arrastre su archivo Excel aquí</p>
+              <p class="drop-zone-text">Arrastre su archivo Excel o CSV aquí</p>
               <p class="drop-zone-subtext">o haga clic para seleccionar</p>
             </div>
             <div v-else class="drop-zone-content">
@@ -608,22 +634,30 @@ onMounted(() => {
               <p class="drop-zone-subtext">{{ (importFile.size / 1024).toFixed(1) }} KB</p>
             </div>
           </div>
-          <input ref="fileInput" type="file" accept=".xlsx" style="display: none;" @change="handleFileSelect">
+          <input ref="fileInput" type="file" accept=".xlsx,.csv" style="display: none;" @change="handleFileSelect">
 
           <div class="import-info">
-            <p><strong>Formato:</strong> Archivo .xlsx con encabezados en la primera fila.</p>
-            <p><strong>Columnas obligatorias:</strong> modelo, numero_serie, marca, fecha_adquisicion</p>
-            <p>Si el numero_serie ya existe, el equipo se <strong>actualizará</strong> con los nuevos datos.</p>
+            <p><strong>Formato:</strong> Archivo .xlsx o .csv con encabezados en la primera fila.</p>
+            <p><strong>Columnas obligatorias:</strong> modelo, numero_serie, marca</p>
+            <p><strong>Fechas:</strong> Si no tiene fecha de adquisicion, se asigna 1900-01-01 automaticamente.</p>
+            <p>Si el numero_serie ya existe, el equipo se <strong>actualizara</strong> con los nuevos datos.</p>
           </div>
 
           <div class="modal-actions">
             <button type="button" class="btn-secondary" @click="showImportModal = false">Cancelar</button>
-            <button type="button" class="btn-outline" @click="downloadTemplate" title="Descargar plantilla con datos de ejemplo">
+            <button type="button" class="btn-outline" @click="downloadTemplate" title="Descargar plantilla Excel con datos de ejemplo">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: -2px; margin-right: 4px;">
                 <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
                 <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
               </svg>
-              Descargar Plantilla
+              Plantilla Excel
+            </button>
+            <button type="button" class="btn-outline" @click="downloadTemplateCSV" title="Descargar plantilla CSV">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: -2px; margin-right: 4px;">
+                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+              </svg>
+              Plantilla CSV
             </button>
             <button type="button" class="btn-primary" :disabled="!importFile" @click="uploadExcel">
               Importar

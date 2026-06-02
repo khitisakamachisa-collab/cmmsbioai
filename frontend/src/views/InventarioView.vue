@@ -346,13 +346,39 @@ const downloadTemplate = async () => {
   }
 }
 
+const downloadTemplateCSV = async () => {
+  try {
+    const response = await apiClient.get('/repuestos/plantilla-csv', {
+      responseType: 'blob'
+    })
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }))
+    const link = document.createElement('a')
+    link.href = url
+    const contentDisposition = response.headers['content-disposition']
+    let filename = 'CMMS-BioAI_Plantilla_Repuestos.csv'
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?(.+?)"?$/)
+      if (match) filename = match[1]
+    }
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    alert('Error al descargar la plantilla CSV')
+    console.error(error)
+  }
+}
+
 const uploadExcel = async () => {
   if (!importFile.value) {
     alert('Seleccione un archivo primero')
     return
   }
-  if (!importFile.value.name.toLowerCase().endsWith('.xlsx')) {
-    alert('Solo se aceptan archivos .xlsx')
+  const ext = importFile.value.name.toLowerCase()
+  if (!ext.endsWith('.xlsx') && !ext.endsWith('.csv')) {
+    alert('Solo se aceptan archivos .xlsx o .csv')
     return
   }
   try {
@@ -503,7 +529,7 @@ onMounted(() => {
           <div class="drop-zone" :class="{ 'drop-zone--active': importDragOver, 'drop-zone--has-file': importFile }" @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop" @click="$refs.fileInput.click()">
             <div v-if="!importFile" class="drop-zone-content">
               <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16" style="color: #94a3b8;"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/></svg>
-              <p class="drop-zone-text">Arrastre su archivo Excel aqui</p>
+              <p class="drop-zone-text">Arrastre su archivo Excel o CSV aqui</p>
               <p class="drop-zone-subtext">o haga clic para seleccionar</p>
             </div>
             <div v-else class="drop-zone-content">
@@ -512,14 +538,15 @@ onMounted(() => {
               <p class="drop-zone-subtext">{{ (importFile.size / 1024).toFixed(1) }} KB</p>
             </div>
           </div>
-          <input ref="fileInput" type="file" accept=".xlsx" style="display: none;" @change="handleFileSelect">
+          <input ref="fileInput" type="file" accept=".xlsx,.csv" style="display: none;" @change="handleFileSelect">
           <div class="import-info">
-            <p><strong>Formato:</strong> Archivo .xlsx con encabezados en la primera fila.</p>
+            <p><strong>Formato:</strong> Archivo .xlsx o .csv con encabezados en la primera fila.</p>
             <p><strong>Columnas obligatorias:</strong> nombre_repuesto, cantidad_disponible</p>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-secondary" @click="showImportModal = false">Cancelar</button>
-            <button type="button" class="btn-outline" @click="downloadTemplate">Descargar Plantilla</button>
+            <button type="button" class="btn-outline" @click="downloadTemplate" title="Descargar plantilla Excel">Plantilla Excel</button>
+            <button type="button" class="btn-outline" @click="downloadTemplateCSV" title="Descargar plantilla CSV">Plantilla CSV</button>
             <button type="button" class="btn-primary" :disabled="!importFile" @click="uploadExcel">Importar</button>
           </div>
         </div>

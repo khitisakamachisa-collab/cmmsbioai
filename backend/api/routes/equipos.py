@@ -7,8 +7,9 @@ from models.estados import EstadoEquipo
 from models.users import Usuario
 from schemas.equipo import EquipoCreate, EquipoRead, EquipoUpdate
 from datetime import date, datetime
-from io import BytesIO
+from io import BytesIO, StringIO
 import openpyxl
+import csv
 import os
 import uuid
 from pathlib import Path
@@ -194,18 +195,52 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
     - 'responsable_username' se resuelve por username del usuario
     """
     # Validar extensión
-    if not file.filename or not file.filename.lower().endswith('.xlsx'):
-        raise HTTPException(status_code=400, detail="Solo se aceptan archivos .xlsx")
+    ext = Path(file.filename).suffix.lower() if file.filename else ''
+    if ext not in ('.xlsx', '.csv'):
+        raise HTTPException(status_code=400, detail="Solo se aceptan archivos .xlsx o .csv")
     
     # Leer el archivo
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:  # 5MB límite
         raise HTTPException(status_code=400, detail="El archivo no debe superar 5MB")
     
-    try:
-        wb = openpyxl.load_workbook(BytesIO(contents), read_only=True, data_only=True)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {str(e)}")
+    # Determinar si es Excel o CSV
+    is_csv = ext == '.csv'
+    
+    if is_csv:
+        # Parsear CSV como lista de listas
+        try:
+            text = contents.decode('utf-8-sig')  # utf-8-sig maneja BOM de Windows
+        except UnicodeDecodeError:
+            try:
+                text = contents.decode('latin-1')  # Fallback para archivos con acentos
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Error al decodificar el archivo CSV: {str(e)}")
+        
+        try:
+            # Detectar delimitador (coma, punto y coma, tab)
+            sniffer_sample = text[:2048]
+            try:
+                dialect = csv.Sniffer().sniff(sniffer_sample, delimiters=',;\t')
+            except csv.Error:
+                dialect = csv.excel  # Default: coma
+            
+            reader = csv.reader(StringIO(text), dialect)
+            filas = list(reader)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error al leer el archivo CSV: {str(e)}")
+        
+        if len(filas) < 2:
+            raise HTTPException(status_code=400, detail="El archivo CSV está vacío o solo tiene encabezados")
+        
+        # Para CSV, las fechas vienen como texto, no como datetime
+        # La función _parse_date ya maneja strings
+        ws = None  # No hay hoja de Excel
+    else:
+        try:
+            wb = openpyxl.load_workbook(BytesIO(contents), read_only=True, data_only=True)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {str(e)}")
     
     # Obtener estados y usuarios para resolver nombres
     estados_db = session.exec(select(EstadoEquipo)).all()
@@ -222,25 +257,25 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
     ]
     OBLIGATORIAS = {'modelo', 'numero_serie', 'marca', 'fecha_adquisicion'}
     
-    # Buscar la hoja que contiene los encabezados esperados
-    # (si el usuario abrió el archivo en Excel, la hoja activa puede ser "Instrucciones")
-    ws = None
-    for sheet in wb.worksheets:
-        filas_tmp = list(sheet.iter_rows(values_only=True))
-        if filas_tmp:
-            enc_tmp = [str(c).strip().lower() if c else '' for c in filas_tmp[0]]
-            if OBLIGATORIAS.issubset(set(enc_tmp)):
-                ws = sheet
-                break
-    
-    if ws is None:
-        # Fallback: usar la primera hoja
-        ws = wb.worksheets[0]
-    
-    # Leer encabezados (fila 1)
-    filas = list(ws.iter_rows(values_only=True))
-    if len(filas) < 2:
-        raise HTTPException(status_code=400, detail="El archivo está vacío o solo tiene encabezados")
+    # Buscar la hoja que contiene los encabezados esperados (solo para Excel)
+    if not is_csv:
+        ws = None
+        for sheet in wb.worksheets:
+            filas_tmp = list(sheet.iter_rows(values_only=True))
+            if filas_tmp:
+                enc_tmp = [str(c).strip().lower() if c else '' for c in filas_tmp[0]]
+                if OBLIGATORIAS.issubset(set(enc_tmp)):
+                    ws = sheet
+                    break
+        
+        if ws is None:
+            # Fallback: usar la primera hoja
+            ws = wb.worksheets[0]
+        
+        # Leer encabezados (fila 1)
+        filas = list(ws.iter_rows(values_only=True))
+        if len(filas) < 2:
+            raise HTTPException(status_code=400, detail="El archivo está vacío o solo tiene encabezados")
     
     encabezados_leidos = [str(c).strip().lower() if c else '' for c in filas[0]]
     
@@ -266,61 +301,77 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
     for fila_num, fila in enumerate(filas[1:], start=2):  # fila 2 en adelante
         try:
             # Extraer valores de la fila
+            # NOTA: No convertir a string aquí porque perdemos el tipo original
+            # (openpyxl devuelve datetime para fechas, int para números)
+            # La conversión a string se hace donde sea necesario
             def get_val(col_name):
                 idx = col_index.get(col_name)
                 if idx is None or idx >= len(fila):
                     return None
                 val = fila[idx]
-                return str(val).strip() if val is not None else None
+                return val  # Devolver valor original (datetime, int, str, etc.)
+
+            def get_str(col_name):
+                """Devuelve el valor como string stripado, o None."""
+                val = get_val(col_name)
+                if val is None:
+                    return None
+                return str(val).strip()
             
-            # Validar obligatorios
+            # Validar obligatorios (solo modelo, numero_serie, marca)
+            # fecha_adquisicion se maneja con valor por defecto si está vacía
             errores_fila = []
-            for col in OBLIGATORIAS:
-                val = get_val(col)
+            for col in OBLIGATORIAS - {'fecha_adquisicion'}:
+                val = get_str(col)
                 if not val:
                     errores_fila.append(f"'{col}' es obligatorio")
             
             if errores_fila:
                 fallidos.append({
                     "fila": fila_num,
-                    "numero_serie": get_val('numero_serie') or 'N/A',
+                    "numero_serie": get_str('numero_serie') or 'N/A',
                     "errores": errores_fila
                 })
                 continue
             
-            # Parsear fecha_adquisicion
-            fecha_adq_str = get_val('fecha_adquisicion')
-            try:
-                fecha_adq = _parse_date(fecha_adq_str)
-            except ValueError:
-                fallidos.append({
-                    "fila": fila_num,
-                    "numero_serie": get_val('numero_serie') or 'N/A',
-                    "errores": [f"fecha_adquisicion inválida: '{fecha_adq_str}'. Use formato YYYY-MM-DD"]
-                })
-                continue
+            # Parsear fecha_adquisicion (acepta datetime de Excel directamente)
+            fecha_adq_raw = get_val('fecha_adquisicion')
+            if fecha_adq_raw is not None and str(fecha_adq_raw).strip() not in ('', 'None'):
+                try:
+                    fecha_adq = _parse_date(fecha_adq_raw)
+                except ValueError:
+                    fallidos.append({
+                        "fila": fila_num,
+                        "numero_serie": get_str('numero_serie') or 'N/A',
+                        "errores": [f"fecha_adquisicion inválida: '{fecha_adq_raw}'. Use formato YYYY-MM-DD"]
+                    })
+                    continue
+            else:
+                # Si no tiene fecha de adquisición, usar fecha por defecto (1900-01-01)
+                # Esto permite importar datos históricos incompletos
+                fecha_adq = date(1900, 1, 1)
             
             # Parsear calibracion_proxima (opcional)
-            cal_str = get_val('calibracion_proxima')
             fecha_cal = None
-            if cal_str:
+            cal_raw = get_val('calibracion_proxima')
+            if cal_raw:
                 try:
-                    fecha_cal = _parse_date(cal_str)
+                    fecha_cal = _parse_date(cal_raw)
                 except ValueError:
                     pass
             
             # Parsear fecha_fin_garantia (opcional)
-            garantia_str = get_val('fecha_fin_garantia')
             fecha_garantia = None
-            if garantia_str:
+            garantia_raw = get_val('fecha_fin_garantia')
+            if garantia_raw:
                 try:
-                    fecha_garantia = _parse_date(garantia_str)
+                    fecha_garantia = _parse_date(garantia_raw)
                 except ValueError:
                     pass
             
             # Resolver estado_id
             estado_id = 1  # Default
-            estado_str = get_val('estado')
+            estado_str = get_str('estado')
             if estado_str:
                 estado_key = estado_str.strip().lower()
                 if estado_key in estado_map:
@@ -331,7 +382,7 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
             
             # Resolver responsable_tecnico_id
             responsable_id = None
-            resp_str = get_val('responsable_username')
+            resp_str = get_str('responsable_username')
             if resp_str:
                 resp_key = resp_str.strip().lower()
                 if resp_key in usuario_map:
@@ -340,24 +391,24 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
                     errores_fila.append(f"Usuario '{resp_str}' no encontrado, se asignará sin responsable")
             
             # Verificar si ya existe (por numero_serie)
-            num_serie = get_val('numero_serie')
+            num_serie = get_str('numero_serie')
             equipo_existente = session.exec(
                 select(Equipo).where(Equipo.numero_serie == num_serie)
             ).first()
             
             if equipo_existente:
                 # ACTUALIZAR (upsert)
-                equipo_existente.nombre_corto = get_val('nombre_corto') or equipo_existente.nombre_corto
-                equipo_existente.modelo = get_val('modelo') or equipo_existente.modelo
-                equipo_existente.numero_material = get_val('numero_material') or equipo_existente.numero_material
-                equipo_existente.marca = get_val('marca') or equipo_existente.marca
+                equipo_existente.nombre_corto = get_str('nombre_corto') or equipo_existente.nombre_corto
+                equipo_existente.modelo = get_str('modelo') or equipo_existente.modelo
+                equipo_existente.numero_material = get_str('numero_material') or equipo_existente.numero_material
+                equipo_existente.marca = get_str('marca') or equipo_existente.marca
                 equipo_existente.fecha_adquisicion = fecha_adq
                 equipo_existente.fecha_fin_garantia = fecha_garantia or equipo_existente.fecha_fin_garantia
-                equipo_existente.ubicacion_actual = get_val('ubicacion_actual') or equipo_existente.ubicacion_actual
+                equipo_existente.ubicacion_actual = get_str('ubicacion_actual') or equipo_existente.ubicacion_actual
                 equipo_existente.estado_id = estado_id
-                equipo_existente.proveedor_principal = get_val('proveedor_principal') or equipo_existente.proveedor_principal
-                equipo_existente.registro_sanitario_bolivia = get_val('registro_sanitario_bolivia') or equipo_existente.registro_sanitario_bolivia
-                equipo_existente.descripcion = get_val('descripcion') or equipo_existente.descripcion
+                equipo_existente.proveedor_principal = get_str('proveedor_principal') or equipo_existente.proveedor_principal
+                equipo_existente.registro_sanitario_bolivia = get_str('registro_sanitario_bolivia') or equipo_existente.registro_sanitario_bolivia
+                equipo_existente.descripcion = get_str('descripcion') or equipo_existente.descripcion
                 equipo_existente.calibracion_proxima = fecha_cal or equipo_existente.calibracion_proxima
                 equipo_existente.responsable_tecnico_id = responsable_id or equipo_existente.responsable_tecnico_id
                 session.add(equipo_existente)
@@ -365,18 +416,18 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
             else:
                 # CREAR nuevo
                 nuevo = Equipo(
-                    nombre_corto=get_val('nombre_corto'),
-                    modelo=get_val('modelo'),
+                    nombre_corto=get_str('nombre_corto'),
+                    modelo=get_str('modelo'),
                     numero_serie=num_serie,
-                    numero_material=get_val('numero_material'),
-                    marca=get_val('marca'),
+                    numero_material=get_str('numero_material'),
+                    marca=get_str('marca'),
                     fecha_adquisicion=fecha_adq,
                     fecha_fin_garantia=fecha_garantia,
-                    ubicacion_actual=get_val('ubicacion_actual'),
+                    ubicacion_actual=get_str('ubicacion_actual'),
                     estado_id=estado_id,
-                    proveedor_principal=get_val('proveedor_principal'),
-                    registro_sanitario_bolivia=get_val('registro_sanitario_bolivia'),
-                    descripcion=get_val('descripcion'),
+                    proveedor_principal=get_str('proveedor_principal'),
+                    registro_sanitario_bolivia=get_str('registro_sanitario_bolivia'),
+                    descripcion=get_str('descripcion'),
                     calibracion_proxima=fecha_cal,
                     responsable_tecnico_id=responsable_id
                 )
@@ -391,12 +442,13 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
         except Exception as e:
             fallidos.append({
                 "fila": fila_num,
-                "numero_serie": get_val('numero_serie') if 'num_serie' in dir() else 'N/A',
+                "numero_serie": get_str('numero_serie') if col_index.get('numero_serie') is not None else 'N/A',
                 "errores": [str(e)]
             })
     
     session.commit()
-    wb.close()
+    if not is_csv:
+        wb.close()
     
     return {
         "exitosos": exitosos,
@@ -407,16 +459,87 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
     }
 
 
-def _parse_date(val: str) -> date:
-    """Parsea una fecha en formato YYYY-MM-DD o DD/MM/YYYY"""
-    val = val.strip()
-    # Intentar YYYY-MM-DD
+def _parse_date(val) -> date:
+    """Parsea una fecha en múltiples formatos.
+    
+    Acepta:
+    - Objetos date o datetime de Python (de openpyxl)
+    - Strings en formato YYYY-MM-DD, DD/MM/YYYY, YYYY/MM/DD, DD-MM-YYYY
+    - Strings datetime de Excel como '2003-12-30 00:00:00'
+    """
+    # Si ya es un objeto date, devolverlo directamente
+    if isinstance(val, date) and not isinstance(val, datetime):
+        return val
+    # Si es datetime (openpyxl devuelve datetime para celdas de fecha), extraer date
+    if isinstance(val, datetime):
+        return val.date()
+    # Convertir a string si no lo es
+    val = str(val).strip()
+    # Intentar formatos datetime primero (Excel envía '2003-12-30 00:00:00')
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S'):
+        try:
+            return datetime.strptime(val, fmt).date()
+        except ValueError:
+            continue
+    # Intentar formatos solo fecha
     for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y/%m/%d', '%d-%m-%Y'):
         try:
             return datetime.strptime(val, fmt).date()
         except ValueError:
             continue
     raise ValueError(f"No se pudo parsear la fecha: '{val}'")
+
+
+# ---------------------------------------------------------
+# ENDPOINT: DESCARGAR PLANTILLA CSV
+# ---------------------------------------------------------
+@router.get("/plantilla-csv")
+def descargar_plantilla_csv(session: Session = Depends(get_session)):
+    """
+    Genera y descarga un archivo CSV plantilla con datos de ejemplo
+    de un biolaboratorio, listo para ser importado.
+    """
+    output = StringIO()
+    encabezados = [
+        'nombre_corto', 'modelo', 'numero_serie', 'numero_material', 'marca', 'fecha_adquisicion',
+        'fecha_fin_garantia', 'ubicacion_actual', 'estado', 'proveedor_principal', 'registro_sanitario_bolivia',
+        'descripcion', 'calibracion_proxima', 'responsable_username'
+    ]
+    
+    writer = csv.writer(output)
+    writer.writerow(encabezados)
+    
+    # Datos de ejemplo
+    datos_demo = [
+        ["Microscopio Olympus CX23", "CX23", "MIC-OLY-001", "MAT-CX23-A", "Olympus", "2023-03-15",
+         "2025-03-15", "Lab. Microbiologia", "Operativo", "Olympus Bolivia", "RS-BOL-2023-001",
+         "Microscopio binocular para microbiologia clinica", "2025-03-15", ""],
+        
+        ["Centrifuga Eppendorf 5424", "5424", "CEN-EPP-002", "MAT-5424-B", "Eppendorf", "2022-07-20",
+         "2024-07-20", "Lab. Hematologia", "Operativo", "Eppendorf Latam", "RS-BOL-2022-045",
+         "Centrifuga de mesa 24 tubos, rotor FA-45-24-11", "2024-07-20", ""],
+        
+        ["Autoclave Steris Amsco 3043", "3043", "AUT-STR-003", "", "Steris", "2021-01-10",
+         "2023-01-10", "Central de Esterilizacion", "Operativo", "Steris Corporation", "",
+         "Autoclave hospitalaria vertical, 400L capacidad", "2025-01-10", ""],
+    ]
+    
+    for fila in datos_demo:
+        writer.writerow(fila)
+    
+    output.seek(0)
+    
+    from datetime import datetime as dt
+    filename = f"CMMS-BioAI_Plantilla_Equipos_{dt.now().strftime('%Y%m%d')}.csv"
+    
+    return StreamingResponse(
+        output,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Type": "text/csv; charset=utf-8"
+        }
+    )
 
 
 # ---------------------------------------------------------

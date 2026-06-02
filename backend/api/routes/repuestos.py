@@ -4,10 +4,11 @@ from sqlmodel import Session, select
 from database import get_session
 from models.repuestos import Repuesto
 from schemas.repuesto import RepuestoCreate, RepuestoRead, RepuestoUpdate
-from io import BytesIO
+from io import BytesIO, StringIO
 from datetime import datetime as dt
 from pathlib import Path
 import openpyxl
+import csv
 import os
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from config import get_dir
@@ -30,6 +31,46 @@ def crear_repuesto(repuesto: RepuestoCreate, session: Session = Depends(get_sess
 def listar_repuestos(session: Session = Depends(get_session)):
     repuestos = session.exec(select(Repuesto)).all()
     return repuestos
+
+
+# ---------------------------------------------------------
+# ENDPOINT: DESCARGAR PLANTILLA CSV
+# ---------------------------------------------------------
+@router.get("/plantilla-csv")
+def descargar_plantilla_csv(session: Session = Depends(get_session)):
+    """
+    Genera y descarga un archivo CSV plantilla con datos de ejemplo
+    de repuestos para biolaboratorio.
+    """
+    output = StringIO()
+    encabezados = [
+        'nombre_repuesto', 'numero_material', 'descripcion',
+        'cantidad_disponible', 'unidad_medida', 'ubicacion_almacen', 'nivel_stock_minimo'
+    ]
+    
+    writer = csv.writer(output)
+    writer.writerow(encabezados)
+    
+    datos_demo = [
+        ["Filtro HEPA para cabina de flujo", "FLT-HEP-001", "Filtro HEPA 99.97% 0.3um para cabina Esco A2", 3, "unidad", "Almacen B - Estante 1", 2],
+        ["Lampara UV para autoclave", "LMP-UV-002", "Lampara germicida UV 254nm Steris", 5, "unidad", "Almacen B - Estante 1", 2],
+        ["Electrodo pH recalculado", "ELC-PH-003", "Electrodo de pH combinado para analizadores", 4, "unidad", "Lab. Bioquimica", 2],
+    ]
+    
+    for fila in datos_demo:
+        writer.writerow(fila)
+    
+    output.seek(0)
+    filename = f"CMMS-BioAI_Plantilla_Repuestos_{dt.now().strftime('%Y%m%d')}.csv"
+    
+    return StreamingResponse(
+        output,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Type": "text/csv; charset=utf-8"
+        }
+    )
 
 
 # ---------------------------------------------------------
@@ -161,17 +202,45 @@ async def importar_repuestos_excel(file: UploadFile = File(...), session: Sessio
     - Campo obligatorio: nombre_repuesto, cantidad_disponible
     - Si numero_material ya existe, se ACTUALIZA el registro (upsert)
     """
-    if not file.filename or not file.filename.lower().endswith('.xlsx'):
-        raise HTTPException(status_code=400, detail="Solo se aceptan archivos .xlsx")
+    if not file.filename or not file.filename.lower().endswith(('.xlsx', '.csv')):
+        raise HTTPException(status_code=400, detail="Solo se aceptan archivos .xlsx o .csv")
     
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="El archivo no debe superar 5MB")
     
-    try:
-        wb = openpyxl.load_workbook(BytesIO(contents), read_only=True, data_only=True)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {str(e)}")
+    # Determinar si es Excel o CSV
+    ext = Path(file.filename).suffix.lower() if file.filename else ''
+    is_csv = ext == '.csv'
+    
+    if is_csv:
+        try:
+            text = contents.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            try:
+                text = contents.decode('latin-1')
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Error al decodificar el archivo CSV: {str(e)}")
+        
+        try:
+            sniffer_sample = text[:2048]
+            try:
+                dialect = csv.Sniffer().sniff(sniffer_sample, delimiters=',;\t')
+            except csv.Error:
+                dialect = csv.excel
+            
+            reader = csv.reader(StringIO(text), dialect)
+            filas = list(reader)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error al leer el archivo CSV: {str(e)}")
+        
+        if len(filas) < 2:
+            raise HTTPException(status_code=400, detail="El archivo CSV est vacio o solo tiene encabezados")
+    else:
+        try:
+            wb = openpyxl.load_workbook(BytesIO(contents), read_only=True, data_only=True)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {str(e)}")
     
     COLUMNAS = [
         'nombre_repuesto', 'numero_material', 'descripcion',
@@ -179,24 +248,23 @@ async def importar_repuestos_excel(file: UploadFile = File(...), session: Sessio
     ]
     OBLIGATORIAS = {'nombre_repuesto', 'cantidad_disponible'}
     
-    # Buscar la hoja que contiene los encabezados esperados
-    # (si el usuario abrió el archivo en Excel, la hoja activa puede ser "Instrucciones")
-    ws = None
-    for sheet in wb.worksheets:
-        filas_tmp = list(sheet.iter_rows(values_only=True))
-        if filas_tmp:
-            enc_tmp = [str(c).strip().lower() if c else '' for c in filas_tmp[0]]
-            if OBLIGATORIAS.issubset(set(enc_tmp)):
-                ws = sheet
-                break
-    
-    if ws is None:
-        # Fallback: usar la primera hoja
-        ws = wb.worksheets[0]
-    
-    filas = list(ws.iter_rows(values_only=True))
-    if len(filas) < 2:
-        raise HTTPException(status_code=400, detail="El archivo está vacío o solo tiene encabezados")
+    # Buscar la hoja con encabezados (solo Excel)
+    if not is_csv:
+        ws = None
+        for sheet in wb.worksheets:
+            filas_tmp = list(sheet.iter_rows(values_only=True))
+            if filas_tmp:
+                enc_tmp = [str(c).strip().lower() if c else '' for c in filas_tmp[0]]
+                if OBLIGATORIAS.issubset(set(enc_tmp)):
+                    ws = sheet
+                    break
+        
+        if ws is None:
+            ws = wb.worksheets[0]
+        
+        filas = list(ws.iter_rows(values_only=True))
+        if len(filas) < 2:
+            raise HTTPException(status_code=400, detail="El archivo esta vacio o solo tiene encabezados")
     
     encabezados_leidos = [str(c).strip().lower() if c else '' for c in filas[0]]
     
@@ -312,7 +380,8 @@ async def importar_repuestos_excel(file: UploadFile = File(...), session: Sessio
             })
     
     session.commit()
-    wb.close()
+    if not is_csv:
+        wb.close()
     
     return {
         "exitosos": exitosos,

@@ -1,0 +1,30 @@
+=== REFERENCIA DE ORDEN DE TRABAJO ===
+Fecha de generacion: 2026-05-31 19:24:50
+
+--- OT ---
+OT ID: 3
+OT Codigo: OT0003
+Titulo/Tipo: Correctivo
+Prioridad: Alta
+Descripcion falla: en espera de la fuente
+
+--- EQUIPO ASOCIADO ---
+Equipo ID: 2
+Equipo Codigo: E0002
+Nombre corto: Centrífuga Eppendorf 5424
+Modelo: 5424
+Marca: Eppendorf
+Numero de serie: CEN-EPP-002
+Numero de material: MAT-5424-B
+Ubicacion: Lab. Hematología
+
+--- UBICACION FISICA DE ARCHIVOS ---
+Carpeta del equipo: uploads/EQUIPOS/E0002_5424_CEN-EPP-002/
+Documentos de esta OT: uploads/EQUIPOS/E0002_5424_CEN-EPP-002/OT/OT0003_Correctivo_5424_CEN-EPP-002/
+Este archivo txt: uploads/OT/OT0003_Correctivo_5424_CEN-EPP-002.txt
+
+Nota: El nombre de la carpeta OT y este archivo txt coinciden.
+Busque la carpeta OT dentro del equipo con el mismo nombre.
+
+Este archivo es generado automaticamente por CMMS-BioAI.
+Permite reconstruir la relacion OT-Equipo si la base de datos se pierde.

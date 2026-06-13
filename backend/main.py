@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from database import create_db_and_tables, seed_database
-from models import Usuario, Equipo, EstadoEquipo, OrdenTrabajo, EstadoOT, EventoHistorial, DocumentoAdjunto
+from models import Usuario, Equipo, EstadoEquipo, OrdenTrabajo, EstadoOT, EventoHistorial, DocumentoAdjunto, OtRepuestoUtilizado
 from api.routes import estados, users, equipos, ordenes, auth, repuestos, preventivo, historial, reportes, documentos
 from config import get_dir
 

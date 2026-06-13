@@ -3,8 +3,7 @@ from .users import Usuario
 from .equipos import Equipo
 from .estados import EstadoEquipo  # <--- AGREGA ESTA LÍNEA (Importamos desde el nuevo archivo)
 from .ordenes import OrdenTrabajo, EstadoOT # <--- Agregar esto
-#from .repuestos import Repuesto, OtRepuestoUtilizado # <--- Agregar import
-from .repuestos import Repuesto
+from .repuestos import Repuesto, OtRepuestoUtilizado
 # AGREGAR ESTAS LÍNEAS:
 from .preventivo import TareaPreventiva, TareaRepuesto
 from .historial import EventoHistorial
@@ -14,7 +13,7 @@ from .documentos import DocumentoAdjunto
 __all__ = [
     "Usuario", "Equipo", "EstadoEquipo", 
     "OrdenTrabajo", "EstadoOT", 
-    "Repuesto", 
+    "Repuesto", "OtRepuestoUtilizado",
     "TareaPreventiva", "TareaRepuesto",
     "EventoHistorial",
     "DocumentoAdjunto"

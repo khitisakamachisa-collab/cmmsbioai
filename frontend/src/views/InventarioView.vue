@@ -37,7 +37,6 @@ const emptyForm = () => ({
   nombre_repuesto: '',
   numero_serie: '',
   numero_material: '',
-  codigo_equivalente: '',
   descripcion: '',
   especificaciones_tecnicas: '',
   cantidad_disponible: 0,
@@ -71,10 +70,9 @@ const filteredRepuestos = computed(() => {
     const nombre = String(rep.nombre_repuesto ?? '').toLowerCase()
     const serie = String(rep.numero_serie ?? '').toLowerCase()
     const material = String(rep.numero_material ?? '').toLowerCase()
-    const equivalente = String(rep.codigo_equivalente ?? '').toLowerCase()
     const proveedor = String(rep.proveedor_ultimo ?? '').toLowerCase()
     const ubicacion = String(rep.ubicacion_almacen ?? '').toLowerCase()
-    return nombre.includes(q) || serie.includes(q) || material.includes(q) || equivalente.includes(q) || proveedor.includes(q) || ubicacion.includes(q)
+    return nombre.includes(q) || serie.includes(q) || material.includes(q) || proveedor.includes(q) || ubicacion.includes(q)
   })
 })
 
@@ -194,7 +192,6 @@ const openEditModal = (rep) => {
     nombre_repuesto: rep.nombre_repuesto,
     numero_serie: rep.numero_serie || '',
     numero_material: rep.numero_material || '',
-    codigo_equivalente: rep.codigo_equivalente || '',
     descripcion: rep.descripcion || '',
     especificaciones_tecnicas: rep.especificaciones_tecnicas || '',
     cantidad_disponible: rep.cantidad_disponible,
@@ -601,11 +598,6 @@ onMounted(() => {
               <input v-model="formData.numero_material" type="text" placeholder="Codigo del fabricante">
             </div>
           </div>
-          <!-- Codigo equivalente al lado -->
-          <div class="form-group">
-            <label>Codigo Equivalente</label>
-            <input v-model="formData.codigo_equivalente" type="text" placeholder="Codigo OEM o generico alternativo">
-          </div>
           <div class="form-group">
             <label>Imagen del Repuesto</label>
             <div class="imagen-upload-container">
@@ -699,7 +691,6 @@ onMounted(() => {
             <p><strong>Nombre:</strong> {{ selectedRepuesto.nombre_repuesto }}</p>
             <p><strong>N. Serie:</strong> {{ selectedRepuesto.numero_serie || 'N/A' }}</p>
             <p><strong>N. Material:</strong> {{ selectedRepuesto.numero_material || 'N/A' }}</p>
-            <p><strong>Cod. Equivalente:</strong> {{ selectedRepuesto.codigo_equivalente || 'N/A' }}</p>
             <p><strong>Ubicacion:</strong> {{ selectedRepuesto.ubicacion_almacen || 'Sin ubicar' }}</p>
             <p v-if="selectedRepuesto.imagen_ruta"><strong>Imagen:</strong> <a :href="`/uploads/${selectedRepuesto.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(selectedRepuesto.imagen_ruta) }}</a></p>
           </div>

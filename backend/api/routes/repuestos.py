@@ -44,17 +44,19 @@ def descargar_plantilla_csv(session: Session = Depends(get_session)):
     """
     output = StringIO()
     encabezados = [
-        'nombre_repuesto', 'numero_material', 'descripcion',
-        'cantidad_disponible', 'unidad_medida', 'ubicacion_almacen', 'nivel_stock_minimo'
+        'nombre_repuesto', 'numero_serie', 'numero_material',
+        'descripcion', 'especificaciones_tecnicas',
+        'cantidad_disponible', 'unidad_medida', 'ubicacion_almacen', 'nivel_stock_minimo',
+        'proveedor_ultimo', 'fecha_ultima_entrada', 'precio_referencia'
     ]
     
     writer = csv.writer(output)
     writer.writerow(encabezados)
     
     datos_demo = [
-        ["Filtro HEPA para cabina de flujo", "FLT-HEP-001", "Filtro HEPA 99.97% 0.3um para cabina Esco A2", 3, "unidad", "Almacen B - Estante 1", 2],
-        ["Lampara UV para autoclave", "LMP-UV-002", "Lampara germicida UV 254nm Steris", 5, "unidad", "Almacen B - Estante 1", 2],
-        ["Electrodo pH recalculado", "ELC-PH-003", "Electrodo de pH combinado para analizadores", 4, "unidad", "Lab. Bioquimica", 2],
+        ["Filtro HEPA para cabina de flujo", "SN-FLT-001", "FLT-HEP-001", "Filtro HEPA 99.97% 0.3um para cabina Esco A2", "99.97% 0.3um, tamano estandar", 3, "unidad", "Almacen B - Estante 1", 2, "BioSupply SRL", "2025-01-15", 850.50],
+        ["Lampara UV para autoclave", "SN-LMP-002", "LMP-UV-002", "Lampara germicida UV 254nm Steris", "254nm, 15W, T8", 5, "unidad", "Almacen B - Estante 1", 2, "MedEquip Bolivia", "2025-02-20", 320.00],
+        ["Electrodo pH recalculado", "SN-ELC-003", "ELC-PH-003", "Electrodo de pH combinado para analizadores", "Combinado, rango 0-14 pH", 4, "unidad", "Lab. Bioquimica", 2, "LabTech SA", "2025-03-10", 1200.00],
     ]
     
     for fila in datos_demo:
@@ -87,8 +89,10 @@ def descargar_plantilla_excel(session: Session = Depends(get_session)):
     ws.title = "Repuestos CMMS-BioAI"
     
     encabezados = [
-        'nombre_repuesto', 'numero_material', 'descripcion',
-        'cantidad_disponible', 'unidad_medida', 'ubicacion_almacen', 'nivel_stock_minimo'
+        'nombre_repuesto', 'numero_serie', 'numero_material',
+        'descripcion', 'especificaciones_tecnicas',
+        'cantidad_disponible', 'unidad_medida', 'ubicacion_almacen', 'nivel_stock_minimo',
+        'proveedor_ultimo', 'fecha_ultima_entrada', 'precio_referencia'
     ]
     ws.append(encabezados)
     
@@ -110,26 +114,26 @@ def descargar_plantilla_excel(session: Session = Depends(get_session)):
     
     # Datos de ejemplo - Repuestos de biolaboratorio
     datos_demo = [
-        ["Filtro HEPA para cabina de flujo", "FLT-HEP-001", "Filtro HEPA 99.97% 0.3μm para cabina Esco A2", 3, "unidad", "Almacén B - Estante 1", 2],
-        ["Lámpara UV para autoclave", "LMP-UV-002", "Lámpara germicida UV 254nm Steris", 5, "unidad", "Almacén B - Estante 1", 2],
-        ["Electrodo pH recalculado", "ELC-PH-003", "Electrodo de pH combinado para analizadores", 4, "unidad", "Lab. Bioquímica", 2],
-        ["Tubos de ensayo 16x100mm", "TUB-16004", "Tubos de vidrio borosilicato, paquete x100", 25, "paquete", "Almacén A - Estante 3", 10],
-        ["Reactivos panel bioquímico", "RCT-BIO-005", "Kit de reactivos Cobas c311 panel completo", 2, "kit", "Refrigerador Lab 2°C-8°C", 1],
-        ["Filtro de aire compresor", "FLT-AIR-006", "Filtro de línea para compresor dental/medico", 6, "unidad", "Almacén B - Estante 2", 3],
-        ["Cable ECG 12 derivaciones", "CBL-ECG-007", "Cable paciente 12-lead para GE MAC 2000", 3, "unidad", "Almacén C - Gabinete 1", 2],
-        ["Sensor SpO2 dedo", "SNR-SPO-008", "Sensor pulsioximetría dedo adulto Mindray", 4, "unidad", "UCI - Armario suministros", 2],
-        ["Papel térmico monitor", "PPL-TRM-009", "Papel térmico 112mm para monitor de signos vitales", 8, "rollo", "Almacén A - Estante 5", 3],
-        ["Batería interna desfibrilador", "BAT-DEF-010", "Batería recargable Zoll R Series 14.4V", 2, "unidad", "Emergencias - Armario", 1],
-        ["Goma/pistón pipeta", "GOM-PIP-011", "Pistón de goma para pipeta Hamilton 100-1000μL", 10, "unidad", "Lab. Automatización", 5],
-        ["Sellador de tapa incubadora", "SLR-INC-012", "Junta de goma puerta incubadora Thermo Heracell", 2, "unidad", "Almacén B - Estante 4", 1],
-        ["Fluorescente microscopio", "LMP-MIC-013", "Lámpara halógena 6V 30W para Olympus CX23", 3, "unidad", "Almacén B - Estante 1", 2],
-        ["Reactivos hematología", "RCT-HEM-014", "Kit diluyente/limpiador analizador hematológico", 3, "kit", "Refrigerador Lab 2°C-8°C", 1],
-        ["Filtro CO2 incubadora", "FLT-CO2-015", "Filtro HEPA para incubadora CO2 Thermo", 2, "unidad", "Almacén B - Estante 3", 1],
-        ["Aceite bomba vacío", "ACE-VAC-016", "Aceite para bomba de vacío Autoclave Steris 1L", 4, "litro", "Almacén A - Estante 2", 2],
-        ["Manguera silicona", "MNG-SIL-017", "Tubo silicona 8mm ID para bombas de infusión", 5, "metro", "Almacén C - Estante 1", 3],
-        ["Electrodo ECG desechable", "ELC-ECG-018", "Electrodos Ag/Cl adulto paquete x50", 20, "paquete", "UCI - Armario suministros", 10],
-        ["Papel filtro centrífuga", "PPL-CEN-019", "Filtro de carbón para Eppendorf 5424", 6, "unidad", "Lab. Hematología", 3],
-        ["Solución calibración pH", "SLC-PH-020", "Solución buffer pH 4.01 / 7.00 / 10.01 set", 5, "kit", "Lab. Control Calidad", 2],
+        ["Filtro HEPA para cabina de flujo", "SN-FLT-001", "FLT-HEP-001", "Filtro HEPA 99.97% 0.3μm para cabina Esco A2", "99.97% 0.3um, tamano estandar", 3, "unidad", "Almacén B - Estante 1", 2, "BioSupply SRL", "2025-01-15", 850.50],
+        ["Lámpara UV para autoclave", "SN-LMP-002", "LMP-UV-002", "Lámpara germicida UV 254nm Steris", "254nm, 15W, T8", 5, "unidad", "Almacén B - Estante 1", 2, "MedEquip Bolivia", "2025-02-20", 320.00],
+        ["Electrodo pH recalculado", "SN-ELC-003", "ELC-PH-003", "Electrodo de pH combinado para analizadores", "Combinado, rango 0-14 pH", 4, "unidad", "Lab. Bioquímica", 2, "LabTech SA", "2025-03-10", 1200.00],
+        ["Tubos de ensayo 16x100mm", "", "TUB-16004", "Tubos de vidrio borosilicato, paquete x100", "16x100mm, borosilicato", 25, "paquete", "Almacén A - Estante 3", 10, "Vidriolab", "2025-04-01", 45.00],
+        ["Reactivos panel bioquímico", "", "RCT-BIO-005", "Kit de reactivos Cobas c311 panel completo", "Panel completo, vigencia 6 meses", 2, "kit", "Refrigerador Lab 2°C-8°C", 1, "Roche Diagnostics", "2025-05-15", 3500.00],
+        ["Filtro de aire compresor", "", "FLT-AIR-006", "Filtro de línea para compresor dental/medico", "5 micras, roscable 1/4", 6, "unidad", "Almacén B - Estante 2", 3, "DentalPro", "2025-03-22", 120.00],
+        ["Cable ECG 12 derivaciones", "SN-CBL-007", "CBL-ECG-007", "Cable paciente 12-lead para GE MAC 2000", "12-lead, conector GE", 3, "unidad", "Almacén C - Gabinete 1", 2, "GE Healthcare", "2025-01-30", 2100.00],
+        ["Sensor SpO2 dedo", "", "SNR-SPO-008", "Sensor pulsioximetría dedo adulto Mindray", "Dedo adulto, compatible Mindray", 4, "unidad", "UCI - Armario suministros", 2, "Mindray", "2025-04-10", 780.00],
+        ["Papel térmico monitor", "", "PPL-TRM-009", "Papel térmico 112mm para monitor de signos vitales", "112mm x 30m", 8, "rollo", "Almacén A - Estante 5", 3, "PaperMed", "2025-06-01", 25.00],
+        ["Batería interna desfibrilador", "SN-BAT-010", "BAT-DEF-010", "Batería recargable Zoll R Series 14.4V", "14.4V Li-Ion, autonomia 8h", 2, "unidad", "Emergencias - Armario", 1, "Zoll Medical", "2024-12-15", 4500.00],
+        ["Goma/pistón pipeta", "", "GOM-PIP-011", "Pistón de goma para pipeta Hamilton 100-1000μL", "Compatible Hamilton 100-1000uL", 10, "unidad", "Lab. Automatización", 5, "Hamilton", "2025-05-20", 35.00],
+        ["Sellador de tapa incubadora", "", "SLR-INC-012", "Junta de goma puerta incubadora Thermo Heracell", "Silicona, tamano estandar Heracell", 2, "unidad", "Almacén B - Estante 4", 1, "Thermo Fisher", "2025-02-28", 290.00],
+        ["Fluorescente microscopio", "", "LMP-MIC-013", "Lámpara halógena 6V 30W para Olympus CX23", "6V 30W, base BA15d", 3, "unidad", "Almacén B - Estante 1", 2, "Olympus", "2025-03-15", 180.00],
+        ["Reactivos hematología", "", "RCT-HEM-014", "Kit diluyente/limpiador analizador hematológico", "Diluyente + limpiador + hemolizante", 3, "kit", "Refrigerador Lab 2°C-8°C", 1, "Sysmex", "2025-04-20", 2800.00],
+        ["Filtro CO2 incubadora", "", "FLT-CO2-015", "Filtro HEPA para incubadora CO2 Thermo", "HEPA, 99.97% para Thermo 150/250", 2, "unidad", "Almacén B - Estante 3", 1, "Thermo Fisher", "2025-01-25", 650.00],
+        ["Aceite bomba vacío", "", "ACE-VAC-016", "Aceite para bomba de vacío Autoclave Steris 1L", "1L, grado vacío", 4, "litro", "Almacén A - Estante 2", 2, "Steris", "2025-05-05", 150.00],
+        ["Manguera silicona", "", "MNG-SIL-017", "Tubo silicona 8mm ID para bombas de infusión", "8mm ID, medical grade", 5, "metro", "Almacén C - Estante 1", 3, "MedSilicone", "2025-04-15", 18.00],
+        ["Electrodo ECG desechable", "", "ELC-ECG-018", "Electrodos Ag/Cl adulto paquete x50", "Ag/Cl, adulto, x50", 20, "paquete", "UCI - Armario suministros", 10, "3M Healthcare", "2025-06-10", 55.00],
+        ["Papel filtro centrífuga", "", "PPL-CEN-019", "Filtro de carbón para Eppendorf 5424", "Carbón activado, compatible 5424", 6, "unidad", "Lab. Hematología", 3, "Eppendorf", "2025-03-30", 95.00],
+        ["Solución calibración pH", "", "SLC-PH-020", "Solución buffer pH 4.01 / 7.00 / 10.01 set", "Set 3 botellas 500mL", 5, "kit", "Lab. Control Calidad", 2, "Hanna Instruments", "2025-02-10", 280.00],
     ]
     
     data_align = Alignment(vertical="center", wrap_text=True)
@@ -142,7 +146,7 @@ def descargar_plantilla_excel(session: Session = Depends(get_session)):
             cell.border = thin_border
             cell.alignment = data_align
     
-    anchos = [35, 18, 50, 20, 14, 28, 20]
+    anchos = [35, 16, 18, 50, 30, 14, 12, 28, 18, 22, 18, 14]
     for i, ancho in enumerate(anchos, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = ancho
     
@@ -158,15 +162,21 @@ def descargar_plantilla_excel(session: Session = Depends(get_session)):
         ["2. Campo 'numero_material': código del repuesto. Si ya existe, se ACTUALIZARÁ."],
         ["   Si no existe numero_material, se busca por nombre_repuesto."],
         [""],
-        ["3. Campo 'nivel_stock_minimo': entero. Cantidad mínima antes de alerta."],
+        ["3. Campo 'numero_serie': número de serie del repuesto (opcional)."],
+        ["4. Campo 'especificaciones_tecnicas': voltaje, tamaño, capacidad, etc. (opcional)."],
+        ["5. Campo 'nivel_stock_minimo': entero. Cantidad mínima antes de alerta."],
         ["   Si no se especifica, no se generará alerta de stock bajo."],
         [""],
-        ["4. Campo 'unidad_medida': unidad, par, metro, litro, kit, paquete, rollo, etc."],
+        ["6. Campo 'unidad_medida': unidad, par, metro, litro, kit, paquete, rollo, etc."],
         ["   Si se deja vacío, se usará 'unidad' por defecto."],
         [""],
-        ["5. Límite de archivo: 5MB. Solo archivos .xlsx."],
+        ["7. Campo 'proveedor_ultimo': nombre del último proveedor (opcional)."],
+        ["8. Campo 'fecha_ultima_entrada': fecha en formato YYYY-MM-DD (opcional)."],
+        ["9. Campo 'precio_referencia': precio en Bs. número decimal (opcional)."],
         [""],
-        ["6. Puede eliminar los datos de ejemplo y usar sus propios datos."],
+        ["10. Límite de archivo: 5MB. Solo archivos .xlsx o .csv."],
+        [""],
+        ["11. Puede eliminar los datos de ejemplo y usar sus propios datos."],
         ["   Mantenga los encabezados de columna en la fila 1."],
     ]
     for row in instrucciones:
@@ -243,8 +253,10 @@ async def importar_repuestos_excel(file: UploadFile = File(...), session: Sessio
             raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {str(e)}")
     
     COLUMNAS = [
-        'nombre_repuesto', 'numero_material', 'descripcion',
-        'cantidad_disponible', 'unidad_medida', 'ubicacion_almacen', 'nivel_stock_minimo'
+        'nombre_repuesto', 'numero_serie', 'numero_material',
+        'descripcion', 'especificaciones_tecnicas',
+        'cantidad_disponible', 'unidad_medida', 'ubicacion_almacen', 'nivel_stock_minimo',
+        'proveedor_ultimo', 'fecha_ultima_entrada', 'precio_referencia'
     ]
     OBLIGATORIAS = {'nombre_repuesto', 'cantidad_disponible'}
     
@@ -329,6 +341,31 @@ async def importar_repuestos_excel(file: UploadFile = File(...), session: Sessio
                 except (ValueError, TypeError):
                     pass  # No es fatal, se ignora
             
+            # Parsear precio_referencia (opcional)
+            precio_ref = None
+            precio_str = get_val('precio_referencia')
+            if precio_str:
+                try:
+                    precio_ref = float(precio_str)
+                except (ValueError, TypeError):
+                    pass
+            
+            # Parsear fecha_ultima_entrada (opcional, formato YYYY-MM-DD)
+            fecha_ent = None
+            fecha_str = get_val('fecha_ultima_entrada')
+            if fecha_str:
+                try:
+                    from datetime import date as date_mod
+                    # Intentar varios formatos
+                    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y'):
+                        try:
+                            fecha_ent = date_mod.strptime(str(fecha_str).strip(), fmt).date()
+                            break
+                        except ValueError:
+                            continue
+                except Exception:
+                    pass
+            
             unidad = get_val('unidad_medida') or 'unidad'
             
             # Verificar si ya existe (por numero_material o nombre)
@@ -350,24 +387,34 @@ async def importar_repuestos_excel(file: UploadFile = File(...), session: Sessio
             if rep_existente:
                 # ACTUALIZAR
                 rep_existente.nombre_repuesto = get_val('nombre_repuesto') or rep_existente.nombre_repuesto
+                rep_existente.numero_serie = get_val('numero_serie') or rep_existente.numero_serie
                 rep_existente.numero_material = num_mat or rep_existente.numero_material
                 rep_existente.descripcion = get_val('descripcion') or rep_existente.descripcion
+                rep_existente.especificaciones_tecnicas = get_val('especificaciones_tecnicas') or rep_existente.especificaciones_tecnicas
                 rep_existente.cantidad_disponible = cantidad
                 rep_existente.unidad_medida = unidad
                 rep_existente.ubicacion_almacen = get_val('ubicacion_almacen') or rep_existente.ubicacion_almacen
                 rep_existente.nivel_stock_minimo = stock_min if stock_min is not None else rep_existente.nivel_stock_minimo
+                rep_existente.proveedor_ultimo = get_val('proveedor_ultimo') or rep_existente.proveedor_ultimo
+                rep_existente.fecha_ultima_entrada = fecha_ent or rep_existente.fecha_ultima_entrada
+                rep_existente.precio_referencia = precio_ref if precio_ref is not None else rep_existente.precio_referencia
                 session.add(rep_existente)
                 actualizados += 1
             else:
                 # CREAR nuevo
                 nuevo = Repuesto(
                     nombre_repuesto=get_val('nombre_repuesto'),
+                    numero_serie=get_val('numero_serie'),
                     numero_material=num_mat,
                     descripcion=get_val('descripcion'),
+                    especificaciones_tecnicas=get_val('especificaciones_tecnicas'),
                     cantidad_disponible=cantidad,
                     unidad_medida=unidad,
                     ubicacion_almacen=get_val('ubicacion_almacen'),
-                    nivel_stock_minimo=stock_min
+                    nivel_stock_minimo=stock_min,
+                    proveedor_ultimo=get_val('proveedor_ultimo'),
+                    fecha_ultima_entrada=fecha_ent,
+                    precio_referencia=precio_ref
                 )
                 session.add(nuevo)
                 exitosos += 1

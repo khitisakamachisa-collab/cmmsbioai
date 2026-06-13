@@ -10,6 +10,7 @@ from models.documentos import DocumentoAdjunto
 from models.equipos import Equipo
 from models.ordenes import OrdenTrabajo
 from models.repuestos import Repuesto
+from models.herramientas import Herramienta
 from config import get_dir, sanitize_filename
 
 router = APIRouter(prefix="/documentos", tags=["Documentos Adjuntos"])
@@ -158,22 +159,24 @@ async def subir_documento(
     orden_trabajo_id: Optional[int] = Form(None),
     equipo_id: Optional[int] = Form(None),
     repuesto_id: Optional[int] = Form(None),
+    herramienta_id: Optional[int] = Form(None),
     descripcion: Optional[str] = Form(None),
     categoria: Optional[str] = Form("otro"),
     subido_por: Optional[str] = Form(None),
     session: Session = Depends(get_session)
 ):
     """
-    Sube un documento adjunto asociado a una OT, un Equipo o un Repuesto.
-    Se debe proporcionar al menos uno: orden_trabajo_id, equipo_id o repuesto_id.
+    Sube un documento adjunto asociado a una OT, un Equipo, un Repuesto o una Herramienta.
+    Se debe proporcionar al menos uno: orden_trabajo_id, equipo_id, repuesto_id o herramienta_id.
 
     Estructura de carpetas:
     - OT: uploads/EQUIPOS/EXXXX_Modelo_Serie/OT/OTxxxx_Titulo_Modelo_Serie/  (+ referencia en uploads/OT/OTxxxx_Titulo_Modelo_Serie.txt)
     - Equipo: uploads/EQUIPOS/EXXXX_Modelo_Serie/DOC/
     - Repuesto: uploads/INVENTARIO/I0001_Nombre/DOC/
+    - Herramienta: uploads/HERRAMIENTAS/H0001_Nombre/DOC/
     """
-    if not orden_trabajo_id and not equipo_id and not repuesto_id:
-        raise HTTPException(status_code=400, detail="Debe indicar orden_trabajo_id, equipo_id o repuesto_id")
+    if not orden_trabajo_id and not equipo_id and not repuesto_id and not herramienta_id:
+        raise HTTPException(status_code=400, detail="Debe indicar orden_trabajo_id, equipo_id, repuesto_id o herramienta_id")
 
     # Leer el contenido del archivo
     contenido = await file.read()
@@ -207,6 +210,16 @@ async def subir_documento(
             subdir = get_dir("inventario_documentos") / folder_name / "DOC"
         else:
             subdir = get_dir("uploads_base") / f"repuesto_{repuesto_id}"
+    elif herramienta_id:
+        # Estructura: uploads/HERRAMIENTAS/H0001_Nombre/DOC/
+        herramienta = session.get(Herramienta, herramienta_id)
+        if herramienta:
+            herr_code = f"H{herramienta_id:04d}"
+            nombre_safe = sanitize_filename(herramienta.nombre_herramienta, "SN")
+            folder_name = f"{herr_code}_{nombre_safe}"
+            subdir = get_dir("herramientas_documentos") / folder_name / "DOC"
+        else:
+            subdir = get_dir("uploads_base") / f"herramienta_{herramienta_id}"
     else:
         subdir = get_dir("uploads_base")
     subdir.mkdir(parents=True, exist_ok=True)
@@ -231,6 +244,7 @@ async def subir_documento(
         orden_trabajo_id=orden_trabajo_id,
         equipo_id=equipo_id,
         repuesto_id=repuesto_id,
+        herramienta_id=herramienta_id,
         nombre_archivo=file.filename,
         ruta_archivo=str(file_path),
         tipo_archivo=mime_type,
@@ -254,7 +268,8 @@ async def subir_documento(
         "subido_por": doc.subido_por,
         "orden_trabajo_id": doc.orden_trabajo_id,
         "equipo_id": doc.equipo_id,
-        "repuesto_id": doc.repuesto_id
+        "repuesto_id": doc.repuesto_id,
+        "herramienta_id": doc.herramienta_id
     }
 
 
@@ -264,9 +279,10 @@ def listar_documentos(
     orden_trabajo_id: Optional[int] = Query(None),
     equipo_id: Optional[int] = Query(None),
     repuesto_id: Optional[int] = Query(None),
+    herramienta_id: Optional[int] = Query(None),
     session: Session = Depends(get_session)
 ):
-    """Lista documentos adjuntos filtrados por OT, Equipo o Repuesto."""
+    """Lista documentos adjuntos filtrados por OT, Equipo, Repuesto o Herramienta."""
     query = select(DocumentoAdjunto)
 
     if orden_trabajo_id:
@@ -275,6 +291,8 @@ def listar_documentos(
         query = query.where(DocumentoAdjunto.equipo_id == equipo_id)
     if repuesto_id:
         query = query.where(DocumentoAdjunto.repuesto_id == repuesto_id)
+    if herramienta_id:
+        query = query.where(DocumentoAdjunto.herramienta_id == herramienta_id)
 
     documentos = session.exec(query.order_by(DocumentoAdjunto.fecha_subida.desc())).all()
 
@@ -291,7 +309,8 @@ def listar_documentos(
             "subido_por": doc.subido_por,
             "orden_trabajo_id": doc.orden_trabajo_id,
             "equipo_id": doc.equipo_id,
-            "repuesto_id": doc.repuesto_id
+            "repuesto_id": doc.repuesto_id,
+            "herramienta_id": doc.herramienta_id
         })
 
     return resultado

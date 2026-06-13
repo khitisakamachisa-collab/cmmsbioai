@@ -30,6 +30,8 @@ _DEFAULTS = {
         "ot_documentos": "uploads/OT",
         "inventario_imagenes": "uploads/INVENTARIO",
         "inventario_documentos": "uploads/INVENTARIO",
+        "herramientas_imagenes": "uploads/HERRAMIENTAS",
+        "herramientas_documentos": "uploads/HERRAMIENTAS",
         "reportes": "uploads/REPORTES"
     },
     "sistema": {
@@ -93,6 +95,8 @@ def get_dir(key: str) -> Path:
         - "ot_documentos"         -> backend/uploads/OT/
         - "inventario_imagenes"   -> backend/uploads/INVENTARIO/
         - "inventario_documentos" -> backend/uploads/INVENTARIO/
+        - "herramientas_imagenes"  -> backend/uploads/HERRAMIENTAS/
+        - "herramientas_documentos"-> backend/uploads/HERRAMIENTAS/
         - "reportes"              -> backend/uploads/REPORTES/
 
     Ejemplo:

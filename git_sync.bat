@@ -13,7 +13,7 @@ echo ==============================
 echo 2. Subiendo cambios locales...
 echo ==============================
 git add .
-git commit -m "Actualizacion automatica"
+git commit -m "INVENTARIO - REPUESTOS Y HERRAMIENTAS"
 git push origin main
 
 echo ==============================

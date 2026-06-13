@@ -10,6 +10,8 @@
     "ot_documentos": "uploads/OT",
     "inventario_imagenes": "uploads/INVENTARIO",
     "inventario_documentos": "uploads/INVENTARIO",
+    "herramientas_imagenes": "uploads/HERRAMIENTAS",
+    "herramientas_documentos": "uploads/HERRAMIENTAS",
     "reportes": "uploads/REPORTES"
   },
   "sistema": {

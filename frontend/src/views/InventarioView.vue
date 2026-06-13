@@ -5,6 +5,14 @@ import apiClient from '../services/api.js'
 import Navbar from '../components/Navbar.vue'
 import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'
 
+// =============================================
+// TAB SYSTEM
+// =============================================
+const activeTab = ref('repuestos')
+
+// =============================================
+// REPUESTOS - Variables & Logic
+// =============================================
 const repuestos = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
@@ -20,6 +28,7 @@ const selectedRepuesto = ref({})
 // --- Variables Modal Documentos ---
 const showDocsModal = ref(false)
 const docsRepuesto = ref({})
+const docsHerramienta = ref({})
 
 // --- Variables Imagen Upload ---
 const imagenFile = ref(null)
@@ -116,7 +125,7 @@ const formatPrecio = (val) => {
   return 'Bs. ' + Number(val).toFixed(2)
 }
 
-// --- Funciones Imagen ---
+// --- Funciones Imagen Repuestos ---
 const handleImagenSelect = (event) => {
   const file = event.target.files[0]
   if (!file) return
@@ -176,7 +185,7 @@ const subirImagenAhora = async () => {
   }
 }
 
-// --- Funciones Modal ---
+// --- Funciones Modal Repuestos ---
 const openCreateModal = () => {
   isEditing.value = false
   formData.value = emptyForm()
@@ -281,7 +290,7 @@ const deleteRepuesto = async (id) => {
   }
 }
 
-// --- Funciones Importar Excel ---
+// --- Funciones Importar Excel Repuestos ---
 const openImportModal = () => {
   importFile.value = null
   importResult.value = null
@@ -405,8 +414,405 @@ const resetImport = () => {
   importResult.value = null
 }
 
+// =============================================
+// HERRAMIENTAS - Variables & Logic
+// =============================================
+const herramientas = ref([])
+const herrLoading = ref(false)
+const herrSearchQuery = ref('')
+
+const herrCurrentPage = ref(1)
+const herrPageSize = ref(10)
+
+const herrShowModal = ref(false)
+const herrIsEditing = ref(false)
+const herrShowDetailModal = ref(false)
+const herrSelected = ref({})
+
+const herrShowDocsModal = ref(false)
+
+// --- Variables Imagen Upload Herramienta ---
+const herrImagenFile = ref(null)
+const herrImagenPreview = ref('')
+const herrSubiendoImagen = ref(false)
+
+// --- Variables Modal Importar Excel Herramientas ---
+const herrShowImportModal = ref(false)
+const herrImportFile = ref(null)
+const herrImporting = ref(false)
+const herrImportResult = ref(null)
+const herrImportDragOver = ref(false)
+
+const categoriasHerramienta = [
+  'Instrumento de Medición',
+  'Herramienta Manual',
+  'Consumible',
+  'Kit'
+]
+
+const estadosUso = [
+  'Disponible',
+  'En Uso',
+  'En Reparación',
+  'Dado de Baja'
+]
+
+const herrEmptyForm = () => ({
+  nombre_herramienta: '',
+  numero_identificacion: '',
+  descripcion: '',
+  categoria: 'Herramienta Manual',
+  cantidad_disponible: 0,
+  unidad_medida: 'unidad',
+  ubicacion_almacen: '',
+  estado_uso: 'Disponible',
+  imagen_ruta: '',
+  costo_adquisicion: null,
+  fecha_adquisicion: '',
+  proveedor_ultimo: '',
+  observaciones: ''
+})
+
+const herrFormData = ref(herrEmptyForm())
+
+// --- Badge colors ---
+const getEstadoUsoColor = (estado) => {
+  const colors = {
+    'Disponible': '#27ae60',
+    'En Uso': '#f39c12',
+    'En Reparación': '#e74c3c',
+    'Dado de Baja': '#7f8c8d'
+  }
+  return colors[estado] || '#7f8c8d'
+}
+
+const getCategoriaColor = (categoria) => {
+  const colors = {
+    'Instrumento de Medición': '#3498db',
+    'Herramienta Manual': '#1abc9c',
+    'Consumible': '#9b59b6',
+    'Kit': '#e67e22'
+  }
+  return colors[categoria] || '#7f8c8d'
+}
+
+// --- Fetch Herramientas ---
+const fetchHerramientas = async () => {
+  try {
+    herrLoading.value = true
+    const res = await apiClient.get('/herramientas/')
+    herramientas.value = res.data
+  } catch (error) {
+    console.error(error)
+  } finally {
+    herrLoading.value = false
+  }
+}
+
+const filteredHerramientas = computed(() => {
+  const q = herrSearchQuery.value.trim().toLowerCase()
+  if (!q) return herramientas.value
+  return herramientas.value.filter((h) => {
+    const nombre = String(h.nombre_herramienta ?? '').toLowerCase()
+    const numero = String(h.numero_identificacion ?? '').toLowerCase()
+    const categoria = String(h.categoria ?? '').toLowerCase()
+    const ubicacion = String(h.ubicacion_almacen ?? '').toLowerCase()
+    return nombre.includes(q) || numero.includes(q) || categoria.includes(q) || ubicacion.includes(q)
+  })
+})
+
+const paginatedHerramientas = computed(() => {
+  const start = (herrCurrentPage.value - 1) * herrPageSize.value
+  return filteredHerramientas.value.slice(start, start + herrPageSize.value)
+})
+
+const herrTotalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredHerramientas.value.length / herrPageSize.value))
+)
+
+watch(
+  () => filteredHerramientas.value.length,
+  (len) => {
+    const tp = Math.max(1, Math.ceil(len / herrPageSize.value))
+    if (herrCurrentPage.value > tp) herrCurrentPage.value = tp
+  }
+)
+
+watch(herrSearchQuery, () => {
+  herrCurrentPage.value = 1
+})
+
+const herrIrPaginaAnterior = () => {
+  if (herrCurrentPage.value > 1) herrCurrentPage.value -= 1
+}
+
+const herrIrPaginaSiguiente = () => {
+  if (herrCurrentPage.value < herrTotalPages.value) herrCurrentPage.value += 1
+}
+
+// --- Funciones Imagen Herramienta ---
+const herrHandleImagenSelect = (event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    alert('Solo se permiten archivos de imagen')
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    alert('La imagen no debe superar 5MB')
+    return
+  }
+  herrImagenFile.value = file
+}
+
+const herrEliminarImagen = async () => {
+  if (!confirm('¿Eliminar la imagen de esta herramienta?')) return
+  try {
+    await apiClient.delete(`/herramientas/${herrFormData.value.id}/imagen`)
+    herrFormData.value.imagen_ruta = null
+    herrImagenFile.value = null
+    herrImagenPreview.value = ''
+    alert('Imagen eliminada')
+    fetchHerramientas()
+  } catch (error) {
+    alert('Error al eliminar la imagen')
+  }
+}
+
+const herrSubirImagenAhora = async () => {
+  if (!herrImagenFile.value) return
+  const herrId = herrFormData.value.id
+  if (!herrId) {
+    alert('Guarde la herramienta primero antes de subir la imagen')
+    return
+  }
+  try {
+    herrSubiendoImagen.value = true
+    const imgFormData = new FormData()
+    imgFormData.append('file', herrImagenFile.value)
+    const res = await apiClient.post(`/herramientas/${herrId}/upload_imagen`, imgFormData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    herrFormData.value.imagen_ruta = res.data.imagen_ruta
+    herrImagenFile.value = null
+    alert('Imagen subida correctamente')
+    fetchHerramientas()
+  } catch (error) {
+    alert('Error al subir la imagen: ' + (error.response?.data?.detail || error.message))
+  } finally {
+    herrSubiendoImagen.value = false
+  }
+}
+
+// --- Funciones Modal Herramientas ---
+const herrOpenCreateModal = () => {
+  herrIsEditing.value = false
+  herrFormData.value = herrEmptyForm()
+  herrImagenFile.value = null
+  herrImagenPreview.value = ''
+  herrShowModal.value = true
+}
+
+const herrOpenEditModal = (h) => {
+  herrIsEditing.value = true
+  herrFormData.value = {
+    id: h.id,
+    nombre_herramienta: h.nombre_herramienta,
+    numero_identificacion: h.numero_identificacion || '',
+    descripcion: h.descripcion || '',
+    categoria: h.categoria || 'Herramienta Manual',
+    cantidad_disponible: h.cantidad_disponible,
+    unidad_medida: h.unidad_medida || 'unidad',
+    ubicacion_almacen: h.ubicacion_almacen || '',
+    estado_uso: h.estado_uso || 'Disponible',
+    imagen_ruta: h.imagen_ruta || '',
+    costo_adquisicion: h.costo_adquisicion ?? null,
+    fecha_adquisicion: h.fecha_adquisicion ? h.fecha_adquisicion.substring(0, 10) : '',
+    proveedor_ultimo: h.proveedor_ultimo || '',
+    observaciones: h.observaciones || ''
+  }
+  herrImagenFile.value = null
+  herrImagenPreview.value = h.imagen_ruta ? `/uploads/${h.imagen_ruta}` : ''
+  herrShowModal.value = true
+}
+
+const herrOpenDetailModal = async (h) => {
+  try {
+    const res = await apiClient.get(`/herramientas/${h.id}`)
+    herrSelected.value = res.data
+  } catch {
+    herrSelected.value = { ...h }
+  }
+  herrShowDetailModal.value = true
+}
+
+const herrOpenDocsModal = (h) => {
+  docsHerramienta.value = h
+  herrShowDocsModal.value = true
+}
+
+const herrSaveHerramienta = async () => {
+  try {
+    const payload = { ...herrFormData.value }
+    const id = payload.id
+    if (id != null) delete payload.id
+
+    if (payload.costo_adquisicion === '' || payload.costo_adquisicion === 0) payload.costo_adquisicion = null
+    if (payload.fecha_adquisicion === '') payload.fecha_adquisicion = null
+
+    let herrId;
+    if (herrIsEditing.value) {
+      await apiClient.put(`/herramientas/${herrFormData.value.id}`, payload)
+      herrId = herrFormData.value.id
+    } else {
+      const res = await apiClient.post('/herramientas/', payload)
+      herrId = res.data.id
+    }
+
+    // Subir imagen si se seleccionó una
+    if (herrImagenFile.value && herrId) {
+      const imgFormData = new FormData()
+      imgFormData.append('file', herrImagenFile.value)
+      await apiClient.post(`/herramientas/${herrId}/upload_imagen`, imgFormData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+    }
+
+    alert(herrIsEditing.value ? 'Herramienta actualizada' : 'Herramienta agregada')
+    herrShowModal.value = false
+    fetchHerramientas()
+  } catch (error) {
+    console.error(error.response || error)
+    if (error.response && error.response.data && error.response.data.detail) {
+      const details = error.response.data.detail;
+      if (Array.isArray(details)) {
+        alert(`Error de validación: ${details[0].msg} en campo ${details[0].loc.join('-')}`);
+      } else {
+        alert('Error: ' + details);
+      }
+    } else {
+      alert('Error al guardar');
+    }
+  }
+}
+
+const herrDeleteHerramienta = async (id) => {
+  if (!confirm('¿Eliminar esta herramienta del inventario?')) return
+  try {
+    await apiClient.delete(`/herramientas/${id}`)
+    alert('Herramienta eliminada')
+    fetchHerramientas()
+  } catch (error) {
+    console.error(error)
+    alert('No se pudo eliminar (puede estar en uso en una orden).')
+  }
+}
+
+// --- Funciones Importar Excel Herramientas ---
+const herrOpenImportModal = () => {
+  herrImportFile.value = null
+  herrImportResult.value = null
+  herrImporting.value = false
+  herrImportDragOver.value = false
+  herrShowImportModal.value = true
+}
+
+const herrHandleFileSelect = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    herrImportFile.value = file
+    herrImportResult.value = null
+  }
+}
+
+const herrHandleDragOver = (e) => {
+  e.preventDefault()
+  herrImportDragOver.value = true
+}
+
+const herrHandleDragLeave = (e) => {
+  e.preventDefault()
+  herrImportDragOver.value = false
+}
+
+const herrHandleDrop = (e) => {
+  e.preventDefault()
+  herrImportDragOver.value = false
+  const file = e.dataTransfer.files[0]
+  if (file) {
+    herrImportFile.value = file
+    herrImportResult.value = null
+  }
+}
+
+const herrDownloadTemplate = async () => {
+  try {
+    const response = await apiClient.get('/herramientas/plantilla-excel', {
+      responseType: 'blob'
+    })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    const contentDisposition = response.headers['content-disposition']
+    let filename = 'CMMS-BioAI_Plantilla_Herramientas.xlsx'
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="?(.+?)"?$/)
+      if (match) filename = match[1]
+    }
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    alert('Error al descargar la plantilla')
+    console.error(error)
+  }
+}
+
+const herrUploadExcel = async () => {
+  if (!herrImportFile.value) {
+    alert('Seleccione un archivo primero')
+    return
+  }
+  const ext = herrImportFile.value.name.toLowerCase()
+  if (!ext.endsWith('.xlsx') && !ext.endsWith('.csv')) {
+    alert('Solo se aceptan archivos .xlsx o .csv')
+    return
+  }
+  try {
+    herrImporting.value = true
+    herrImportResult.value = null
+    const fd = new FormData()
+    fd.append('file', herrImportFile.value)
+    const response = await apiClient.post('/herramientas/import-excel', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    herrImportResult.value = response.data
+    fetchHerramientas()
+  } catch (error) {
+    if (error.response && error.response.data && error.response.data.detail) {
+      alert('Error: ' + error.response.data.detail)
+    } else {
+      alert('Error al importar el archivo')
+    }
+    console.error(error)
+  } finally {
+    herrImporting.value = false
+  }
+}
+
+const herrResetImport = () => {
+  herrImportFile.value = null
+  herrImportResult.value = null
+}
+
+// =============================================
+// ON MOUNTED
+// =============================================
 onMounted(() => {
   fetchRepuestos()
+  fetchHerramientas()
 })
 </script>
 
@@ -415,110 +821,252 @@ onMounted(() => {
     <Navbar @logout="$router.push('/')" />
 
     <main class="content">
-      <div class="top-bar">
-        <h2>Almacen de Repuestos</h2>
-        <div class="top-bar-actions">
-          <div class="search-wrapper">
-            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-            </svg>
-            <input
-              v-model="searchQuery"
-              type="search"
-              class="search-input"
-              placeholder="Nombre, serie, material..."
-              autocomplete="off"
-              aria-label="Buscar repuestos"
-            >
-          </div>
-          <button class="btn-import" @click="openImportModal" title="Cargar repuestos desde Excel">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
-              <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
-            </svg>
-            Cargar Excel
-          </button>
-          <button type="button" class="btn-primary" @click="openCreateModal">+ Agregar Repuesto</button>
-        </div>
+      <!-- TAB BAR -->
+      <div class="tabs-bar">
+        <button
+          class="tab-btn"
+          :class="{ active: activeTab === 'repuestos' }"
+          @click="activeTab = 'repuestos'"
+        >
+          Repuestos
+        </button>
+        <button
+          class="tab-btn"
+          :class="{ active: activeTab === 'herramientas' }"
+          @click="activeTab = 'herramientas'"
+        >
+          Herramientas
+        </button>
       </div>
 
-      <div v-if="loading">Cargando inventario...</div>
+      <!-- ============================================= -->
+      <!-- REPUESTOS TAB -->
+      <!-- ============================================= -->
+      <template v-if="activeTab === 'repuestos'">
+        <div class="top-bar">
+          <h2>Almacen de Repuestos</h2>
+          <div class="top-bar-actions">
+            <div class="search-wrapper">
+              <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+              </svg>
+              <input
+                v-model="searchQuery"
+                type="search"
+                class="search-input"
+                placeholder="Nombre, serie, material..."
+                autocomplete="off"
+                aria-label="Buscar repuestos"
+              >
+            </div>
+            <button class="btn-import" @click="openImportModal" title="Cargar repuestos desde Excel">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+              </svg>
+              Cargar Excel
+            </button>
+            <button type="button" class="btn-primary" @click="openCreateModal">+ Agregar Repuesto</button>
+          </div>
+        </div>
 
-      <table v-if="!loading && repuestos.length">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Nombre</th>
-            <th>N. Serie</th>
-            <th>Stock</th>
-            <th>Ubicacion</th>
-            <th>P. Ref.</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="!filteredRepuestos.length">
-            <td class="table-empty-cell" colspan="7">
-              {{ searchQuery.trim() ? 'No hay repuestos que coincidan con la busqueda.' : 'No hay repuestos registrados.' }}
-            </td>
-          </tr>
-          <template v-else>
-            <tr v-for="rep in paginatedRepuestos" :key="rep.id">
-              <td>#{{ rep.id }}</td>
-              <td>
-                <strong>{{ rep.nombre_repuesto }}</strong>
-              </td>
-              <td>{{ rep.numero_serie || 'N/A' }}</td>
-              <td>
-                <span :class="isLowStock(rep) ? 'low-stock' : 'stock'">
-                  {{ rep.cantidad_disponible }} {{ rep.unidad_medida }}
-                </span>
-              </td>
-              <td>{{ rep.ubicacion_almacen || 'Sin ubicar' }}</td>
-              <td>{{ formatPrecio(rep.precio_referencia) }}</td>
-              <td class="actions-cell">
-                <button type="button" class="btn-icon" title="Ver detalles" @click="openDetailModal(rep)">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
-                  </svg>
-                </button>
-                <button type="button" class="btn-icon" title="Editar" @click="openEditModal(rep)">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
-                  </svg>
-                </button>
-                <button type="button" class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteRepuesto(rep.id)">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                    <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                  </svg>
-                </button>
-                <button type="button" class="btn-icon btn-doc-icon" title="Documentos Adjuntos" @click="openDocsModal(rep)">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
-                  </svg>
-                </button>
+        <div v-if="loading">Cargando inventario...</div>
+
+        <table v-if="!loading && repuestos.length">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>N. Serie</th>
+              <th>Stock</th>
+              <th>Ubicacion</th>
+              <th>P. Ref.</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!filteredRepuestos.length">
+              <td class="table-empty-cell" colspan="7">
+                {{ searchQuery.trim() ? 'No hay repuestos que coincidan con la busqueda.' : 'No hay repuestos registrados.' }}
               </td>
             </tr>
-          </template>
-        </tbody>
-      </table>
+            <template v-else>
+              <tr v-for="rep in paginatedRepuestos" :key="rep.id">
+                <td>#{{ rep.id }}</td>
+                <td>
+                  <strong>{{ rep.nombre_repuesto }}</strong>
+                </td>
+                <td>{{ rep.numero_serie || 'N/A' }}</td>
+                <td>
+                  <span :class="isLowStock(rep) ? 'low-stock' : 'stock'">
+                    {{ rep.cantidad_disponible }} {{ rep.unidad_medida }}
+                  </span>
+                </td>
+                <td>{{ rep.ubicacion_almacen || 'Sin ubicar' }}</td>
+                <td>{{ formatPrecio(rep.precio_referencia) }}</td>
+                <td class="actions-cell">
+                  <button type="button" class="btn-icon" title="Ver detalles" @click="openDetailModal(rep)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="btn-icon" title="Editar" @click="openEditModal(rep)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteRepuesto(rep.id)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                      <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="btn-icon btn-doc-icon" title="Documentos Adjuntos" @click="openDocsModal(rep)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
 
-      <div
-        v-if="!loading && repuestos.length && filteredRepuestos.length"
-        class="table-pagination"
-        role="navigation"
-        aria-label="Paginacion del inventario"
-      >
-        <button type="button" class="btn-pagination" :disabled="currentPage <= 1" @click="irPaginaAnterior">Anterior</button>
-        <span class="table-pagination-meta">Pagina {{ currentPage }} de {{ totalPages }}</span>
-        <button type="button" class="btn-pagination" :disabled="currentPage >= totalPages" @click="irPaginaSiguiente">Siguiente</button>
-      </div>
+        <div
+          v-if="!loading && repuestos.length && filteredRepuestos.length"
+          class="table-pagination"
+          role="navigation"
+          aria-label="Paginacion del inventario"
+        >
+          <button type="button" class="btn-pagination" :disabled="currentPage <= 1" @click="irPaginaAnterior">Anterior</button>
+          <span class="table-pagination-meta">Pagina {{ currentPage }} de {{ totalPages }}</span>
+          <button type="button" class="btn-pagination" :disabled="currentPage >= totalPages" @click="irPaginaSiguiente">Siguiente</button>
+        </div>
 
-      <div v-if="!loading && repuestos.length === 0" class="empty-state">No hay repuestos registrados.</div>
+        <div v-if="!loading && repuestos.length === 0" class="empty-state">No hay repuestos registrados.</div>
+      </template>
+
+      <!-- ============================================= -->
+      <!-- HERRAMIENTAS TAB -->
+      <!-- ============================================= -->
+      <template v-if="activeTab === 'herramientas'">
+        <div class="top-bar">
+          <h2>Herramientas y Materiales</h2>
+          <div class="top-bar-actions">
+            <div class="search-wrapper">
+              <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+              </svg>
+              <input
+                v-model="herrSearchQuery"
+                type="search"
+                class="search-input"
+                placeholder="Nombre, identificacion, categoria..."
+                autocomplete="off"
+                aria-label="Buscar herramientas"
+              >
+            </div>
+            <button class="btn-import" @click="herrOpenImportModal" title="Cargar herramientas desde Excel">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+              </svg>
+              Cargar Excel
+            </button>
+            <button type="button" class="btn-primary" @click="herrOpenCreateModal">+ Agregar Herramienta</button>
+          </div>
+        </div>
+
+        <div v-if="herrLoading">Cargando herramientas...</div>
+
+        <table v-if="!herrLoading && herramientas.length">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Categoria</th>
+              <th>Cantidad</th>
+              <th>Estado</th>
+              <th>Ubicacion</th>
+              <th>Costo</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!filteredHerramientas.length">
+              <td class="table-empty-cell" colspan="8">
+                {{ herrSearchQuery.trim() ? 'No hay herramientas que coincidan con la busqueda.' : 'No hay herramientas registradas.' }}
+              </td>
+            </tr>
+            <template v-else>
+              <tr v-for="h in paginatedHerramientas" :key="h.id">
+                <td>#{{ h.id }}</td>
+                <td>
+                  <strong>{{ h.nombre_herramienta }}</strong>
+                </td>
+                <td>
+                  <span class="badge" :style="{ backgroundColor: getCategoriaColor(h.categoria) }">
+                    {{ h.categoria || 'N/A' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="stock">{{ h.cantidad_disponible }} {{ h.unidad_medida }}</span>
+                </td>
+                <td>
+                  <span class="badge" :style="{ backgroundColor: getEstadoUsoColor(h.estado_uso) }">
+                    {{ h.estado_uso || 'N/A' }}
+                  </span>
+                </td>
+                <td>{{ h.ubicacion_almacen || 'Sin ubicar' }}</td>
+                <td>{{ formatPrecio(h.costo_adquisicion) }}</td>
+                <td class="actions-cell">
+                  <button type="button" class="btn-icon" title="Ver detalles" @click="herrOpenDetailModal(h)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="btn-icon" title="Editar" @click="herrOpenEditModal(h)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="btn-icon btn-danger-icon" title="Eliminar" @click="herrDeleteHerramienta(h.id)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                      <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                    </svg>
+                  </button>
+                  <button type="button" class="btn-icon btn-doc-icon" title="Documentos Adjuntos" @click="herrOpenDocsModal(h)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+
+        <div
+          v-if="!herrLoading && herramientas.length && filteredHerramientas.length"
+          class="table-pagination"
+          role="navigation"
+          aria-label="Paginacion de herramientas"
+        >
+          <button type="button" class="btn-pagination" :disabled="herrCurrentPage <= 1" @click="herrIrPaginaAnterior">Anterior</button>
+          <span class="table-pagination-meta">Pagina {{ herrCurrentPage }} de {{ herrTotalPages }}</span>
+          <button type="button" class="btn-pagination" :disabled="herrCurrentPage >= herrTotalPages" @click="herrIrPaginaSiguiente">Siguiente</button>
+        </div>
+
+        <div v-if="!herrLoading && herramientas.length === 0" class="empty-state">No hay herramientas registradas.</div>
+      </template>
     </main>
 
-    <!-- Modal Importar Excel -->
+    <!-- ============================================= -->
+    <!-- MODALES REPUESTOS -->
+    <!-- ============================================= -->
+
+    <!-- Modal Importar Excel Repuestos -->
     <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
       <div class="modal" style="width: 580px;">
         <h3>Importar Repuestos desde Excel</h3>
@@ -578,7 +1126,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Modal Crear / Editar -->
+    <!-- Modal Crear / Editar Repuesto -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal">
         <h3>{{ isEditing ? 'Editar Repuesto' : 'Nuevo Repuesto' }}</h3>
@@ -587,7 +1135,6 @@ onMounted(() => {
             <label>Nombre *</label>
             <input v-model="formData.nombre_repuesto" type="text" required>
           </div>
-          <!-- Numero de serie y Numero de material en la misma fila -->
           <div class="form-row">
             <div class="form-group">
               <label>Numero de Serie</label>
@@ -680,7 +1227,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Modal detalle -->
+    <!-- Modal detalle repuesto -->
     <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
       <div class="modal modal-details">
         <h3>Detalle del repuesto: {{ selectedRepuesto.nombre_repuesto }}</h3>
@@ -726,7 +1273,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Modal Documentos Adjuntos -->
+    <!-- Modal Documentos Adjuntos Repuesto -->
     <div v-if="showDocsModal" class="modal-overlay" @click.self="showDocsModal = false">
       <div class="modal modal-docs">
         <h3>Documentos - {{ docsRepuesto.nombre_repuesto }}</h3>
@@ -736,12 +1283,264 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- ============================================= -->
+    <!-- MODALES HERRAMIENTAS -->
+    <!-- ============================================= -->
+
+    <!-- Modal Importar Excel Herramientas -->
+    <div v-if="herrShowImportModal" class="modal-overlay" @click.self="herrShowImportModal = false">
+      <div class="modal" style="width: 580px;">
+        <h3>Importar Herramientas desde Excel</h3>
+        <div v-if="!herrImportResult && !herrImporting">
+          <div class="drop-zone" :class="{ 'drop-zone--active': herrImportDragOver, 'drop-zone--has-file': herrImportFile }" @dragover="herrHandleDragOver" @dragleave="herrHandleDragLeave" @drop="herrHandleDrop" @click="$refs.herrFileInput.click()">
+            <div v-if="!herrImportFile" class="drop-zone-content">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16" style="color: #94a3b8;"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/></svg>
+              <p class="drop-zone-text">Arrastre su archivo Excel o CSV aqui</p>
+              <p class="drop-zone-subtext">o haga clic para seleccionar</p>
+            </div>
+            <div v-else class="drop-zone-content">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="currentColor" viewBox="0 0 16 16" style="color: #27ae60;"><path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1zm-3.5 8l-1.5-1.5L5 10l1 1 3-3 .5.5-3.5 3.5z"/></svg>
+              <p class="drop-zone-filename">{{ herrImportFile.name }}</p>
+              <p class="drop-zone-subtext">{{ (herrImportFile.size / 1024).toFixed(1) }} KB</p>
+            </div>
+          </div>
+          <input ref="herrFileInput" type="file" accept=".xlsx,.csv" style="display: none;" @change="herrHandleFileSelect">
+          <div class="import-info">
+            <p><strong>Formato:</strong> Archivo .xlsx o .csv con encabezados en la primera fila.</p>
+            <p><strong>Columnas obligatorias:</strong> nombre_herramienta, cantidad_disponible</p>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="herrShowImportModal = false">Cancelar</button>
+            <button type="button" class="btn-outline" @click="herrDownloadTemplate" title="Descargar plantilla Excel">Plantilla Excel</button>
+            <button type="button" class="btn-primary" :disabled="!herrImportFile" @click="herrUploadExcel">Importar</button>
+          </div>
+        </div>
+        <div v-if="herrImporting" class="import-progress">
+          <div class="spinner"></div>
+          <p style="text-align: center; color: #475569;">Importando herramientas...</p>
+        </div>
+        <div v-if="herrImportResult && !herrImporting">
+          <div class="import-result">
+            <div class="result-summary">
+              <div class="result-item result-success"><span class="result-number">{{ herrImportResult.exitosos }}</span><span class="result-label">Nuevos</span></div>
+              <div class="result-item result-updated"><span class="result-number">{{ herrImportResult.actualizados }}</span><span class="result-label">Actualizados</span></div>
+              <div class="result-item result-failed"><span class="result-number">{{ herrImportResult.fallidos }}</span><span class="result-label">Fallidos</span></div>
+              <div class="result-item result-total"><span class="result-number">{{ herrImportResult.total_procesados }}</span><span class="result-label">Total</span></div>
+            </div>
+            <div v-if="herrImportResult.errores && herrImportResult.errores.length > 0" class="import-errors">
+              <h4>Detalle de errores</h4>
+              <div class="error-list">
+                <div v-for="(err, idx) in herrImportResult.errores" :key="idx" class="error-item">
+                  <span class="error-fila">Fila {{ err.fila }}</span>
+                  <span class="error-serie">({{ err.nombre }})</span>
+                  <span class="error-msg">{{ err.errores.join(', ') }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="herrResetImport">Importar otro</button>
+            <button type="button" class="btn-primary" @click="herrShowImportModal = false">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Crear / Editar Herramienta -->
+    <div v-if="herrShowModal" class="modal-overlay" @click.self="herrShowModal = false">
+      <div class="modal">
+        <h3>{{ herrIsEditing ? 'Editar Herramienta' : 'Nueva Herramienta' }}</h3>
+        <form @submit.prevent="herrSaveHerramienta">
+          <div class="form-group">
+            <label>Nombre de la Herramienta *</label>
+            <input v-model="herrFormData.nombre_herramienta" type="text" required>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Numero de Identificacion</label>
+              <input v-model="herrFormData.numero_identificacion" type="text" placeholder="Codigo o serie de la herramienta">
+            </div>
+            <div class="form-group">
+              <label>Categoria *</label>
+              <select v-model="herrFormData.categoria" required>
+                <option v-for="cat in categoriasHerramienta" :key="cat" :value="cat">{{ cat }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Imagen de la Herramienta</label>
+            <div class="imagen-upload-container">
+              <div v-if="herrIsEditing && herrFormData.imagen_ruta && !herrImagenFile" class="imagen-existente">
+                <a :href="`/uploads/${herrFormData.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(herrFormData.imagen_ruta) }}</a>
+                <button type="button" class="btn-icon-sm" @click="herrEliminarImagen" title="Eliminar imagen">&#10005;</button>
+              </div>
+              <div v-if="herrImagenFile" class="imagen-nueva">
+                <span class="imagen-filename">{{ herrImagenFile.name }}</span>
+                <button type="button" class="btn-icon-sm" @click="herrImagenFile = null" title="Quitar seleccion">&#10005;</button>
+                <button type="button" class="btn-subir-imagen" @click="herrSubirImagenAhora" :disabled="herrSubiendoImagen">
+                  {{ herrSubiendoImagen ? 'Subiendo...' : 'Subir imagen' }}
+                </button>
+              </div>
+              <div class="imagen-upload-controls">
+                <input type="file" ref="herrImagenInput" accept="image/*" @change="herrHandleImagenSelect" style="display:none">
+                <button type="button" class="btn-outline" @click="$refs.herrImagenInput.click()">
+                  {{ herrFormData.imagen_ruta && !herrImagenFile ? 'Cambiar imagen' : 'Seleccionar imagen' }}
+                </button>
+                <span v-if="!herrFormData.imagen_ruta && !herrImagenFile && !herrIsEditing" style="font-size: 0.82rem; color: #94a3b8;">Se subira al guardar</span>
+                <span v-if="!herrFormData.imagen_ruta && !herrImagenFile && herrIsEditing" style="font-size: 0.82rem; color: #94a3b8;">Sin imagen</span>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Descripcion</label>
+            <textarea v-model="herrFormData.descripcion" rows="2" placeholder="Detalle de la herramienta, uso, etc."></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>{{ herrIsEditing ? 'Cantidad disponible' : 'Cantidad inicial' }}</label>
+              <input v-model.number="herrFormData.cantidad_disponible" type="number" min="0" required>
+            </div>
+            <div class="form-group">
+              <label>Unidad</label>
+              <select v-model="herrFormData.unidad_medida">
+                <option value="unidad">unidad</option>
+                <option value="par">par</option>
+                <option value="metro">metro</option>
+                <option value="litro">litro</option>
+                <option value="kit">kit</option>
+                <option value="paquete">paquete</option>
+                <option value="rollo">rollo</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Ubicacion en almacen</label>
+              <input v-model="herrFormData.ubicacion_almacen" type="text" placeholder="Ej: Estante B2">
+            </div>
+            <div class="form-group">
+              <label>Estado de Uso *</label>
+              <select v-model="herrFormData.estado_uso" required>
+                <option v-for="est in estadosUso" :key="est" :value="est">{{ est }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Costo de Adquisicion (Bs.)</label>
+              <input v-model.number="herrFormData.costo_adquisicion" type="number" step="0.01" min="0" placeholder="Costo de compra">
+            </div>
+            <div class="form-group">
+              <label>Fecha de Adquisicion</label>
+              <input v-model="herrFormData.fecha_adquisicion" type="date">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Proveedor Ultimo</label>
+              <input v-model="herrFormData.proveedor_ultimo" type="text" placeholder="Nombre del ultimo proveedor">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Observaciones</label>
+            <textarea v-model="herrFormData.observaciones" rows="2" placeholder="Observaciones adicionales"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="herrShowModal = false">Cancelar</button>
+            <button type="submit" class="btn-primary">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Modal detalle herramienta -->
+    <div v-if="herrShowDetailModal" class="modal-overlay" @click.self="herrShowDetailModal = false">
+      <div class="modal modal-details">
+        <h3>Detalle de la herramienta: {{ herrSelected.nombre_herramienta }}</h3>
+        <div class="detail-grid">
+          <div class="detail-column">
+            <h4>Identificacion</h4>
+            <p><strong>ID:</strong> #{{ herrSelected.id }}</p>
+            <p><strong>Nombre:</strong> {{ herrSelected.nombre_herramienta }}</p>
+            <p><strong>N. Identificacion:</strong> {{ herrSelected.numero_identificacion || 'N/A' }}</p>
+            <p><strong>Categoria:</strong> <span class="badge" :style="{ backgroundColor: getCategoriaColor(herrSelected.categoria) }">{{ herrSelected.categoria || 'N/A' }}</span></p>
+            <p><strong>Ubicacion:</strong> {{ herrSelected.ubicacion_almacen || 'Sin ubicar' }}</p>
+            <p v-if="herrSelected.imagen_ruta"><strong>Imagen:</strong> <a :href="`/uploads/${herrSelected.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(herrSelected.imagen_ruta) }}</a></p>
+          </div>
+          <div class="detail-column">
+            <h4>Inventario y Estado</h4>
+            <p>
+              <strong>Cantidad:</strong>
+              <span class="stock">{{ herrSelected.cantidad_disponible }} {{ herrSelected.unidad_medida }}</span>
+            </p>
+            <p>
+              <strong>Estado:</strong>
+              <span class="badge" :style="{ backgroundColor: getEstadoUsoColor(herrSelected.estado_uso) }">{{ herrSelected.estado_uso || 'N/A' }}</span>
+            </p>
+            <p><strong>Costo adquisicion:</strong> {{ formatPrecio(herrSelected.costo_adquisicion) }}</p>
+            <p><strong>Fecha adquisicion:</strong> {{ herrSelected.fecha_adquisicion || 'N/A' }}</p>
+            <p><strong>Proveedor ultimo:</strong> {{ herrSelected.proveedor_ultimo || 'N/A' }}</p>
+          </div>
+        </div>
+        <div v-if="herrSelected.descripcion" class="detail-full">
+          <h4>Descripcion</h4>
+          <div class="description-box">
+            {{ herrSelected.descripcion }}
+          </div>
+        </div>
+        <div v-if="herrSelected.observaciones" class="detail-full">
+          <h4>Observaciones</h4>
+          <div class="description-box">
+            {{ herrSelected.observaciones }}
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" @click="herrShowDetailModal = false">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Documentos Adjuntos Herramienta -->
+    <div v-if="herrShowDocsModal" class="modal-overlay" @click.self="herrShowDocsModal = false">
+      <div class="modal modal-docs">
+        <h3>Documentos - {{ docsHerramienta.nombre_herramienta }}</h3>
+        <DocumentosAdjuntos v-if="docsHerramienta.id" :herramientaId="docsHerramienta.id" />
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="herrShowDocsModal = false">Cerrar</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .dashboard-container { padding: 0; }
 .content { padding: 2rem; }
+
+/* Tabs */
+.tabs-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 1rem;
+}
+.tab-btn {
+  padding: 0.65rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #64748b;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tab-btn:hover { color: #334155; }
+.tab-btn.active {
+  color: #1B4332;
+  border-bottom-color: #1B4332;
+}
 
 .top-bar {
   display: flex;
@@ -805,6 +1604,17 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .empty-state { text-align: center; color: #64748b; padding: 2rem; margin-top: 1rem; }
 .stock { color: #27ae60; font-weight: bold; }
 .low-stock { color: #e74c3c; font-weight: bold; }
+
+/* Badge for categorias and estados */
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
 
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1rem; }
 .btn-primary:hover { background-color: #2980b9; }

@@ -13,11 +13,12 @@ class DocumentoAdjunto(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    # Entidad asociada: puede ser una OT, un Equipo o un Repuesto
+    # Entidad asociada: puede ser una OT, un Equipo, un Repuesto o una Herramienta
     # Se usa uno u otro, los demás quedan en NULL
     orden_trabajo_id: Optional[int] = Field(default=None, foreign_key="ordentrabajo.id")
     equipo_id: Optional[int] = Field(default=None, foreign_key="equipo.id")
     repuesto_id: Optional[int] = Field(default=None, foreign_key="repuesto.id")
+    herramienta_id: Optional[int] = Field(default=None, foreign_key="herramienta.id")
 
     # Datos del archivo
     nombre_archivo: str                          # Nombre original del archivo

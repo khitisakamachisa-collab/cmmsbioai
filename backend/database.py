@@ -33,10 +33,22 @@ def _migrate_repuesto_columns():
         conn.commit()
 
 
+def _migrate_documento_herramienta_id():
+    """Agrega columna herramienta_id a la tabla 'documentoadjunto' si no existe."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(documentoadjunto)"))
+        existing = {row[1] for row in result.fetchall()}
+        if "herramienta_id" not in existing:
+            conn.execute(text("ALTER TABLE documentoadjunto ADD COLUMN herramienta_id INTEGER REFERENCES herramienta(id)"))
+            print("✅ Migración: columna 'herramienta_id' agregada a tabla 'documentoadjunto'")
+        conn.commit()
+
+
 def create_db_and_tables():
     """Crea las tablas en la base de datos si no existen, y aplica migraciones."""
     SQLModel.metadata.create_all(engine)
     _migrate_repuesto_columns()
+    _migrate_documento_herramienta_id()
 
 def get_session():
     """Dependencia para obtener una sesión de base de datos en los endpoints."""

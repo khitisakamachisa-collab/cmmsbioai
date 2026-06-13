@@ -15,8 +15,6 @@ const error_msg = ref('')
 const PAGE_SIZE = 10
 const currentPage = ref(1)
 const searchQuery = ref('')
-const searchSerie = ref('')
-const searchUbicacion = ref('')
 
 // --- Variables Modal ---
 const showModal = ref(false)
@@ -174,28 +172,12 @@ const fetchTecnicos = async () => {
 
 const filteredEquipos = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  const qSerie = searchSerie.value.trim().toLowerCase()
-  const qUbicacion = searchUbicacion.value.trim().toLowerCase()
-
+  if (!q) return equipos.value
   return equipos.value.filter((eq) => {
-    // Filtro 1: Búsqueda general (OR entre nombre, marca, modelo)
-    if (q) {
-      const nombre = String(eq.nombre_corto ?? '').toLowerCase()
-      const marca = String(eq.marca ?? '').toLowerCase()
-      const modelo = String(eq.modelo ?? '').toLowerCase()
-      if (!nombre.includes(q) && !marca.includes(q) && !modelo.includes(q)) return false
-    }
-    // Filtro 2: Número de Serie
-    if (qSerie) {
-      const serie = String(eq.numero_serie ?? '').toLowerCase()
-      if (!serie.includes(qSerie)) return false
-    }
-    // Filtro 3: Ubicación
-    if (qUbicacion) {
-      const ubicacion = String(eq.ubicacion_actual ?? '').toLowerCase()
-      if (!ubicacion.includes(qUbicacion)) return false
-    }
-    return true
+    const nombre = String(eq.nombre_corto ?? '').toLowerCase()
+    const marca = String(eq.marca ?? '').toLowerCase()
+    const modelo = String(eq.modelo ?? '').toLowerCase()
+    return nombre.includes(q) || marca.includes(q) || modelo.includes(q)
   })
 })
 
@@ -211,7 +193,7 @@ watch(
   }
 )
 
-watch([searchQuery, searchSerie, searchUbicacion], () => {
+watch(searchQuery, () => {
   currentPage.value = 1
 })
 
@@ -490,49 +472,18 @@ onMounted(() => {
       <div class="top-bar">
         <h2>Gestión de Equipos Médicos</h2>
         <div class="top-bar-actions">
-          <div class="search-filters">
-            <div class="search-wrapper">
-              <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-              </svg>
-              <input
-                v-model="searchQuery"
-                type="search"
-                class="search-input"
-                placeholder="Nombre, marca, modelo..."
-                autocomplete="off"
-                aria-label="Buscar por nombre, marca o modelo"
-              >
-            </div>
-            <div class="search-wrapper">
-              <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-              </svg>
-              <input
-                v-model="searchSerie"
-                type="search"
-                class="search-input"
-                placeholder="N. Serie..."
-                autocomplete="off"
-                aria-label="Buscar por número de serie"
-              >
-            </div>
-            <div class="search-wrapper">
-              <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-              </svg>
-              <input
-                v-model="searchUbicacion"
-                type="search"
-                class="search-input"
-                placeholder="Ubicación..."
-                autocomplete="off"
-                aria-label="Buscar por ubicación"
-              >
-            </div>
-            <button v-if="searchQuery || searchSerie || searchUbicacion" class="btn-clear-filters" @click="searchQuery = ''; searchSerie = ''; searchUbicacion = ''" title="Limpiar todos los filtros">
-              ✕
-            </button>
+          <div class="search-wrapper">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+            </svg>
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="search-input"
+              placeholder="Nombre, marca, modelo..."
+              autocomplete="off"
+              aria-label="Buscar equipos"
+            >
           </div>
           <button class="btn-import" @click="openImportModal" title="Cargar equipos desde Excel">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -563,7 +514,7 @@ onMounted(() => {
         <tbody>
           <tr v-if="!filteredEquipos.length">
             <td class="table-empty-cell" colspan="7">
-              {{ (searchQuery.trim() || searchSerie.trim() || searchUbicacion.trim()) ? 'No hay equipos que coincidan con los filtros de búsqueda.' : 'No hay equipos para mostrar.' }}
+              {{ searchQuery.trim() ? 'No hay equipos que coincidan con la búsqueda.' : 'No hay equipos para mostrar.' }}
             </td>
           </tr>
           <template v-else>
@@ -1004,38 +955,13 @@ onMounted(() => {
   align-items: center;
   gap: 0.65rem;
 }
-.search-filters {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  flex: 1 1 auto;
-}
 .search-wrapper {
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 150px;
-  flex: 1 1 140px;
-  max-width: 240px;
-}
-.btn-clear-filters {
-  background: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.2s;
-}
-.btn-clear-filters:hover {
-  background: #dc2626;
+  min-width: 200px;
+  flex: 1 1 180px;
+  max-width: 320px;
 }
 .search-icon {
   position: absolute;

@@ -1,6 +1,34 @@
 # CMMS-BioAI
 
-**Sistema de Gestión de Mantenimiento Asistido por Computadora** para equipos médicos biomédicos, desarrollado para el contexto boliviano. Diseñado como solución asequible, offline-first y centrada en el usuario, como parte de un proyecto de Maestría en Ingeniería Biomédica.
+[![Version](https://img.shields.io/badge/versi%C3%B3n-v0.6.x-blue.svg)](https://github.com/khitisakamachisa-collab/cmmsbioai)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
+[![Vue.js](https://img.shields.io/badge/Vue.js-3.5+-4FC08D.svg?logo=vue.js&logoColor=white)](https://vuejs.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![SQLite](https://img.shields.io/badge/SQLite-3-003B57.svg?logo=sqlite&logoColor=white)](https://sqlite.org)
+[![Licencia](https://img.shields.io/badge/licencia-MIT-green.svg)](LICENSE)
+
+**Sistema de Gestión de Mantenimiento Asistido por Computadora (CMMS)** para equipos médicos biomédicos, desarrollado para el contexto boliviano. Diseñado como solución asequible, offline-first y centrada en el usuario, como parte de un proyecto de Maestría en Ingeniería Biomédica.
+
+---
+
+## Tabla de Contenidos
+
+- [Estado del Proyecto](#estado-del-proyecto)
+- [Capturas de Pantalla](#capturas-de-pantalla)
+- [Tecnologías Utilizadas](#tecnologías-utilizadas)
+- [Estructura del Proyecto](#estructura-del-proyecto)
+- [Instalación y Ejecución Local](#instalación-y-ejecución-local)
+- [Configuración del Sistema](#configuración-del-sistema)
+- [Estructura de Almacenamiento de Archivos](#estructura-de-almacenamiento-de-archivos)
+- [Modelo de Base de Datos](#modelo-de-base-de-datos)
+- [API REST — Endpoints](#api-rest--endpoints)
+- [Datos Seed (Carga Automática)](#datos-seed-carga-automática)
+- [Requisitos Funcionales (RF)](#requisitos-funcionales-rf)
+- [Historial de Versiones](#historial-de-versiones)
+- [Observaciones Técnicas](#observaciones-técnicas)
+- [Roadmap](#roadmap)
+- [Contribución](#contribución)
+- [Autor](#autor)
 
 ---
 
@@ -20,7 +48,6 @@
 - [x] **Gestión Documental:** Módulo transversal de documentos adjuntos con drag-and-drop, categorías (manual, fotografía, reporte, garantía, calibración, informe, otro), visualización inline y descarga, asociación a equipos, OTs y repuestos.
 - [x] **Dashboard con Métricas:** Tarjetas con indicadores en tiempo real + gráficos de Equipos por Estado, Órdenes por Prioridad y Órdenes por Estado.
 - [x] **Configuración Centralizada:** Sistema de configuración mediante `config.json` + `config.py` con `get_dir()` para rutas de almacenamiento, nombres sanitizados para carpetas, y parámetros del sistema configurables.
-- [x] **Sincronización GitHub:** Script `github_sync.bat` con menú interactivo para push/pull/status.
 
 ### Módulos Pendientes
 
@@ -32,21 +59,40 @@
 
 ---
 
+## Capturas de Pantalla
+
+> **Nota:** Las capturas se agregarán en futuras actualizaciones del repositorio.
+
+| Módulo | Descripción |
+|--------|-------------|
+| Dashboard | Métricas en tiempo real con gráficos interactivos (Chart.js) |
+| Equipos | CRUD de activos médicos con imágenes y documentos adjuntos |
+| Órdenes de Trabajo | Gestión del ciclo completo de OTs correctivas |
+| Inventario | Control de repuestos con stock automático |
+| Preventivo | Programación de tareas de mantenimiento preventivo |
+| Historial | Timeline visual de eventos de mantenimiento por equipo |
+| Reportes | 6 reportes estadísticos con gráficos interactivos |
+
+---
+
 ## Tecnologías Utilizadas
 
 ### Backend
+
 | Tecnología | Versión | Uso |
 |-----------|---------|-----|
 | Python | 3.10+ | Lenguaje principal |
-| FastAPI | — | Framework web asíncrono |
+| FastAPI | 0.100+ | Framework web asíncrono |
 | SQLModel | — | ORM (basado en SQLAlchemy + Pydantic) |
-| SQLite | — | Base de datos (ideal para uso offline) |
+| SQLite | 3 | Base de datos (ideal para uso offline) |
 | JWT (python-jose) | — | Autenticación con tokens |
 | bcrypt (passlib) | — | Hash de contraseñas |
 | openpyxl | — | Procesamiento de archivos Excel |
 | python-multipart | — | Manejo de uploads de archivos |
+| uvicorn | — | Servidor ASGI |
 
 ### Frontend
+
 | Tecnología | Versión | Uso |
 |-----------|---------|-----|
 | Vue.js | 3.5+ | Framework reactivo |
@@ -57,6 +103,7 @@
 | Axios | 1.x | Cliente HTTP para API |
 
 ### Infraestructura
+
 - **Proxy Vite:** `/uploads` → `http://127.0.0.1:8000` (servir archivos estáticos del backend)
 - **CORS:** Configurado con `allow_origins=["*"]` para desarrollo
 - **Base de datos:** Archivo único `cmms_bioai.db` (SQLite, portátil)
@@ -68,9 +115,9 @@
 ```text
 CMMS-BioAI/
 ├── README.md
+├── .gitignore                   # Archivos excluidos de Git
 ├── PENDIENTES.md
 ├── versiones.txt
-├── github_sync.bat              # Script de sincronización GitHub
 │
 ├── Requisitos Funcionales (RF)/ # 16 hojas de especificaciones funcionales
 │   ├── Hoja 1  RF01_Gestion_Activos.xlsx
@@ -107,7 +154,7 @@ CMMS-BioAI/
 │       │   └── UsuariosView.vue
 │       └── components/
 │           ├── Navbar.vue
-│           ├── DocumentosAdjuntos.vue  # Drag-and-drop de archivos
+│           ├── DocumentosAdjuntos.vue      # Drag-and-drop de archivos
 │           ├── WorkOrdersChart.vue
 │           └── EquipmentStatusChart.vue
 │
@@ -117,8 +164,6 @@ CMMS-BioAI/
     ├── config.py                # Configuración centralizada (lee config.json)
     ├── config.json              # Parámetros del sistema y rutas de almacenamiento
     ├── requirements.txt
-    ├── cmms_bioai.db            # Base de datos SQLite
-    ├── migrate_folders.py       # Script de migración de carpetas
     │
     ├── models/
     │   ├── __init__.py
@@ -156,11 +201,135 @@ CMMS-BioAI/
     ├── utils/
     │   └── security.py          # bcrypt + JWT
     │
-    └── uploads/                 # Almacenamiento de archivos
+    └── uploads/                 # Almacenamiento de archivos (no versionado)
         ├── EQUIPOS/             # E0001_Modelo_Serie/ (imágenes + DOC/)
         ├── OT/                  # Archivos índice .txt de OTs
         ├── INVENTARIO/          # I0001_xxx/ (imágenes + DOC/)
         └── REPORTES/            # Reportes generados
+```
+
+---
+
+## Instalación y Ejecución Local
+
+### Requisitos Previos
+
+- **Python 3.10+** instalado ([descargar](https://python.org))
+- **Node.js 18+** y **npm** instalados ([descargar](https://nodejs.org))
+- **Git** instalado ([descargar](https://git-scm.com))
+
+### 1. Clonar el Repositorio
+
+```bash
+git clone https://github.com/khitisakamachisa-collab/cmmsbioai.git
+cd cmmsbioai
+```
+
+### 2. Configuración del Backend
+
+Abre una terminal en la carpeta `backend`:
+
+```bash
+# Crear entorno virtual (recomendado)
+python -m venv venv
+
+# Activar entorno — Windows
+venv\Scripts\activate
+
+# Activar entorno — Linux / macOS
+source venv/bin/activate
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Iniciar el servidor
+uvicorn main:app --reload
+```
+
+El backend correrá en `http://127.0.0.1:8000`.
+
+Al iniciar por primera vez, el sistema crea automáticamente:
+
+- **Usuario admin por defecto:** usuario `admin`, contraseña `admin123`
+- **19 estados de equipo** (Operativo, En Mantenimiento, Averiado, etc.)
+- **5 estados de orden de trabajo** (Abierta, En Proceso, Esp. Repuesto, Completada, Cancelada)
+- **Carpetas de uploads** según `config.json`
+
+La documentación interactiva de la API está disponible en:
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- ReDoc: `http://127.0.0.1:8000/redoc`
+
+### 3. Configuración del Frontend
+
+Abre una nueva terminal en la carpeta `frontend`:
+
+```bash
+# Instalar dependencias
+npm install
+
+# Iniciar la aplicación web
+npm run dev
+```
+
+El frontend correrá en `http://localhost:5173`. Vite redirige automáticamente las peticiones `/uploads/*` al backend en el puerto 8000.
+
+### 4. Primer Inicio de Sesión
+
+| Campo | Valor |
+|-------|-------|
+| URL | `http://localhost:5173` |
+| Usuario | `admin` |
+| Contraseña | `admin123` |
+
+> **Importante:** Cambiar la contraseña del admin después del primer inicio de sesión.
+
+### 5. Reinicio del Sistema
+
+Para reiniciar la base de datos a cero:
+
+1. Detener el backend (`Ctrl+C`)
+2. Eliminar el archivo `backend/cmms_bioai.db`
+3. Reiniciar el backend — las tablas y datos seed se recrean automáticamente
+
+---
+
+## Configuración del Sistema
+
+El archivo `backend/config.json` centraliza la configuración del sistema:
+
+```json
+{
+  "empresa": {
+    "nombre": "CMMS-BioAI",
+    "logo_ruta": ""
+  },
+  "directorios": {
+    "uploads_base": "uploads",
+    "equipos_imagenes": "uploads/EQUIPOS",
+    "equipos_documentos": "uploads/EQUIPOS",
+    "ot_documentos": "uploads/OT",
+    "inventario_imagenes": "uploads/INVENTARIO",
+    "inventario_documentos": "uploads/INVENTARIO",
+    "reportes": "uploads/REPORTES"
+  },
+  "sistema": {
+    "idioma": "es",
+    "zona_horaria": "America/La_Paz",
+    "moneda": "BOB",
+    "prefijo_equipos": "E",
+    "prefijo_ordenes": "OT",
+    "prefijo_inventario": "I"
+  }
+}
+```
+
+Todos los módulos del backend deben importar rutas desde `config.py`:
+
+```python
+from config import get_dir, sanitize_filename
+
+dir_equipos = get_dir("equipos_imagenes")  # Ruta absoluta, se crea si no existe
+nombre_seguro = sanitize_filename("Inspección")  # → "Inspecci_n"
 ```
 
 ---
@@ -226,6 +395,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 ### Tablas Principales
 
 **`equipo`** — Registro de activos médicos
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | int (PK) | Identificador automático |
@@ -246,6 +416,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 | estado_id | int? (FK→estadoequipo) | Estado actual del equipo |
 
 **`ordentrabajo`** — Órdenes de trabajo
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | int (PK) | Identificador automático |
@@ -265,6 +436,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 | costos_adicionales | float? | Costos externos (transporte, etc.) |
 
 **`repuesto`** — Inventario de repuestos
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | int (PK) | Identificador automático |
@@ -284,6 +456,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 | imagen_ruta | str? | Ruta relativa a imagen |
 
 **`tareapreventiva`** — Tareas de mantenimiento preventivo
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | int (PK) | Identificador automático |
@@ -297,6 +470,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 | activa | bool | Tarea activa/inactiva |
 
 **`eventohistorial`** — Historial de mantenimiento
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | int (PK) | Identificador automático |
@@ -312,6 +486,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 | repuestos_utilizados | str? | Resumen textual de repuestos |
 
 **`documentoadjunto`** — Documentos asociados
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | int (PK) | Identificador automático |
@@ -330,6 +505,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 ### Tablas de Relación
 
 **`tarea_repuesto`** — Kit de repuestos por tarea preventiva
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | int (PK) | Identificador |
@@ -338,6 +514,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 | cantidad_requerida | int | Cantidad necesaria |
 
 **`otrepuestoutilizado`** — Repuestos utilizados en OT
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | orden_trabajo_id | int (FK→ordentrabajo, PK) | OT asociada |
@@ -347,6 +524,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 ### Tablas Catálogo
 
 **`usuario`** — Usuarios del sistema
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | int (PK) | Identificador |
@@ -358,6 +536,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 | is_active | bool | Usuario activo |
 
 **`estadoequipo`** — Catálogo de estados de equipo (19 valores seed)
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | int (PK) | Identificador |
@@ -365,6 +544,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 | color | str | Color hexadecimal |
 
 **`estadoot`** — Catálogo de estados de OT (5 valores seed)
+
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
 | id | int (PK) | Identificador |
@@ -489,130 +669,10 @@ La documentación interactiva completa está disponible en `http://127.0.0.1:800
 
 ---
 
-## Instalación y Ejecución Local
-
-### Requisitos Previos
-- Python 3.10+ instalado
-- Node.js 18+ y npm instalados
-- Git (para clonar el repositorio)
-
-### 1. Clonar el Repositorio
-
-```bash
-git clone https://github.com/khitisakamachisa-collab/cmmsbioai.git
-cd cmmsbioai
-```
-
-### 2. Configuración del Backend
-
-Abre una terminal en la carpeta `backend`:
-
-```bash
-# Crear entorno virtual (recomendado)
-python -m venv venv
-
-# Activar entorno (Windows)
-venv\Scripts\activate
-
-# Activar entorno (Linux/Mac)
-source venv/bin/activate
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-# Iniciar el servidor
-uvicorn main:app --reload
-```
-
-El backend correrá en `http://127.0.0.1:8000`.
-
-Al iniciar por primera vez, el sistema crea automáticamente:
-- **Usuario admin por defecto:** usuario `admin`, contraseña `admin123`
-- **19 estados de equipo** (Operativo, En Mantenimiento, Averiado, etc.)
-- **5 estados de orden de trabajo** (Abierta, En Proceso, Bloqueada, Completada, Cancelada)
-- **Carpetas de uploads** según `config.json`
-
-### 3. Configuración del Frontend
-
-Abre una nueva terminal en la carpeta `frontend`:
-
-```bash
-# Instalar dependencias
-npm install
-
-# Iniciar la aplicación web
-npm run dev
-```
-
-El frontend correrá en `http://localhost:5173`. Vite redirige automáticamente las peticiones `/uploads/*` al backend en el puerto 8000.
-
-### 4. Sincronización con GitHub
-
-Ejecuta `github_sync.bat` desde la raíz del proyecto para acceder al menú interactivo:
-1. Subir cambios a GitHub (Push)
-2. Bajar cambios de GitHub (Pull)
-3. Ver estado actual (Status)
-
-O manualmente:
-```bash
-git add .
-git commit -m "Descripción de los cambios"
-git push origin main
-```
-
-### 5. Reinicio del Sistema
-
-Para reiniciar la base de datos a cero:
-1. Detener el backend (`Ctrl+C`)
-2. Eliminar el archivo `cmms_bioai.db`
-3. Reiniciar el backend — las tablas y datos seed se recrean automáticamente
-
----
-
-## Configuración del Sistema
-
-El archivo `backend/config.json` centraliza la configuración del sistema:
-
-```json
-{
-  "empresa": {
-    "nombre": "CMMS-BioAI",
-    "logo_ruta": ""
-  },
-  "directorios": {
-    "uploads_base": "uploads",
-    "equipos_imagenes": "uploads/EQUIPOS",
-    "equipos_documentos": "uploads/EQUIPOS",
-    "ot_documentos": "uploads/OT",
-    "inventario_imagenes": "uploads/INVENTARIO",
-    "inventario_documentos": "uploads/INVENTARIO",
-    "reportes": "uploads/REPORTES"
-  },
-  "sistema": {
-    "idioma": "es",
-    "zona_horaria": "America/La_Paz",
-    "moneda": "BOB",
-    "prefijo_equipos": "E",
-    "prefijo_ordenes": "OT",
-    "prefijo_inventario": "I"
-  }
-}
-```
-
-Todos los módulos del backend deben importar rutas desde `config.py`:
-
-```python
-from config import get_dir, sanitize_filename
-
-dir_equipos = get_dir("equipos_imagenes")  # Ruta absoluta, se crea si no existe
-nombre_seguro = sanitize_filename("Inspección")  # → "Inspecci_n"
-```
-
----
-
 ## Datos Seed (Carga Automática)
 
 ### Usuario Admin
+
 | Campo | Valor |
 |-------|-------|
 | Usuario | `admin` |
@@ -627,11 +687,24 @@ nombre_seguro = sanitize_filename("Inspección")  # → "Inspecci_n"
 | ID | Estado | Color |
 |----|--------|-------|
 | 1 | Operativo | Verde `#27ae60` |
-| 2 | En Mantenimiento | Naranja `#f39c12` |
-| 3 | Averiado (Pendiente Reparación) | Rojo `#e74c3c` |
-| 4 | Retirado/Dado de Baja | Gris `#7f8c8d` |
-| 5 | En Reserva | Azul `#3498db` |
-| 6 | En Tránsito | Púrpura `#9b59b6` |
+| 2 | En mantenimiento | Naranja `#f39c12` |
+| 3 | En reparación | Rojo `#e74c3c` |
+| 4 | Fuera de servicio | Gris `#7f8c8d` |
+| 5 | En espera/Standby | Azul `#3498db` |
+| 6 | En calibración | Púrpura `#9b59b6` |
+| 7 | En inspección | Teal `#1abc9c` |
+| 8 | Esp. Repuesto | Naranja oscuro `#e67e22` |
+| 9 | Bloqueado/LOTO | Rojo oscuro `#c0392b` |
+| 10 | En almacén | Gris claro `#95a5a6` |
+| 11 | Almacén repuestos | Marrón `#795548` |
+| 12 | Retirado/Baja | Gris `#636e72` |
+| 13 | En transporte | Azul `#0984e3` |
+| 14 | En préstamo | Violeta `#6c5ce7` |
+| 15 | En certificación | Verde menta `#00b894` |
+| 16 | En modificación | Amarillo `#fdcb6e` |
+| 17 | Condición crítica | Rojo intenso `#d63031` |
+| 18 | Degradado | Coral `#e17055` |
+| 19 | En monitoreo | Cian `#00cec9` |
 
 ### Estados de Orden de Trabajo (`estadoot`)
 
@@ -639,7 +712,7 @@ nombre_seguro = sanitize_filename("Inspección")  # → "Inspecci_n"
 |----|--------|-------|
 | 1 | Abierta | Azul `#3b82f6` |
 | 2 | En Proceso | Naranja `#f39c12` |
-| 3 | Bloqueada (Esp. Repuestos) | Naranja oscuro `#e67e22` |
+| 3 | Esp. Repuesto | Naranja oscuro `#e67e22` |
 | 4 | Completada | Verde `#27ae60` |
 | 5 | Cancelada | Gris `#95a5a6` |
 
@@ -700,32 +773,44 @@ Diferencia herramientas del taller (osciloscopios, testers, kits) de los repuest
 - **Seguridad:** El JWT secret está hardcodeado en `utils/security.py`. Para producción, mover a variable de entorno. Los endpoints no tienen protección de autenticación todavía (pendiente de implementar).
 - **CORS:** Configurado con `allow_origins=["*"]` para desarrollo. Restringir para producción.
 - **Proxy Vite:** Las peticiones `/uploads/*` desde el frontend se redirigen automáticamente al backend en puerto 8000 mediante el proxy configurado en `vite.config.js`.
+- **Migraciones:** La función `_migrate_repuesto_columns()` en `database.py` agrega columnas nuevas a la tabla `repuesto` si no existen (SQLite ALTER TABLE), permitiendo evolución del esquema sin pérdida de datos.
 
 ---
 
 ## Roadmap
 
 ### Próximos Pasos (Prioridad Alta)
-1. **Renombrar carpetas de equipos:** `Exxxx_Serie` → `Exxxx_Modelo_Serie` (consistencia en estructura de archivos)
-2. **OT: carpetas con nombre descriptivo:** `OT/OTxxxx_titulo_tipo_Modelo_Serie/` dentro del equipo, con archivo índice `.txt` en `uploads/OT/`
+
+1. **Buscadores faltantes** — Agregar búsqueda en Órdenes y Preventivo
+2. **Mejoras UX** — Iconos en barras de búsqueda, placeholders más cortos
 3. **INVENTARIO: Mejoras de UI** — Separar campos Numero de Material / Código en dos campos, mostrar solo numero_serie en tabla
-4. **Buscadores faltantes** — Agregar búsqueda en Órdenes y Preventivo
-5. **Mejoras UX** — Iconos en barras de búsqueda, placeholders más cortos
 
 ### Prioridad Media
-6. **RF09 — Herramientas y Materiales** — Nuevo módulo de inventario de herramientas del taller
-7. **Roles y permisos** — Autorización por roles en frontend (route guards) y backend (dependencias de auth)
-8. **Página de Configuración** — Gestión de estados, rutas y parámetros desde la UI
-9. **Página de Ayuda** — Guía de uso, FAQ, tour guiado
-10. **Módulo de Proveedores** — CRUD de proveedores, vinculación con equipos y OTs
+
+4. **RF09 — Herramientas y Materiales** — Nuevo módulo de inventario de herramientas del taller
+5. **Roles y permisos** — Autorización por roles en frontend (route guards) y backend (dependencias de auth)
+6. **Página de Configuración** — Gestión de estados, rutas y parámetros desde la UI
+7. **Página de Ayuda** — Guía de uso, FAQ, tour guiado
+8. **Módulo de Proveedores** — CRUD de proveedores, vinculación con equipos y OTs
 
 ### Prioridad Baja (Post v1.0)
-11. **RF07 — Módulo IA** — Sugerencias de mantenimiento, detección de patrones, recomendaciones
-12. **Despliegue unificado** — Frontend compilado servido desde FastAPI (un solo puerto)
-13. **Empaquetado** — PyInstaller (.exe) + instalador Inno Setup / NSIS
-14. **Reportes PDF** — Exportación de reportes a formato PDF
-15. **Normalización** — Estándares UMDNS / GMDN para registro de equipos
-16. **Notificaciones** — Alertas de vencimiento, stock bajo, calibraciones próximas
+
+9. **RF07 — Módulo IA** — Sugerencias de mantenimiento, detección de patrones, recomendaciones
+10. **Despliegue unificado** — Frontend compilado servido desde FastAPI (un solo puerto)
+11. **Empaquetado** — PyInstaller (.exe) + instalador Inno Setup / NSIS
+12. **Reportes PDF** — Exportación de reportes a formato PDF
+13. **Normalización** — Estándares UMDNS / GMDN para registro de equipos
+14. **Notificaciones** — Alertas de vencimiento, stock bajo, calibraciones próximas
+
+---
+
+## Contribución
+
+1. Haz un Fork del repositorio
+2. Crea una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
+3. Haz commit de tus cambios (`git commit -m 'Agregar nueva funcionalidad'`)
+4. Haz push a la rama (`git push origin feature/nueva-funcionalidad`)
+5. Abre un Pull Request
 
 ---
 

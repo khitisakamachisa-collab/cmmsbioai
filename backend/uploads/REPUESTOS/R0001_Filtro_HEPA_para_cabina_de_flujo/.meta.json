@@ -1,0 +1,15 @@
+{
+  "tipo": "repuesto",
+  "id": 1,
+  "nombre_repuesto": "Filtro HEPA para cabina de flujo",
+  "numero_serie": "SN-FLT-001",
+  "numero_material": "FLT-HEP-001",
+  "descripcion": "Filtro HEPA 99.97% 0.3μm para cabina Esco A2",
+  "cantidad_disponible": 3,
+  "unidad_medida": "unidad",
+  "ubicacion_almacen": "Almacén B - Estante 1",
+  "nivel_stock_minimo": 2,
+  "proveedor_ultimo": "BioSupply SRL",
+  "imagen_ruta": "REPUESTOS\\R0001_Filtro_HEPA_para_cabina_de_flujo\\R0001_Filtro_HEPA_para_cabina_de_flujo.jpg",
+  "fecha_creacion_meta": "2026-06-13T23:33:19.931981"
+}

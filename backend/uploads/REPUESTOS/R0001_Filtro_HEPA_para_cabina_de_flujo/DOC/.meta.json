@@ -1,0 +1,29 @@
+{
+  "documentos": [
+    {
+      "documento_id": 6,
+      "entidad_tipo": "repuesto",
+      "entidad_id": 1,
+      "entidad_nombre": "Filtro HEPA para cabina de flujo",
+      "nombre_archivo": "CMMS-BioAI_Plan_Integracion_Herramientas (1).pdf",
+      "categoria": "otro",
+      "descripcion": "asdfas",
+      "subido_por": null,
+      "tamanio_bytes": 57605,
+      "fecha_creacion_meta": "2026-06-13T23:33:39.450161"
+    },
+    {
+      "documento_id": 7,
+      "entidad_tipo": "repuesto",
+      "entidad_id": 1,
+      "entidad_nombre": "Filtro HEPA para cabina de flujo",
+      "nombre_archivo": "CMMS-BioAI_Plantilla_Repuestos (8).xlsx",
+      "categoria": "otro",
+      "descripcion": "sdf",
+      "subido_por": null,
+      "tamanio_bytes": 8070,
+      "fecha_creacion_meta": "2026-06-13T23:34:15.464545"
+    }
+  ],
+  "fecha_actualizacion_meta": "2026-06-13T23:34:15.477893"
+}

@@ -172,7 +172,7 @@ async def subir_documento(
     Estructura de carpetas:
     - OT: uploads/EQUIPOS/EXXXX_Modelo_Serie/OT/OTxxxx_Titulo_Modelo_Serie/  (+ referencia en uploads/OT/OTxxxx_Titulo_Modelo_Serie.txt)
     - Equipo: uploads/EQUIPOS/EXXXX_Modelo_Serie/DOC/
-    - Repuesto: uploads/INVENTARIO/I0001_Nombre/DOC/
+    - Repuesto: uploads/REPUESTOS/I0001_Nombre/DOC/
     - Herramienta: uploads/HERRAMIENTAS/H0001_Nombre/DOC/
     """
     if not orden_trabajo_id and not equipo_id and not repuesto_id and not herramienta_id:
@@ -201,13 +201,13 @@ async def subir_documento(
         equipo_folder = _get_equipo_folder_name(equipo_id, session)
         subdir = get_dir("equipos_documentos") / equipo_folder / "DOC"
     elif repuesto_id:
-        # Estructura: uploads/INVENTARIO/I0001_Nombre/DOC/
+        # Estructura: uploads/REPUESTOS/R0001_Nombre/DOC/
         repuesto = session.get(Repuesto, repuesto_id)
         if repuesto:
-            rep_code = f"I{repuesto_id:04d}"
+            rep_code = f"R{repuesto_id:04d}"
             nombre_safe = sanitize_filename(repuesto.nombre_repuesto, "SN")
             folder_name = f"{rep_code}_{nombre_safe}"
-            subdir = get_dir("inventario_documentos") / folder_name / "DOC"
+            subdir = get_dir("repuestos_documentos") / folder_name / "DOC"
         else:
             subdir = get_dir("uploads_base") / f"repuesto_{repuesto_id}"
     elif herramienta_id:
@@ -256,6 +256,29 @@ async def subir_documento(
     session.add(doc)
     session.commit()
     session.refresh(doc)
+
+    # Agregar documento al .meta.json de la carpeta (un solo archivo con lista de documentos)
+    try:
+        from utils.meta_json import append_doc_to_meta_json, build_documento_meta
+        entidad_tipo = "ot" if orden_trabajo_id else ("equipo" if equipo_id else ("repuesto" if repuesto_id else "herramienta"))
+        entidad_id = orden_trabajo_id or equipo_id or repuesto_id or herramienta_id
+        # Obtener nombre de la entidad para el meta
+        if orden_trabajo_id:
+            ot = session.get(OrdenTrabajo, orden_trabajo_id)
+            entidad_nombre = ot.titulo if ot else f"OT {orden_trabajo_id}"
+        elif equipo_id:
+            eq = session.get(Equipo, equipo_id)
+            entidad_nombre = eq.nombre_corto or eq.modelo if eq else f"Equipo {equipo_id}"
+        elif repuesto_id:
+            rep = session.get(Repuesto, repuesto_id)
+            entidad_nombre = rep.nombre_repuesto if rep else f"Repuesto {repuesto_id}"
+        else:
+            herr = session.get(Herramienta, herramienta_id)
+            entidad_nombre = herr.nombre_herramienta if herr else f"Herramienta {herramienta_id}"
+        doc_meta = build_documento_meta(doc, entidad_tipo, entidad_id, entidad_nombre)
+        append_doc_to_meta_json(subdir, doc_meta)
+    except Exception as e:
+        print(f"[documentos.py] WARNING: No se pudo actualizar .meta.json: {e}")
 
     return {
         "id": doc.id,
@@ -372,9 +395,14 @@ def eliminar_documento(doc_id: int, session: Session = Depends(get_session)):
     ot_id = doc.orden_trabajo_id
     equipo_id_doc = doc.equipo_id
 
-    # Eliminar archivo fisico
+    # Eliminar archivo fisico + actualizar .meta.json de la carpeta
     file_path = Path(doc.ruta_archivo)
     ot_folder_was_cleaned = False
+
+    # Eliminar documento del .meta.json de la carpeta
+    from utils.meta_json import remove_doc_from_meta_json
+    remove_doc_from_meta_json(file_path.parent, doc.nombre_archivo)
+
     if file_path.exists():
         file_path.unlink()
         # Limpiar directorios vacios (OT subfolder, OT, DOC)

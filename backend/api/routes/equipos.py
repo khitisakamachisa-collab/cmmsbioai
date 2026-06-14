@@ -116,13 +116,20 @@ async def upload_imagen_equipo(equipo_id: int, file: UploadFile = File(...), ses
     with open(str(file_path), "wb") as f:
         f.write(contents)
     
-    # Actualizar imagen_ruta en la BD (ruta relativa para servir vía /uploads/)
-    imagen_ruta = f"EQUIPOS/{folder_name}/{filename}"
+    # Actualizar imagen_ruta en la BD (ruta relativa derivada del path real de config)
+    # Derivar desde uploads_base para que coincida siempre con la carpeta física
+    uploads_base = get_dir("uploads_base")
+    imagen_ruta = str(file_path.relative_to(uploads_base))
     db_equipo.imagen_ruta = imagen_ruta
     session.add(db_equipo)
     session.commit()
     session.refresh(db_equipo)
-    
+
+    # Crear archivo .meta.json con datos del equipo para recuperación ante pérdida de BD
+    from utils.meta_json import write_meta_json, build_equipo_meta
+    meta_data = build_equipo_meta(db_equipo, imagen_ruta)
+    write_meta_json(uploads_dir, meta_data)
+
     return {"ok": True, "imagen_ruta": db_equipo.imagen_ruta, "nombre_archivo": file.filename}
 
 

@@ -13,7 +13,7 @@ import os
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from config import get_dir
 
-router = APIRouter(prefix="/repuestos", tags=["Inventario"])
+router = APIRouter(prefix="/repuestos", tags=["Repuestos"])
 
 # ============================================================
 # RUTAS ESTÁTICAS (deben ir ANTES de /{rep_id})
@@ -445,7 +445,7 @@ async def importar_repuestos_excel(file: UploadFile = File(...), session: Sessio
 
 # ---------------------------------------------------------
 # ENDPOINT: SUBIR IMAGEN PRINCIPAL DE REPUESTO
-# Estructura: uploads/INVENTARIO/I0001_nombre/I0001_nombre.ext
+# Estructura: uploads/REPUESTOS/R0001_nombre/R0001_nombre.ext
 # ---------------------------------------------------------
 @router.post("/{rep_id}/upload_imagen")
 async def upload_imagen_repuesto(rep_id: int, file: UploadFile = File(...), session: Session = Depends(get_session)):
@@ -462,11 +462,11 @@ async def upload_imagen_repuesto(rep_id: int, file: UploadFile = File(...), sess
     if len(contents) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="La imagen no debe superar 5MB")
 
-    rep_code = f"I{rep_id:04d}"
+    rep_code = f"R{rep_id:04d}"
     nombre_safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (db_rep.nombre_repuesto or "SN"))
     folder_name = f"{rep_code}_{nombre_safe}"
 
-    uploads_dir = get_dir("inventario_imagenes") / folder_name
+    uploads_dir = get_dir("repuestos_imagenes") / folder_name
     uploads_dir.mkdir(parents=True, exist_ok=True)
 
     ext = os.path.splitext(file.filename)[1] if file.filename else ".jpg"
@@ -482,11 +482,18 @@ async def upload_imagen_repuesto(rep_id: int, file: UploadFile = File(...), sess
     with open(str(file_path), "wb") as f:
         f.write(contents)
 
-    imagen_ruta = f"INVENTARIO/{folder_name}/{filename}"
+    # Derivar imagen_ruta desde el path real de config (no hardcodear nombre de carpeta)
+    uploads_base = get_dir("uploads_base")
+    imagen_ruta = str(file_path.relative_to(uploads_base))
     db_rep.imagen_ruta = imagen_ruta
     session.add(db_rep)
     session.commit()
     session.refresh(db_rep)
+
+    # Crear archivo .meta.json con datos del repuesto para recuperación ante pérdida de BD
+    from utils.meta_json import write_meta_json, build_repuesto_meta
+    meta_data = build_repuesto_meta(db_rep, imagen_ruta)
+    write_meta_json(uploads_dir, meta_data)
 
     return {"ok": True, "imagen_ruta": db_rep.imagen_ruta, "nombre_archivo": file.filename}
 

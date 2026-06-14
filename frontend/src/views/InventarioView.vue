@@ -142,7 +142,8 @@ const handleImagenSelect = (event) => {
 
 const getImagenNombre = (ruta) => {
   if (!ruta) return ''
-  const parts = ruta.split('/')
+  // Extraer solo el nombre del archivo (soporta / y \)
+  const parts = ruta.split(/[/\\]/)
   return parts[parts.length - 1] || ruta
 }
 

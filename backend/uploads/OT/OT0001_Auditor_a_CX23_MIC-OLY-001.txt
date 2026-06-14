@@ -1,12 +1,12 @@
 === REFERENCIA DE ORDEN DE TRABAJO ===
-Fecha de generacion: 2026-05-31 18:53:42
+Fecha de generacion: 2026-06-13 23:31:43
 
 --- OT ---
-OT ID: 2
-OT Codigo: OT0002
-Titulo/Tipo: [Preventivo] MP
-Prioridad: Media
-Descripcion falla: Orden generada automáticamente desde tarea preventiva #1: MP
+OT ID: 1
+OT Codigo: OT0001
+Titulo/Tipo: Auditoría
+Prioridad: Urgente
+Descripcion falla: sdfasdf
 
 --- EQUIPO ASOCIADO ---
 Equipo ID: 1
@@ -20,8 +20,8 @@ Ubicacion: Lab. Microbiología
 
 --- UBICACION FISICA DE ARCHIVOS ---
 Carpeta del equipo: uploads/EQUIPOS/E0001_CX23_MIC-OLY-001/
-Documentos de esta OT: uploads/EQUIPOS/E0001_CX23_MIC-OLY-001/OT/OT0002_Preventivo_MP_CX23_MIC-OLY-001/
-Este archivo txt: uploads/OT/OT0002_Preventivo_MP_CX23_MIC-OLY-001.txt
+Documentos de esta OT: uploads/EQUIPOS/E0001_CX23_MIC-OLY-001/OT/OT0001_Auditor_a_CX23_MIC-OLY-001/
+Este archivo txt: uploads/OT/OT0001_Auditor_a_CX23_MIC-OLY-001.txt
 
 Nota: El nombre de la carpeta OT y este archivo txt coinciden.
 Busque la carpeta OT dentro del equipo con el mismo nombre.

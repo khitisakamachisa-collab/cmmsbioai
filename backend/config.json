@@ -8,8 +8,8 @@
     "equipos_imagenes": "uploads/EQUIPOS",
     "equipos_documentos": "uploads/EQUIPOS",
     "ot_documentos": "uploads/OT",
-    "inventario_imagenes": "uploads/INVENTARIO",
-    "inventario_documentos": "uploads/INVENTARIO",
+    "repuestos_imagenes": "uploads/REPUESTOS",
+    "repuestos_documentos": "uploads/REPUESTOS",
     "herramientas_imagenes": "uploads/HERRAMIENTAS",
     "herramientas_documentos": "uploads/HERRAMIENTAS",
     "reportes": "uploads/REPORTES"
@@ -20,6 +20,6 @@
     "moneda": "BOB",
     "prefijo_equipos": "E",
     "prefijo_ordenes": "OT",
-    "prefijo_inventario": "I"
+    "prefijo_repuestos": "R"
   }
 }

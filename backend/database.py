@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, create_engine, Session, select, text
+from sqlmodel import SQLModel, create_engine, Session, select
 from models.users import Usuario
 from models.estados import EstadoEquipo
 from models.ordenes import EstadoOT
@@ -13,42 +13,9 @@ sqlite_url = f"sqlite:///{sqlite_file_name}"
 engine = create_engine(sqlite_url, echo=True, connect_args={"check_same_thread": False})
 
 
-def _migrate_repuesto_columns():
-    """Agrega columnas nuevas a la tabla 'repuesto' si no existen (SQLite ALTER TABLE)."""
-    new_columns = [
-        ("numero_serie", "VARCHAR"),
-        ("especificaciones_tecnicas", "VARCHAR"),
-        ("proveedor_ultimo", "VARCHAR"),
-        ("fecha_ultima_entrada", "DATE"),
-        ("precio_referencia", "FLOAT"),
-    ]
-    with engine.connect() as conn:
-        # Obtener columnas existentes
-        result = conn.execute(text("PRAGMA table_info(repuesto)"))
-        existing = {row[1] for row in result.fetchall()}
-        for col_name, col_type in new_columns:
-            if col_name not in existing:
-                conn.execute(text(f"ALTER TABLE repuesto ADD COLUMN {col_name} {col_type}"))
-                print(f"✅ Migración: columna '{col_name}' agregada a tabla 'repuesto'")
-        conn.commit()
-
-
-def _migrate_documento_herramienta_id():
-    """Agrega columna herramienta_id a la tabla 'documentoadjunto' si no existe."""
-    with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(documentoadjunto)"))
-        existing = {row[1] for row in result.fetchall()}
-        if "herramienta_id" not in existing:
-            conn.execute(text("ALTER TABLE documentoadjunto ADD COLUMN herramienta_id INTEGER REFERENCES herramienta(id)"))
-            print("✅ Migración: columna 'herramienta_id' agregada a tabla 'documentoadjunto'")
-        conn.commit()
-
-
 def create_db_and_tables():
-    """Crea las tablas en la base de datos si no existen, y aplica migraciones."""
+    """Crea las tablas en la base de datos si no existen."""
     SQLModel.metadata.create_all(engine)
-    _migrate_repuesto_columns()
-    _migrate_documento_herramienta_id()
 
 def get_session():
     """Dependencia para obtener una sesión de base de datos en los endpoints."""

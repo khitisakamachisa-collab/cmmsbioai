@@ -94,8 +94,8 @@ const handleImagenSelect = (event) => {
 // Helper: obtener nombre legible de la ruta de imagen
 const getImagenNombre = (ruta) => {
   if (!ruta) return ''
-  // Extraer solo el nombre del archivo de la ruta
-  const parts = ruta.split('/')
+  // Extraer solo el nombre del archivo (soporta / y \)
+  const parts = ruta.split(/[/\\]/)
   return parts[parts.length - 1] || ruta
 }
 

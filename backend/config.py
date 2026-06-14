@@ -28,8 +28,8 @@ _DEFAULTS = {
         "equipos_imagenes": "uploads/EQUIPOS",
         "equipos_documentos": "uploads/EQUIPOS",
         "ot_documentos": "uploads/OT",
-        "inventario_imagenes": "uploads/INVENTARIO",
-        "inventario_documentos": "uploads/INVENTARIO",
+        "repuestos_imagenes": "uploads/REPUESTOS",
+        "repuestos_documentos": "uploads/REPUESTOS",
         "herramientas_imagenes": "uploads/HERRAMIENTAS",
         "herramientas_documentos": "uploads/HERRAMIENTAS",
         "reportes": "uploads/REPORTES"
@@ -40,7 +40,7 @@ _DEFAULTS = {
         "moneda": "BOB",
         "prefijo_equipos": "E",
         "prefijo_ordenes": "OT",
-        "prefijo_inventario": "I"
+        "prefijo_repuestos": "R"
     }
 }
 
@@ -93,8 +93,8 @@ def get_dir(key: str) -> Path:
         - "equipos_imagenes"      -> backend/uploads/EQUIPOS/
         - "equipos_documentos"    -> backend/uploads/EQUIPOS/
         - "ot_documentos"         -> backend/uploads/OT/
-        - "inventario_imagenes"   -> backend/uploads/INVENTARIO/
-        - "inventario_documentos" -> backend/uploads/INVENTARIO/
+        - "repuestos_imagenes"   -> backend/uploads/REPUESTOS/
+        - "repuestos_documentos" -> backend/uploads/REPUESTOS/
         - "herramientas_imagenes"  -> backend/uploads/HERRAMIENTAS/
         - "herramientas_documentos"-> backend/uploads/HERRAMIENTAS/
         - "reportes"              -> backend/uploads/REPORTES/

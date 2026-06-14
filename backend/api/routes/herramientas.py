@@ -422,11 +422,18 @@ async def upload_imagen_herramienta(herr_id: int, file: UploadFile = File(...), 
     with open(str(file_path), "wb") as f:
         f.write(contents)
 
-    imagen_ruta = f"HERRAMIENTAS/{folder_name}/{filename}"
+    # Derivar imagen_ruta desde el path real de config (no hardcodear nombre de carpeta)
+    uploads_base = get_dir("uploads_base")
+    imagen_ruta = str(file_path.relative_to(uploads_base))
     db_herr.imagen_ruta = imagen_ruta
     session.add(db_herr)
     session.commit()
     session.refresh(db_herr)
+
+    # Crear archivo .meta.json con datos de la herramienta para recuperación ante pérdida de BD
+    from utils.meta_json import write_meta_json, build_herramienta_meta
+    meta_data = build_herramienta_meta(db_herr, imagen_ruta)
+    write_meta_json(uploads_dir, meta_data)
 
     return {"ok": True, "imagen_ruta": db_herr.imagen_ruta, "nombre_archivo": file.filename}
 

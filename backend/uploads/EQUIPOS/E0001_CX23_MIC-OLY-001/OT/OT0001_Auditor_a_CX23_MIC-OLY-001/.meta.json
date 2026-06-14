@@ -1,0 +1,29 @@
+{
+  "documentos": [
+    {
+      "documento_id": 4,
+      "entidad_tipo": "ot",
+      "entidad_id": 1,
+      "entidad_nombre": "Auditoría",
+      "nombre_archivo": "Captura de pantalla_31-5-2026_155726_www.bing.com.jpeg",
+      "categoria": "otro",
+      "descripcion": "asdf",
+      "subido_por": null,
+      "tamanio_bytes": 69867,
+      "fecha_creacion_meta": "2026-06-13T23:31:29.945849"
+    },
+    {
+      "documento_id": 5,
+      "entidad_tipo": "ot",
+      "entidad_id": 1,
+      "entidad_nombre": "Auditoría",
+      "nombre_archivo": "1 (1).txt",
+      "categoria": "otro",
+      "descripcion": "sdf",
+      "subido_por": null,
+      "tamanio_bytes": 161655,
+      "fecha_creacion_meta": "2026-06-13T23:31:43.329384"
+    }
+  ],
+  "fecha_actualizacion_meta": "2026-06-13T23:31:43.346168"
+}

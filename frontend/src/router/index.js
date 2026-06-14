@@ -8,6 +8,7 @@ import UsuariosView from '../views/UsuariosView.vue'
 import PreventivoView from '../views/PreventivoView.vue'
 import HistorialView from '../views/HistorialView.vue'
 import ReportesView from '../views/ReportesView.vue'
+import AyudaView from '../views/AyudaView.vue'
 
 
 const routes = [
@@ -55,6 +56,11 @@ const routes = [
     path: '/reportes',
     name: 'reportes',
     component: ReportesView
+  },
+  {
+    path: '/ayuda',
+    name: 'ayuda',
+    component: AyudaView
   }
 ]
 

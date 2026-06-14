@@ -13,7 +13,7 @@ echo ==============================
 echo 2. Subiendo cambios locales...
 echo ==============================
 git add .
-git commit -m "INVENTARIO - REPUESTOS Y HERRAMIENTAS"
+git commit -m "fase 1 - restaurar bd y doc mas ayuda"
 git push origin main
 
 echo ==============================

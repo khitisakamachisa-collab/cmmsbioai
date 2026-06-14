@@ -11,7 +11,8 @@ const navLinks = [
   { path: '/preventivo', label: 'Preventivo' },
   { path: '/historial', label: 'Historial' },
   { path: '/reportes', label: 'Reportes' },
-  { path: '/usuarios', label: 'Usuarios' }
+  { path: '/usuarios', label: 'Usuarios' },
+  { path: '/ayuda', label: '\u2753 Ayuda' }
 ]
 
 const emit = defineEmits(['logout'])

@@ -1,7 +1,10 @@
 <script setup>
+import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import apiClient from '../services/api.js'
 
 const route = useRoute()
+const sistemaNombre = ref('CMMS-BioAI')
 
 const navLinks = [
   { path: '/inicio', label: 'Inicio' },
@@ -22,11 +25,22 @@ const logout = () => {
   localStorage.removeItem('token')
   emit('logout')
 }
+
+onMounted(async () => {
+  try {
+    const res = await apiClient.get('/configuracion/')
+    if (res.data?.empresa?.nombre) {
+      sistemaNombre.value = res.data.empresa.nombre
+    }
+  } catch (e) {
+    // Usar nombre por defecto si no se puede cargar
+  }
+})
 </script>
 
 <template>
   <header class="header">
-    <h1 class="header-title">CMMS-BioAI</h1>
+    <h1 class="header-title">{{ sistemaNombre }}</h1>
     <nav class="header-nav">
       <router-link
         v-for="link in navLinks"

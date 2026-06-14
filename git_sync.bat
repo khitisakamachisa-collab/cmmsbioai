@@ -13,7 +13,7 @@ echo ==============================
 echo 2. Subiendo cambios locales...
 echo ==============================
 git add .
-git commit -m "*Herramientas + Configuración + Ayuda"
+git commit -m "*Configuracion y move uploads folder"
 git push origin main
 
 echo ==============================

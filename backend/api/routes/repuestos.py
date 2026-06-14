@@ -11,9 +11,10 @@ import openpyxl
 import csv
 import os
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from config import get_dir
+from config import get_dir, sanitize_filename
+from utils.meta_json import write_meta_json, build_repuesto_meta
 
-router = APIRouter(prefix="/repuestos", tags=["Repuestos"])
+router = APIRouter(prefix="/repuestos", tags=["Inventario"])
 
 # ============================================================
 # RUTAS ESTÁTICAS (deben ir ANTES de /{rep_id})
@@ -25,6 +26,19 @@ def crear_repuesto(repuesto: RepuestoCreate, session: Session = Depends(get_sess
     session.add(db_rep)
     session.commit()
     session.refresh(db_rep)
+    
+    # Crear carpeta del repuesto y escribir .meta.json
+    try:
+        rep_code = f"R{db_rep.id:04d}"
+        nombre_safe = sanitize_filename(db_rep.nombre_repuesto, "SN")
+        folder_name = f"{rep_code}_{nombre_safe}"
+        rep_dir = get_dir("repuestos_imagenes") / folder_name
+        rep_dir.mkdir(parents=True, exist_ok=True)
+        meta_data = build_repuesto_meta(db_rep)
+        write_meta_json(rep_dir, meta_data)
+    except Exception as e:
+        print(f"[repuestos.py] WARNING: No se pudo crear .meta.json: {e}")
+    
     return db_rep
 
 @router.get("/", response_model=list[RepuestoRead])
@@ -445,7 +459,7 @@ async def importar_repuestos_excel(file: UploadFile = File(...), session: Sessio
 
 # ---------------------------------------------------------
 # ENDPOINT: SUBIR IMAGEN PRINCIPAL DE REPUESTO
-# Estructura: uploads/REPUESTOS/R0001_nombre/R0001_nombre.ext
+# Estructura: uploads/INVENTARIO/I0001_nombre/I0001_nombre.ext
 # ---------------------------------------------------------
 @router.post("/{rep_id}/upload_imagen")
 async def upload_imagen_repuesto(rep_id: int, file: UploadFile = File(...), session: Session = Depends(get_session)):
@@ -482,18 +496,19 @@ async def upload_imagen_repuesto(rep_id: int, file: UploadFile = File(...), sess
     with open(str(file_path), "wb") as f:
         f.write(contents)
 
-    # Derivar imagen_ruta desde el path real de config (no hardcodear nombre de carpeta)
-    uploads_base = get_dir("uploads_base")
-    imagen_ruta = str(file_path.relative_to(uploads_base))
+    # Ruta relativa CORREGIDA: REPUESTOS (no INVENTARIO)
+    imagen_ruta = f"REPUESTOS/{folder_name}/{filename}"
     db_rep.imagen_ruta = imagen_ruta
     session.add(db_rep)
     session.commit()
     session.refresh(db_rep)
 
-    # Crear archivo .meta.json con datos del repuesto para recuperación ante pérdida de BD
-    from utils.meta_json import write_meta_json, build_repuesto_meta
-    meta_data = build_repuesto_meta(db_rep, imagen_ruta)
-    write_meta_json(uploads_dir, meta_data)
+    # Actualizar .meta.json con la nueva imagen
+    try:
+        meta_data = build_repuesto_meta(db_rep, imagen_ruta)
+        write_meta_json(uploads_dir, meta_data)
+    except Exception as e:
+        print(f"[repuestos.py] WARNING: No se pudo actualizar .meta.json: {e}")
 
     return {"ok": True, "imagen_ruta": db_rep.imagen_ruta, "nombre_archivo": file.filename}
 
@@ -518,6 +533,18 @@ def eliminar_imagen_repuesto(rep_id: int, session: Session = Depends(get_session
     db_rep.imagen_ruta = None
     session.add(db_rep)
     session.commit()
+
+    # Actualizar .meta.json (sin imagen)
+    try:
+        rep_code = f"R{db_rep.id:04d}"
+        nombre_safe = sanitize_filename(db_rep.nombre_repuesto, "SN")
+        folder_name = f"{rep_code}_{nombre_safe}"
+        rep_dir = get_dir("repuestos_imagenes") / folder_name
+        if rep_dir.exists():
+            meta_data = build_repuesto_meta(db_rep)
+            write_meta_json(rep_dir, meta_data)
+    except Exception as e:
+        print(f"[repuestos.py] WARNING: No se pudo actualizar .meta.json: {e}")
 
     return {"ok": True, "message": "Imagen eliminada"}
 
@@ -544,6 +571,19 @@ def actualizar_repuesto(
     session.add(db_rep)
     session.commit()
     session.refresh(db_rep)
+    
+    # Actualizar .meta.json
+    try:
+        rep_code = f"R{db_rep.id:04d}"
+        nombre_safe = sanitize_filename(db_rep.nombre_repuesto, "SN")
+        folder_name = f"{rep_code}_{nombre_safe}"
+        rep_dir = get_dir("repuestos_imagenes") / folder_name
+        if rep_dir.exists():
+            meta_data = build_repuesto_meta(db_rep, db_rep.imagen_ruta)
+            write_meta_json(rep_dir, meta_data)
+    except Exception as e:
+        print(f"[repuestos.py] WARNING: No se pudo actualizar .meta.json: {e}")
+    
     return db_rep
 
 

@@ -9,6 +9,11 @@ Todos los módulos deben importar las rutas y configuraciones desde aquí:
 
 NUNCA calcular rutas con __file__ desde otros módulos.
 NUNCA usar rutas relativas tipo Path("uploads").
+
+ARQUITECTURA DE DIRECTORIOS:
+    - uploads_base: puede ser relativa a backend/ o absoluta (ej: D:/uploads)
+    - Las sub-carpetas (EQUIPOS, REPUESTOS, etc.) son RELATIVAS a uploads_base
+    - Al cambiar uploads_base, TODAS las sub-carpetas siguen automáticamente
 """
 import json
 from pathlib import Path
@@ -20,19 +25,18 @@ CONFIG_FILE = BACKEND_DIR / "config.json"
 # ─── Valores por defecto (si no existe config.json) ───
 _DEFAULTS = {
     "empresa": {
-        "nombre": "CMMS-BioAI",
-        "logo_ruta": ""
+        "nombre": "CMMS-BioAI"
     },
     "directorios": {
         "uploads_base": "uploads",
-        "equipos_imagenes": "uploads/EQUIPOS",
-        "equipos_documentos": "uploads/EQUIPOS",
-        "ot_documentos": "uploads/OT",
-        "repuestos_imagenes": "uploads/REPUESTOS",
-        "repuestos_documentos": "uploads/REPUESTOS",
-        "herramientas_imagenes": "uploads/HERRAMIENTAS",
-        "herramientas_documentos": "uploads/HERRAMIENTAS",
-        "reportes": "uploads/REPORTES"
+        "equipos_imagenes": "EQUIPOS",
+        "equipos_documentos": "EQUIPOS",
+        "ot_documentos": "OT",
+        "repuestos_imagenes": "REPUESTOS",
+        "repuestos_documentos": "REPUESTOS",
+        "herramientas_imagenes": "HERRAMIENTAS",
+        "herramientas_documentos": "HERRAMIENTAS",
+        "reportes": "REPORTES"
     },
     "sistema": {
         "idioma": "es",
@@ -40,7 +44,7 @@ _DEFAULTS = {
         "moneda": "BOB",
         "prefijo_equipos": "E",
         "prefijo_ordenes": "OT",
-        "prefijo_repuestos": "R"
+        "prefijo_inventario": "R"
     }
 }
 
@@ -79,36 +83,66 @@ def get_config() -> dict:
 
 def update_config(new_config: dict):
     """Actualiza la configuración completa y la guarda en config.json."""
-    global _config
+    global _config, UPLOADS_DIR
     _config = new_config
     _save_config(_config)
+    UPLOADS_DIR = get_dir("uploads_base")
+
+
+def _resolve_uploads_base() -> Path:
+    """
+    Resuelve la ruta absoluta de uploads_base.
+    - Si es absoluta (ej: D:/uploads, /mnt/datos/uploads), la usa directamente
+    - Si es relativa (ej: "uploads"), la resuelve relativa a BACKEND_DIR
+    """
+    dirs = _config.get("directorios", _DEFAULTS["directorios"])
+    uploads_base_str = dirs.get("uploads_base", "uploads")
+    base_path = Path(uploads_base_str)
+    if base_path.is_absolute():
+        return base_path.resolve()
+    else:
+        return (BACKEND_DIR / base_path).resolve()
 
 
 def get_dir(key: str) -> Path:
     """
     Devuelve la ruta absoluta de un directorio configurado.
 
-    Keys disponibles:
-        - "uploads_base"          -> backend/uploads/
-        - "equipos_imagenes"      -> backend/uploads/EQUIPOS/
-        - "equipos_documentos"    -> backend/uploads/EQUIPOS/
-        - "ot_documentos"         -> backend/uploads/OT/
-        - "repuestos_imagenes"   -> backend/uploads/REPUESTOS/
-        - "repuestos_documentos" -> backend/uploads/REPUESTOS/
-        - "herramientas_imagenes"  -> backend/uploads/HERRAMIENTAS/
-        - "herramientas_documentos"-> backend/uploads/HERRAMIENTAS/
-        - "reportes"              -> backend/uploads/REPORTES/
+    ARQUITECTURA:
+        - "uploads_base" → ruta absoluta (relativa a backend/ o absoluta)
+        - Cualquier otra key → relativa a uploads_base
 
-    Ejemplo:
-        from config import get_dir
-        dir_equipos = get_dir("equipos_imagenes")
-        # Resultado: <BACKEND_DIR>/uploads/EQUIPOS (ruta absoluta)
+    Keys disponibles:
+        - "uploads_base"            → <base>/uploads/  (o D:/uploads/ si es absoluta)
+        - "equipos_imagenes"        → <uploads_base>/EQUIPOS/
+        - "equipos_documentos"      → <uploads_base>/EQUIPOS/
+        - "ot_documentos"           → <uploads_base>/OT/
+        - "repuestos_imagenes"      → <uploads_base>/REPUESTOS/
+        - "repuestos_documentos"    → <uploads_base>/REPUESTOS/
+        - "herramientas_imagenes"   → <uploads_base>/HERRAMIENTAS/
+        - "herramientas_documentos" → <uploads_base>/HERRAMIENTAS/
+        - "reportes"                → <uploads_base>/REPORTES/
+
+    Ejemplo con uploads_base = "uploads" (relativa):
+        get_dir("equipos_imagenes") → /ruta/backend/uploads/EQUIPOS
+
+    Ejemplo con uploads_base = "D:/uploads" (absoluta):
+        get_dir("equipos_imagenes") → D:/uploads/EQUIPOS
+
+    Al cambiar uploads_base, TODAS las sub-carpetas se reubican automáticamente.
     """
     dirs = _config.get("directorios", _DEFAULTS["directorios"])
     relative_path = dirs.get(key)
     if relative_path is None:
         raise KeyError(f"Directorio '{key}' no encontrado en config.json")
-    abs_path = BACKEND_DIR / relative_path
+
+    if key == "uploads_base":
+        abs_path = _resolve_uploads_base()
+    else:
+        # Las sub-carpetas son relativas a uploads_base
+        uploads_base = _resolve_uploads_base()
+        abs_path = uploads_base / relative_path
+
     abs_path.mkdir(parents=True, exist_ok=True)
     return abs_path
 

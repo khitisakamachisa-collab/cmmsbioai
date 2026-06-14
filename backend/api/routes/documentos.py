@@ -12,8 +12,42 @@ from models.ordenes import OrdenTrabajo
 from models.repuestos import Repuesto
 from models.herramientas import Herramienta
 from config import get_dir, sanitize_filename
+from utils.meta_json import update_doc_meta_json, remove_doc_meta_json
 
-router = APIRouter(prefix="/documentos", tags=["Documentos Adjuntos"])
+router = APIRouter(prefix="/documentos", tags=["Documentos"])
+
+
+def _resolve_doc_path(ruta_archivo: str) -> Path:
+    """
+    Resuelve la ruta fisica de un documento.
+    
+    Soporta dos formatos:
+    - Ruta relativa (nuevo): "EQUIPOS/E0001_.../DOC/file.pdf" → se resuelve contra uploads_base
+    - Ruta absoluta (legacy): "C:/.../backend/uploads/EQUIPOS/..." → se usa directamente si existe
+    
+    Esto garantiza retrocompatibilidad con registros antiguos que tenian rutas absolutas.
+    """
+    p = Path(ruta_archivo)
+    # Si es absoluta y existe, usarla directamente (backward compat)
+    if p.is_absolute():
+        if p.exists():
+            return p
+        # La ruta absoluta ya no existe (ej: se movio uploads)
+        # Intentar resolver la parte relativa contra uploads_base
+        uploads_base = get_dir("uploads_base")
+        # Buscar si la ruta contiene un patron conocido (EQUIPOS/, REPUESTOS/, etc.)
+        for prefix in ("EQUIPOS", "REPUESTOS", "HERRAMIENTAS", "OT", "INVENTARIO", "REPORTES"):
+            idx = ruta_archivo.replace("\\", "/").find(f"/{prefix}/")
+            if idx >= 0:
+                rel_part = ruta_archivo.replace("\\", "/")[idx + 1:]  # Quitar la barra inicial
+                candidate = uploads_base / rel_part
+                if candidate.exists():
+                    return candidate
+        # Fallback: intentar contra uploads_base directamente
+        return uploads_base / ruta_archivo.replace("\\", "/").split("/uploads/")[-1] if "/uploads/" in ruta_archivo.replace("\\", "/") else p
+    # Ruta relativa: resolver contra uploads_base
+    return get_dir("uploads_base") / ruta_archivo
+
 
 # Extensiones y MIME types permitidos
 ALLOWED_EXTENSIONS = {
@@ -239,6 +273,15 @@ async def subir_documento(
     with open(file_path, "wb") as f:
         f.write(contenido)
 
+    # Calcular ruta relativa (relativa a uploads_base)
+    # Esto permite que los documentos se encuentren aun si se mueve uploads_base
+    uploads_base = get_dir("uploads_base")
+    try:
+        ruta_rel = str(file_path.relative_to(uploads_base)).replace("\\", "/")
+    except ValueError:
+        # Fallback si file_path no es relativa a uploads_base
+        ruta_rel = str(file_path).replace("\\", "/")
+
     # Crear registro en BD
     doc = DocumentoAdjunto(
         orden_trabajo_id=orden_trabajo_id,
@@ -246,7 +289,7 @@ async def subir_documento(
         repuesto_id=repuesto_id,
         herramienta_id=herramienta_id,
         nombre_archivo=file.filename,
-        ruta_archivo=str(file_path),
+        ruta_archivo=ruta_rel,
         tipo_archivo=mime_type,
         tamanio_bytes=len(contenido),
         descripcion=descripcion,
@@ -257,26 +300,33 @@ async def subir_documento(
     session.commit()
     session.refresh(doc)
 
-    # Agregar documento al .meta.json de la carpeta (un solo archivo con lista de documentos)
+    # Actualizar .meta.json en la carpeta del documento
     try:
-        from utils.meta_json import append_doc_to_meta_json, build_documento_meta
-        entidad_tipo = "ot" if orden_trabajo_id else ("equipo" if equipo_id else ("repuesto" if repuesto_id else "herramienta"))
-        entidad_id = orden_trabajo_id or equipo_id or repuesto_id or herramienta_id
-        # Obtener nombre de la entidad para el meta
+        doc_entry = {
+            "documento_id": doc.id,
+            "nombre_archivo": doc.nombre_archivo,
+            "ruta_archivo": ruta_rel,
+            "tipo_archivo": doc.tipo_archivo,
+            "tamanio_bytes": doc.tamanio_bytes,
+            "descripcion": doc.descripcion,
+            "categoria": doc.categoria,
+            "subido_por": doc.subido_por,
+            "fecha_subida": doc.fecha_subida.isoformat() if doc.fecha_subida else None,
+        }
+        # Agregar referencia a la entidad padre
         if orden_trabajo_id:
-            ot = session.get(OrdenTrabajo, orden_trabajo_id)
-            entidad_nombre = ot.titulo if ot else f"OT {orden_trabajo_id}"
+            doc_entry["entidad_tipo"] = "ot"
+            doc_entry["entidad_id"] = orden_trabajo_id
         elif equipo_id:
-            eq = session.get(Equipo, equipo_id)
-            entidad_nombre = eq.nombre_corto or eq.modelo if eq else f"Equipo {equipo_id}"
+            doc_entry["entidad_tipo"] = "equipos"
+            doc_entry["entidad_id"] = equipo_id
         elif repuesto_id:
-            rep = session.get(Repuesto, repuesto_id)
-            entidad_nombre = rep.nombre_repuesto if rep else f"Repuesto {repuesto_id}"
-        else:
-            herr = session.get(Herramienta, herramienta_id)
-            entidad_nombre = herr.nombre_herramienta if herr else f"Herramienta {herramienta_id}"
-        doc_meta = build_documento_meta(doc, entidad_tipo, entidad_id, entidad_nombre)
-        append_doc_to_meta_json(subdir, doc_meta)
+            doc_entry["entidad_tipo"] = "repuestos"
+            doc_entry["entidad_id"] = repuesto_id
+        elif herramienta_id:
+            doc_entry["entidad_tipo"] = "herramientas"
+            doc_entry["entidad_id"] = herramienta_id
+        update_doc_meta_json(subdir, doc_entry)
     except Exception as e:
         print(f"[documentos.py] WARNING: No se pudo actualizar .meta.json: {e}")
 
@@ -347,7 +397,7 @@ def ver_documento(doc_id: int, session: Session = Depends(get_session)):
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
-    file_path = Path(doc.ruta_archivo)
+    file_path = _resolve_doc_path(doc.ruta_archivo)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Archivo fisico no encontrado en el servidor")
 
@@ -367,7 +417,7 @@ def descargar_documento(doc_id: int, session: Session = Depends(get_session)):
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
 
-    file_path = Path(doc.ruta_archivo)
+    file_path = _resolve_doc_path(doc.ruta_archivo)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Archivo fisico no encontrado en el servidor")
 
@@ -395,14 +445,10 @@ def eliminar_documento(doc_id: int, session: Session = Depends(get_session)):
     ot_id = doc.orden_trabajo_id
     equipo_id_doc = doc.equipo_id
 
-    # Eliminar archivo fisico + actualizar .meta.json de la carpeta
-    file_path = Path(doc.ruta_archivo)
+    # Resolver ruta del archivo
+    file_path = _resolve_doc_path(doc.ruta_archivo)
     ot_folder_was_cleaned = False
-
-    # Eliminar documento del .meta.json de la carpeta
-    from utils.meta_json import remove_doc_from_meta_json
-    remove_doc_from_meta_json(file_path.parent, doc.nombre_archivo)
-
+    doc_dir_for_meta = file_path.parent  # Para actualizar .meta.json
     if file_path.exists():
         file_path.unlink()
         # Limpiar directorios vacios (OT subfolder, OT, DOC)
@@ -421,6 +467,12 @@ def eliminar_documento(doc_id: int, session: Session = Depends(get_session)):
                     break
             except Exception:
                 break
+
+    # Actualizar .meta.json (eliminar entrada del documento)
+    try:
+        remove_doc_meta_json(doc_dir_for_meta, doc.nombre_archivo)
+    except Exception as e:
+        print(f"[documentos.py] WARNING: No se pudo actualizar .meta.json: {e}")
 
     # Si se elimino la carpeta OT completa, limpiar el archivo .txt de referencia
     if ot_folder_was_cleaned and ot_id and equipo_id_doc:

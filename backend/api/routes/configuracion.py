@@ -1,6 +1,11 @@
 """
 Endpoints de Configuración del sistema CMMS-BioAI.
 
+Configuración:
+    - GET  /configuracion/                  → Lee la configuración actual
+    - PUT  /configuracion/                  → Actualiza la configuración
+    - GET  /configuracion/estados-bd        → Resumen de registros en la BD por tabla
+
 Capa 2 — Escaneo y recuperación:
     - GET  /configuracion/escanear          → Escanea .meta.json y reporta estado
     - POST /configuracion/recuperar         → Recupera registros huérfanos desde .meta.json
@@ -8,11 +13,11 @@ Capa 2 — Escaneo y recuperación:
 Capa 3 — Backup y Restore:
     - GET  /configuracion/backup            → Exporta la BD completa como JSON
     - POST /configuracion/restore           → Importa un backup JSON y restaura la BD
+    - GET  /configuracion/backup/descargar  → Descarga backup como archivo
+    - POST /configuracion/restore/subir     → Restaura subiendo archivo JSON
 
-Configuración:
-    - GET  /configuracion/                  → Lee la configuración actual
-    - PUT  /configuracion/                  → Actualiza la configuración
-    - GET  /configuracion/estados-bd        → Resumen de registros en la BD por tabla
+Mover archivos:
+    - POST /configuracion/mover-archivos    → Mueve archivos entre ubicaciones de uploads_base
 """
 import json
 import shutil
@@ -20,8 +25,10 @@ from datetime import datetime, date
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
 from sqlmodel import Session, select
+from starlette.routing import Mount
+from fastapi.staticfiles import StaticFiles
 
 from config import get_dir, get_config, update_config, BACKEND_DIR, UPLOADS_DIR
 from database import engine
@@ -41,6 +48,30 @@ router = APIRouter(prefix="/configuracion", tags=["Configuracion"])
 # ──────────────────────────────────────────────────────────
 # Utilidades internas
 # ──────────────────────────────────────────────────────────
+
+def _remount_uploads(app):
+    """
+    Re-monta el directorio de archivos estaticos /uploads.
+    
+    Se debe llamar despues de cambiar uploads_base en config.json.
+    Esto permite que las imagenes y documentos se sirvan desde la
+    nueva ubicacion SIN necesidad de reiniciar el backend.
+    
+    Como funciona:
+        1. Elimina el mount viejo de /uploads
+        2. Crea un nuevo mount apuntando al uploads_base actual
+    """
+    new_path = str(get_dir("uploads_base"))
+    
+    # Eliminar el mount viejo de /uploads
+    app.routes = [
+        route for route in app.routes
+        if not (isinstance(route, Mount) and route.path == "/uploads")
+    ]
+    
+    # Agregar el nuevo mount
+    app.mount("/uploads", StaticFiles(directory=new_path), name="uploads")
+
 
 def _date_to_str(obj):
     """Convierte date/datetime a string para serialización JSON."""
@@ -72,13 +103,304 @@ def get_configuracion():
 # ──────────────────────────────────────────────────────────
 
 @router.put("/")
-def put_configuracion(new_config: dict):
-    """Actualiza la configuración del sistema y la guarda en config.json."""
+def put_configuracion(new_config: dict, request: Request):
+    """
+    Actualiza la configuración del sistema y la guarda en config.json.
+    
+    Solo permite actualizar:
+        - empresa.nombre (nombre del sistema)
+        - directorios.uploads_base (carpeta base de almacenamiento)
+    
+    Las sub-carpetas (EQUIPOS, REPUESTOS, etc.) son fijas y relativas a uploads_base.
+    Los campos sistema.* son de solo lectura.
+    
+    Si uploads_base cambia, el sistema re-monta automaticamente los archivos
+    estaticos sin necesidad de reiniciar el backend.
+    
+    Parametro opcional en new_config:
+        - mover_archivos: true  → mueve los archivos de la ubicacion anterior a la nueva
+        - mover_archivos: false → solo cambia la config (el usuario movera los archivos)
+    """
+    current = get_config()
+    old_uploads_base = current.get("directorios", {}).get("uploads_base", "uploads")
+    
+    # Construir la nueva configuración, solo permitiendo campos editables
+    merged = {
+        "empresa": {"nombre": current.get("empresa", {}).get("nombre", "CMMS-BioAI")},
+        "directorios": dict(current.get("directorios", {})),
+        "sistema": current.get("sistema", {})  # No modificar nunca
+    }
+    
+    # Actualizar empresa.nombre si viene
+    if "empresa" in new_config and "nombre" in new_config["empresa"]:
+        nombre = new_config["empresa"]["nombre"].strip()
+        if not nombre:
+            raise HTTPException(status_code=400, detail="El nombre del sistema no puede estar vacío")
+        merged["empresa"]["nombre"] = nombre
+    
+    # Detectar si uploads_base va a cambiar
+    uploads_base_changed = False
+    new_uploads_base = None
+    
+    # Actualizar uploads_base si viene
+    if "directorios" in new_config and "uploads_base" in new_config["directorios"]:
+        uploads_base = new_config["directorios"]["uploads_base"].strip()
+        if not uploads_base:
+            raise HTTPException(status_code=400, detail="La carpeta base no puede estar vacía")
+        
+        # Verificar que la ruta es válida y escribible
+        test_path = Path(uploads_base) if Path(uploads_base).is_absolute() else BACKEND_DIR / uploads_base
+        try:
+            test_path.mkdir(parents=True, exist_ok=True)
+            test_file = test_path / ".cmms_write_test"
+            test_file.write_text("test")
+            test_file.unlink()
+        except (OSError, PermissionError) as e:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"No se puede escribir en la ruta '{uploads_base}': {str(e)}"
+            )
+        
+        if uploads_base != old_uploads_base:
+            uploads_base_changed = True
+            new_uploads_base = uploads_base
+        
+        merged["directorios"]["uploads_base"] = uploads_base
+    
     try:
-        update_config(new_config)
-        return {"mensaje": "Configuración actualizada correctamente", "config": get_config()}
+        update_config(merged)
+        
+        mensaje = "Configuración actualizada correctamente"
+        archivos_movidos = False
+        requiere_reinicio = False
+        
+        # Si uploads_base cambio, mover archivos y re-montar
+        if uploads_base_changed and new_uploads_base:
+            # Determinar si se deben mover los archivos
+            mover = new_config.get("mover_archivos", True)  # Por defecto: mover
+            
+            old_path = Path(old_uploads_base) if Path(old_uploads_base).is_absolute() else BACKEND_DIR / old_uploads_base
+            new_path = Path(new_uploads_base) if Path(new_uploads_base).is_absolute() else BACKEND_DIR / new_uploads_base
+            old_path = old_path.resolve()
+            new_path = new_path.resolve()
+            
+            if mover and old_path.exists() and old_path != new_path:
+                # Mover archivos de la ubicacion anterior a la nueva
+                try:
+                    archivos_origen = [f for f in old_path.rglob("*") if f.is_file()]
+                    total_archivos = len(archivos_origen)
+                    
+                    if total_archivos > 0:
+                        # Verificar espacio en destino
+                        total_bytes = sum(f.stat().st_size for f in archivos_origen)
+                        destino_stat = shutil.disk_usage(new_path)
+                        if total_bytes > destino_stat.free:
+                            mensaje += f". ADVERTENCIA: Espacio insuficiente en '{new_uploads_base}'. Los archivos NO se movieron. Mueva los archivos manualmente."
+                        else:
+                            # FASE 1: Copiar archivos
+                            copiados = 0
+                            errores_copia = []
+                            for archivo in archivos_origen:
+                                try:
+                                    rel_path = archivo.relative_to(old_path)
+                                    destino_file = new_path / rel_path
+                                    destino_file.parent.mkdir(parents=True, exist_ok=True)
+                                    shutil.copy2(str(archivo), str(destino_file))
+                                    copiados += 1
+                                except Exception as e:
+                                    errores_copia.append(str(e))
+                            
+                            if errores_copia:
+                                mensaje += f". ADVERTENCIA: {len(errores_copia)} errores al copiar archivos. Los archivos originales NO se eliminaron."
+                            else:
+                                # FASE 2: Verificar copia
+                                archivos_destino = [f for f in new_path.rglob("*") if f.is_file()]
+                                if len(archivos_destino) >= total_archivos:
+                                    # FASE 3: Eliminar originales
+                                    try:
+                                        shutil.rmtree(str(old_path))
+                                        archivos_movidos = True
+                                        mensaje += f". Se movieron {copiados} archivos de '{old_uploads_base}' a '{new_uploads_base}'."
+                                    except Exception as e:
+                                        archivos_movidos = True
+                                        mensaje += f". Archivos copiados a '{new_uploads_base}' pero no se pudo eliminar la carpeta original: {str(e)}."
+                                else:
+                                    mensaje += f". ADVERTENCIA: Verificacion fallida. Los archivos originales NO se eliminaron."
+                    else:
+                        mensaje += f". La carpeta anterior '{old_uploads_base}' estaba vacia."
+                except Exception as e:
+                    mensaje += f". ADVERTENCIA: Error al mover archivos: {str(e)}. Mueva los archivos manualmente."
+            elif not mover:
+                mensaje += f". Los archivos NO se movieron automaticamente. Mueva los archivos de '{old_uploads_base}' a '{new_uploads_base}' manualmente."
+            
+            # Re-montar archivos estaticos (sin necesidad de reiniciar)
+            try:
+                _remount_uploads(request.app)
+                mensaje += " Archivos estaticos recargados automaticamente (no es necesario reiniciar)."
+            except Exception as e:
+                requiere_reinicio = True
+                mensaje += f". ADVERTENCIA: No se pudo recargar la ubicacion de archivos. Reinicie el backend: {str(e)}"
+        
+        return {
+            "mensaje": mensaje,
+            "config": get_config(),
+            "archivos_movidos": archivos_movidos,
+            "requiere_reinicio": requiere_reinicio
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al actualizar configuración: {str(e)}")
+
+
+# ──────────────────────────────────────────────────────────
+# POST /configuracion/mover-archivos — Mover archivos a nueva ubicación
+# ──────────────────────────────────────────────────────────
+
+@router.post("/mover-archivos")
+def mover_archivos(data: dict, request: Request):
+    """
+    Mueve todos los archivos de la ubicación anterior de uploads_base a la nueva.
+    
+    El body debe contener: { "origen": "ruta_anterior", "destino": "ruta_nueva" }
+    
+    Estrategia segura:
+    1. Copiar todos los archivos al destino
+    2. Verificar que la copia fue exitosa
+    3. Eliminar los archivos originales solo si la copia fue completa
+    4. Actualizar config.json con la nueva ubicacion
+    5. Re-montar archivos estaticos (sin reiniciar)
+    """
+    origen_rel = data.get("origen")
+    destino_rel = data.get("destino")
+    
+    if not origen_rel or not destino_rel:
+        raise HTTPException(status_code=400, detail="Se requieren 'origen' y 'destino'")
+    
+    # Construir rutas absolutas
+    origen_abs = Path(origen_rel) if Path(origen_rel).is_absolute() else BACKEND_DIR / origen_rel
+    destino_abs = Path(destino_rel) if Path(destino_rel).is_absolute() else BACKEND_DIR / destino_rel
+    
+    # Normalizar rutas
+    origen_abs = origen_abs.resolve()
+    destino_abs = destino_abs.resolve()
+    
+    if origen_abs == destino_abs:
+        raise HTTPException(status_code=400, detail="El origen y destino son la misma ruta")
+    
+    if not origen_abs.exists():
+        raise HTTPException(status_code=400, detail=f"La ruta de origen no existe: {origen_abs}")
+    
+    # Verificar permisos de escritura en destino
+    try:
+        destino_abs.mkdir(parents=True, exist_ok=True)
+        test_file = destino_abs / ".cmms_move_test"
+        test_file.write_text("test")
+        test_file.unlink()
+    except (OSError, PermissionError) as e:
+        raise HTTPException(status_code=400, detail=f"Sin permisos de escritura en destino: {str(e)}")
+    
+    # Contar archivos a mover
+    archivos_origen = [f for f in origen_abs.rglob("*") if f.is_file()]
+    total_archivos = len(archivos_origen)
+    total_bytes = sum(f.stat().st_size for f in archivos_origen)
+    
+    if total_archivos == 0:
+        return {
+            "mensaje": "No hay archivos para mover (carpeta de origen vacía)",
+            "archivos_movidos": 0,
+            "bytes_movidos": 0
+        }
+    
+    # Verificar espacio disponible en destino
+    destino_stat = shutil.disk_usage(destino_abs)
+    if total_bytes > destino_stat.free:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Espacio insuficiente en destino. Necesario: {total_bytes:,} bytes, Disponible: {destino_stat.free:,} bytes"
+        )
+    
+    # FASE 1: Copiar archivos al destino
+    copiados = 0
+    errores_copia = []
+    
+    for archivo in archivos_origen:
+        try:
+            # Calcular ruta relativa al origen
+            rel_path = archivo.relative_to(origen_abs)
+            destino_file = destino_abs / rel_path
+            
+            # Crear directorio padre si no existe
+            destino_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Copiar archivo
+            shutil.copy2(str(archivo), str(destino_file))
+            copiados += 1
+        except Exception as e:
+            errores_copia.append(f"Error copiando {archivo.name}: {str(e)}")
+    
+    if errores_copia:
+        # Limpiar archivos copiados si hubo errores
+        for archivo in archivos_origen:
+            try:
+                rel_path = archivo.relative_to(origen_abs)
+                destino_file = destino_abs / rel_path
+                if destino_file.exists():
+                    destino_file.unlink()
+            except:
+                pass
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errores durante la copia ({len(errores_copia)}). Operación cancelada. Errores: {errores_copia[:5]}"
+        )
+    
+    # FASE 2: Verificar integridad (comparar cantidad de archivos)
+    archivos_destino = [f for f in destino_abs.rglob("*") if f.is_file()]
+    if len(archivos_destino) != total_archivos + (1 if (destino_abs / ".cmms_move_test").exists() else 0):
+        # No coincide, no eliminar origen
+        raise HTTPException(
+            status_code=500,
+            detail=f"Verificación fallida: se copiaron {len(archivos_destino)} archivos pero se esperaban {total_archivos}. Los archivos originales NO se eliminaron."
+        )
+    
+    # FASE 3: Eliminar archivos originales (la copia fue exitosa)
+    try:
+        shutil.rmtree(str(origen_abs))
+    except Exception as e:
+        # No es crítico — los archivos están en ambos lugares
+        return {
+            "mensaje": f"Archivos copiados exitosamente pero no se pudo eliminar la carpeta original: {str(e)}",
+            "archivos_movidos": copiados,
+            "bytes_movidos": total_bytes,
+            "origen_mantenido": True
+        }
+    
+    # Actualizar config.json con la nueva ubicacion (destino)
+    current = get_config()
+    destino_config = data.get("destino", "")
+    if destino_config:
+        current["directorios"]["uploads_base"] = destino_config
+        update_config(current)
+    
+    # Re-montar archivos estaticos (sin necesidad de reiniciar)
+    requiere_reinicio = False
+    try:
+        _remount_uploads(request.app)
+    except Exception as e:
+        requiere_reinicio = True
+    
+    mensaje = "Archivos movidos exitosamente"
+    if requiere_reinicio:
+        mensaje += ". ADVERTENCIA: No se pudo recargar la ubicacion. Reinicie el backend."
+    else:
+        mensaje += " Archivos estaticos recargados automaticamente (no es necesario reiniciar)."
+    
+    return {
+        "mensaje": mensaje,
+        "archivos_movidos": copiados,
+        "bytes_movidos": total_bytes,
+        "origen": str(origen_abs),
+        "destino": str(destino_abs),
+        "requiere_reinicio": requiere_reinicio
+    }
 
 
 # ──────────────────────────────────────────────────────────
@@ -112,11 +434,6 @@ def escanear_meta_json():
     """
     Escanea todos los archivos .meta.json en el directorio uploads
     y los compara con los registros existentes en la BD.
-
-    Devuelve:
-    - Lista de entidades encontradas en archivos
-    - Cuáles ya existen en BD y cuáles son huérfanas (solo en archivo)
-    - Resumen estadístico
     """
     resultados = {
         "equipos": {"en_archivos": [], "en_bd": 0, "huerfanos": []},
@@ -136,10 +453,8 @@ def escanear_meta_json():
         resultados["herramientas"]["en_bd"] = len(ids_herramientas_bd)
         resultados["documentos"]["en_bd"] = len(ids_docs_bd)
 
-    # Escanear directorios de uploads
     uploads_base = UPLOADS_DIR
 
-    # Mapa: carpeta base → tipo de entidad
     carpetas_entidad = {
         "EQUIPOS": "equipos",
         "REPUESTOS": "repuestos",
@@ -151,7 +466,6 @@ def escanear_meta_json():
         if not carpeta.exists():
             continue
 
-        # Escanear subcarpetas de entidades (E0001_xxx, R0001_xxx, H0001_xxx)
         for subdir in sorted(carpeta.iterdir()):
             if not subdir.is_dir():
                 continue
@@ -166,7 +480,6 @@ def escanear_meta_json():
             except (json.JSONDecodeError, IOError):
                 continue
 
-            # Extraer ID del metadato
             entidad_id = meta.get("id")
             if entidad_id is None:
                 continue
@@ -180,7 +493,6 @@ def escanear_meta_json():
 
             resultados[tipo]["en_archivos"].append(info)
 
-            # Verificar si es huérfano (existe en archivo pero no en BD)
             ids_bd = {
                 "equipos": ids_equipos_bd,
                 "repuestos": ids_repuestos_bd,
@@ -213,7 +525,6 @@ def escanear_meta_json():
                     except (json.JSONDecodeError, IOError):
                         pass
 
-    # Calcular resumen
     resumen = {
         "total_en_archivos": sum(len(v["en_archivos"]) for v in resultados.values() if v != resultados["documentos"]),
         "total_en_bd": sum(v["en_bd"] for v in resultados.values() if v != resultados["documentos"]),
@@ -231,10 +542,6 @@ def recuperar_desde_meta_json():
     Recupera registros huérfanos desde los archivos .meta.json.
     Para cada entidad encontrada en archivos que no exista en la BD,
     crea el registro con los datos disponibles en el .meta.json.
-
-    Los documentos se recuperan si su entidad padre existe (en BD o recién recuperada).
-
-    Devuelve un resumen de cuántos registros fueron recuperados.
     """
     recuperados = {
         "equipos": 0,
@@ -246,14 +553,12 @@ def recuperar_desde_meta_json():
 
     uploads_base = UPLOADS_DIR
 
-    # Paso 1: Recuperar entidades principales (Equipos, Repuestos, Herramientas)
     carpetas_entidad = {
         "EQUIPOS": ("equipos", Equipo),
         "REPUESTOS": ("repuestos", Repuesto),
         "HERRAMIENTAS": ("herramientas", Herramienta),
     }
 
-    # Track IDs recuperados en esta sesión para resolver documentos después
     ids_recuperados = {"equipos": set(), "repuestos": set(), "herramientas": set()}
 
     with Session(engine) as session:
@@ -281,12 +586,10 @@ def recuperar_desde_meta_json():
                 if entidad_id is None:
                     continue
 
-                # Verificar si ya existe en BD
                 existente = session.exec(select(modelo).where(modelo.id == entidad_id)).first()
                 if existente:
                     continue
 
-                # Crear registro desde metadatos
                 try:
                     if tipo == "equipos":
                         registro = Equipo(
@@ -301,7 +604,6 @@ def recuperar_desde_meta_json():
                             proveedor_principal=meta.get("proveedor_principal"),
                             registro_sanitario_bolivia=meta.get("registro_sanitario_bolivia"),
                             imagen_ruta=meta.get("imagen_ruta"),
-                            # Campos requeridos sin datos en meta → valores por defecto
                             fecha_adquisicion=meta.get("fecha_adquisicion", date(2000, 1, 1)),
                         )
                     elif tipo == "repuestos":
@@ -341,7 +643,7 @@ def recuperar_desde_meta_json():
                 except Exception as e:
                     errores.append(f"Error recuperando {tipo} ID {entidad_id}: {str(e)}")
 
-        # Paso 2: Recuperar documentos si su entidad padre existe
+        # Paso 2: Recuperar documentos
         for carpeta_nombre, (tipo, modelo) in carpetas_entidad.items():
             carpeta = uploads_base / carpeta_nombre
             if not carpeta.exists():
@@ -367,19 +669,16 @@ def recuperar_desde_meta_json():
                     if doc_id is None:
                         continue
 
-                    # Verificar si ya existe en BD
                     existente = session.exec(
                         select(DocumentoAdjunto).where(DocumentoAdjunto.id == doc_id)
                     ).first()
                     if existente:
                         continue
 
-                    # Verificar que la entidad padre existe (en BD o recién recuperada)
                     padre_tipo = doc_entry.get("entidad_tipo", tipo)
                     padre_id = doc_entry.get("entidad_id")
 
                     if padre_tipo and padre_id:
-                        # Verificar existencia del padre
                         padre_existe = padre_id in ids_recuperados.get(padre_tipo, set())
                         if not padre_existe:
                             modelo_padre = {
@@ -396,9 +695,7 @@ def recuperar_desde_meta_json():
                         if not padre_existe:
                             continue
 
-                    # Crear documento
                     try:
-                        # Inferir ruta_archivo desde la carpeta
                         nombre_archivo = doc_entry.get("nombre_archivo", "")
                         ruta_archivo = doc_entry.get("ruta_archivo") or str(doc_dir.relative_to(uploads_base) / nombre_archivo)
 
@@ -411,7 +708,6 @@ def recuperar_desde_meta_json():
                             descripcion=doc_entry.get("descripcion"),
                             categoria=doc_entry.get("categoria"),
                             subido_por=doc_entry.get("subido_por"),
-                            # Asignar FK según tipo de entidad padre
                             equipo_id=padre_id if padre_tipo == "equipos" else None,
                             repuesto_id=padre_id if padre_tipo == "repuestos" else None,
                             herramienta_id=padre_id if padre_tipo == "herramientas" else None,
@@ -438,18 +734,18 @@ def recuperar_desde_meta_json():
 @router.get("/backup")
 def generar_backup():
     """
-    Exporta toda la base de datos como un diccionario JSON.
+    Exporta toda la base de datos y la configuración como un diccionario JSON.
     Cada tabla se exporta como una lista de diccionarios.
-
-    El resultado incluye metadatos: fecha, versión y totales.
+    La configuración (config.json) se incluye para permitir restauración completa.
     """
     backup = {
         "metadatos": {
             "sistema": "CMMS-BioAI",
-            "version": "1.0",
+            "version": "1.1",
             "fecha_backup": datetime.now().isoformat(),
-            "descripcion": "Backup completo de la base de datos",
+            "descripcion": "Backup completo de la base de datos y configuración",
         },
+        "configuracion": get_config(),
         "datos": {}
     }
 
@@ -473,10 +769,12 @@ def generar_backup():
             registros = session.exec(select(modelo)).all()
             backup["datos"][nombre] = [_model_to_dict(r) for r in registros]
 
-    # Agregar totales a metadatos
     backup["metadatos"]["totales"] = {
         nombre: len(registros) for nombre, registros in backup["datos"].items()
     }
+
+    # Incluir conteo de configuración en metadatos
+    backup["metadatos"]["incluye_configuracion"] = True
 
     return backup
 
@@ -484,12 +782,11 @@ def generar_backup():
 @router.post("/restore")
 def restaurar_backup(backup_data: dict):
     """
-    Restaura la base de datos desde un backup JSON.
-
-    ADVERTENCIA: Esta operación elimina todos los datos existentes
-    y los reemplaza con los del backup.
-
-    El backup debe tener la estructura generada por GET /configuracion/backup.
+    Restaura la base de datos y la configuración desde un backup JSON.
+    ADVERTENCIA: Esta operación elimina todos los datos existentes.
+    
+    Si el backup contiene la clave 'configuracion', también restaura config.json.
+    Si no la contiene (backups antiguos), solo restaura la BD (retrocompatible).
     """
     if "datos" not in backup_data:
         raise HTTPException(status_code=400, detail="El backup no tiene la estructura esperada (falta clave 'datos')")
@@ -497,8 +794,33 @@ def restaurar_backup(backup_data: dict):
     datos = backup_data["datos"]
     restaurados = {}
     errores = []
+    config_restaurada = False
 
-    # Orden de restauración respetando FKs
+    # Restaurar configuración si está presente en el backup
+    # IMPORTANTE: Se preserva el uploads_base actual del sistema, ya que los
+    # archivos fisicos pueden estar en una ubicacion diferente a la del backup.
+    # Las rutas en la BD son RELATIVAS a uploads_base, asi que funcionan
+    # sin importar donde esten los archivos, siempre que existan fisicamente.
+    if "configuracion" in backup_data:
+        try:
+            config_backup = backup_data["configuracion"]
+            # Validar estructura mínima
+            if isinstance(config_backup, dict) and ("empresa" in config_backup or "directorios" in config_backup):
+                current = get_config()
+                # Preservar el uploads_base ACTUAL (no sobrescribir con el del backup)
+                current_uploads_base = current.get("directorios", {}).get("uploads_base", "uploads")
+                merged = {
+                    "empresa": config_backup.get("empresa", current.get("empresa", {})),
+                    "directorios": config_backup.get("directorios", current.get("directorios", {})),
+                    "sistema": config_backup.get("sistema", current.get("sistema", {})),
+                }
+                # Siempre preservar el uploads_base actual
+                merged["directorios"]["uploads_base"] = current_uploads_base
+                update_config(merged)
+                config_restaurada = True
+        except Exception as e:
+            errores.append(f"Error restaurando configuración: {str(e)}")
+
     orden_tablas = [
         ("estados_equipo", EstadoEquipo),
         ("estados_ot", EstadoOT),
@@ -515,9 +837,6 @@ def restaurar_backup(backup_data: dict):
     ]
 
     with Session(engine) as session:
-        # Desactivar verificación de FK temporalmente para SQLite
-        session.exec(select(1))  # Para asegurar conexión
-
         # Limpiar tablas en orden inverso (hijas primero)
         for nombre, modelo in reversed(orden_tablas):
             if nombre in datos:
@@ -534,7 +853,6 @@ def restaurar_backup(backup_data: dict):
             count = 0
             for registro_dict in datos[nombre]:
                 try:
-                    # Filtrar campos que no pertenecen al modelo
                     campos_modelo = set(modelo.model_fields.keys())
                     datos_filtrados = {k: v for k, v in registro_dict.items() if k in campos_modelo}
 
@@ -569,28 +887,20 @@ def restaurar_backup(backup_data: dict):
         "mensaje": "Restauración completada",
         "restaurados": restaurados,
         "total_registros": sum(restaurados.values()),
+        "config_restaurada": config_restaurada,
         "errores": errores,
         "backup_origen": backup_data.get("metadatos", {}),
     }
 
 
-# ──────────────────────────────────────────────────────────
-# Extra: Descargar backup como archivo
-# ──────────────────────────────────────────────────────────
-
 @router.get("/backup/descargar")
 def descargar_backup():
-    """
-    Genera y devuelve el backup como un archivo JSON descargable.
-    El archivo se guarda temporalmente y se sirve para descarga.
-    """
+    """Genera y devuelve el backup como un archivo JSON descargable."""
     from fastapi.responses import FileResponse
     import tempfile
 
-    # Generar backup
     backup = generar_backup()
 
-    # Crear archivo temporal
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"cmms_bioai_backup_{timestamp}.json"
     temp_dir = Path(tempfile.gettempdir())
@@ -606,17 +916,9 @@ def descargar_backup():
     )
 
 
-# ──────────────────────────────────────────────────────────
-# Extra: Subir backup como archivo
-# ──────────────────────────────────────────────────────────
-
 @router.post("/restore/subir")
 def subir_backup(archivo: UploadFile = File(...)):
-    """
-    Sube un archivo JSON de backup y restaura la base de datos.
-
-    ADVERTENCIA: Esta operación elimina todos los datos existentes.
-    """
+    """Sube un archivo JSON de backup y restaura la base de datos."""
     if not archivo.filename.endswith(".json"):
         raise HTTPException(status_code=400, detail="El archivo debe ser un .json")
 

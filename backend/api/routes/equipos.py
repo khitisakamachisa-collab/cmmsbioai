@@ -13,7 +13,8 @@ import csv
 import os
 import uuid
 from pathlib import Path
-from config import get_dir
+from config import get_dir, sanitize_filename
+from utils.meta_json import write_meta_json, build_equipo_meta
 
 router = APIRouter(prefix="/equipos", tags=["Equipos"])
 
@@ -34,6 +35,20 @@ def crear_equipo(equipo: EquipoCreate, session: Session = Depends(get_session)):
     session.add(db_equipo)
     session.commit()
     session.refresh(db_equipo)
+    
+    # Crear carpeta del equipo y escribir .meta.json
+    try:
+        equipo_code = f"E{db_equipo.id:04d}"
+        modelo_safe = sanitize_filename(db_equipo.modelo, "SM")
+        serie_safe = sanitize_filename(db_equipo.numero_serie, "SN")
+        folder_name = f"{equipo_code}_{modelo_safe}_{serie_safe}"
+        equipo_dir = get_dir("equipos_imagenes") / folder_name
+        equipo_dir.mkdir(parents=True, exist_ok=True)
+        meta_data = build_equipo_meta(db_equipo)
+        write_meta_json(equipo_dir, meta_data)
+    except Exception as e:
+        print(f"[equipos.py] WARNING: No se pudo crear .meta.json: {e}")
+    
     return db_equipo
 
 @router.get("/", response_model=list[EquipoRead])
@@ -54,6 +69,20 @@ def actualizar_equipo(equipo_id: int, equipo_data: EquipoUpdate, session: Sessio
     session.add(db_equipo)
     session.commit()
     session.refresh(db_equipo)
+    
+    # Actualizar .meta.json
+    try:
+        equipo_code = f"E{db_equipo.id:04d}"
+        modelo_safe = sanitize_filename(db_equipo.modelo, "SM")
+        serie_safe = sanitize_filename(db_equipo.numero_serie, "SN")
+        folder_name = f"{equipo_code}_{modelo_safe}_{serie_safe}"
+        equipo_dir = get_dir("equipos_imagenes") / folder_name
+        if equipo_dir.exists():
+            meta_data = build_equipo_meta(db_equipo, db_equipo.imagen_ruta)
+            write_meta_json(equipo_dir, meta_data)
+    except Exception as e:
+        print(f"[equipos.py] WARNING: No se pudo actualizar .meta.json: {e}")
+    
     return db_equipo
 
 @router.delete("/{equipo_id}")
@@ -116,20 +145,20 @@ async def upload_imagen_equipo(equipo_id: int, file: UploadFile = File(...), ses
     with open(str(file_path), "wb") as f:
         f.write(contents)
     
-    # Actualizar imagen_ruta en la BD (ruta relativa derivada del path real de config)
-    # Derivar desde uploads_base para que coincida siempre con la carpeta física
-    uploads_base = get_dir("uploads_base")
-    imagen_ruta = str(file_path.relative_to(uploads_base))
+    # Actualizar imagen_ruta en la BD (ruta relativa para servir vía /uploads/)
+    imagen_ruta = f"EQUIPOS/{folder_name}/{filename}"
     db_equipo.imagen_ruta = imagen_ruta
     session.add(db_equipo)
     session.commit()
     session.refresh(db_equipo)
-
-    # Crear archivo .meta.json con datos del equipo para recuperación ante pérdida de BD
-    from utils.meta_json import write_meta_json, build_equipo_meta
-    meta_data = build_equipo_meta(db_equipo, imagen_ruta)
-    write_meta_json(uploads_dir, meta_data)
-
+    
+    # Actualizar .meta.json con la nueva imagen
+    try:
+        meta_data = build_equipo_meta(db_equipo, imagen_ruta)
+        write_meta_json(uploads_dir, meta_data)
+    except Exception as e:
+        print(f"[equipos.py] WARNING: No se pudo actualizar .meta.json: {e}")
+    
     return {"ok": True, "imagen_ruta": db_equipo.imagen_ruta, "nombre_archivo": file.filename}
 
 
@@ -155,6 +184,19 @@ def eliminar_imagen_equipo(equipo_id: int, session: Session = Depends(get_sessio
     db_equipo.imagen_ruta = None
     session.add(db_equipo)
     session.commit()
+    
+    # Actualizar .meta.json (sin imagen)
+    try:
+        equipo_code = f"E{db_equipo.id:04d}"
+        modelo_safe = sanitize_filename(db_equipo.modelo, "SM")
+        serie_safe = sanitize_filename(db_equipo.numero_serie, "SN")
+        folder_name = f"{equipo_code}_{modelo_safe}_{serie_safe}"
+        equipo_dir = get_dir("equipos_imagenes") / folder_name
+        if equipo_dir.exists():
+            meta_data = build_equipo_meta(db_equipo)
+            write_meta_json(equipo_dir, meta_data)
+    except Exception as e:
+        print(f"[equipos.py] WARNING: No se pudo actualizar .meta.json: {e}")
     
     return {"ok": True, "message": "Imagen eliminada"}
 

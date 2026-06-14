@@ -1,540 +1,563 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import Navbar from '../components/Navbar.vue'
 import apiClient from '../services/api.js'
 
-// --- Estado general ---
-const loading = ref(false)
-const mensaje = ref(null)  // { tipo: 'success'|'error'|'info', texto: '' }
+// ─── Estado general ───
+const tabActiva = ref('capa1')
+const cargando = ref(false)
+const toast = ref({ show: false, msg: '', type: 'info' })
 
-// --- Capa 1: Metadatos (informativo) ---
-const estadosBD = ref(null)
+// ─── Capa 1: Estados BD ───
+const estadosBD = ref({})
 
-// --- Capa 2: Escaneo y Recuperación ---
+// ─── Capa 2: Escaneo ───
 const escaneoResultado = ref(null)
-const recuperacionResultado = ref(null)
 const escaneando = ref(false)
 const recuperando = ref(false)
 
-// --- Capa 3: Backup y Restore ---
-const backupLoading = ref(false)
-const restoreLoading = ref(false)
-const archivoBackup = ref(null)
-const restoreResultado = ref(null)
+// ─── Capa 3: Backup/Restore ───
+const backupData = ref(null)
+const restaurando = ref(false)
+const archivoRestore = ref(null)
+const fileInput = ref(null)
 
-// --- Configuración ---
-const config = ref(null)
-const editandoConfig = ref(false)
+// ─── Configuración del Sistema (editable) ───
+const configOriginal = ref({})
+const configEdit = ref({
+  empresa: { nombre: '' },
+  directorios: {},
+  sistema: {}
+})
+const guardandoConfig = ref(false)
+const moviendoArchivos = ref(false)
+const movimientoResultado = ref(null)
+const uploadsBaseAnterior = ref('')
 
-// --- Funciones ---
+// ─── Tabs ───
+const tabs = [
+  { id: 'capa1', label: 'Capa 1 — BD', icon: '💾' },
+  { id: 'capa2', label: 'Capa 2 — Escaneo', icon: '🔍' },
+  { id: 'capa3', label: 'Capa 3 — Backup', icon: '📦' },
+  { id: 'config', label: 'Configuración', icon: '🛠️' }
+]
 
-const mostrarMensaje = (tipo, texto) => {
-  mensaje.value = { tipo, texto }
-  setTimeout(() => { mensaje.value = null }, 5000)
+// ─── Helpers ───
+function showToast(msg, type = 'info') {
+  toast.value = { show: true, msg, type }
+  setTimeout(() => { toast.value.show = false }, 4000)
 }
 
-const cargarEstadosBD = async () => {
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+
+// ─── Verificar si uploads_base cambió ───
+const uploadsBaseCambio = computed(() => {
+  return configEdit.value.directorios?.uploads_base !== uploadsBaseAnterior.value
+})
+
+// ─── Sub-directorios (fijos, relativos a uploads_base) ───
+const subdirectorios = computed(() => {
+  const dirs = configEdit.value.directorios || {}
+  const result = {}
+  for (const [key, value] of Object.entries(dirs)) {
+    if (key !== 'uploads_base') {
+      result[key] = value
+    }
+  }
+  return result
+})
+
+// ─── Cargar datos iniciales ───
+onMounted(async () => {
+  await Promise.all([
+    cargarEstadosBD(),
+    cargarConfig()
+  ])
+})
+
+async function cargarEstadosBD() {
   try {
     const res = await apiClient.get('/configuracion/estados-bd')
     estadosBD.value = res.data
-  } catch (error) {
-    console.error('Error cargando estados BD', error)
+  } catch (e) {
+    console.error('Error cargando estados BD:', e)
   }
 }
 
-const cargarConfig = async () => {
+async function cargarConfig() {
   try {
     const res = await apiClient.get('/configuracion/')
-    config.value = res.data
-  } catch (error) {
-    console.error('Error cargando configuración', error)
+    configOriginal.value = JSON.parse(JSON.stringify(res.data))
+    configEdit.value = JSON.parse(JSON.stringify(res.data))
+    uploadsBaseAnterior.value = res.data.directorios?.uploads_base || 'uploads'
+  } catch (e) {
+    console.error('Error cargando config:', e)
   }
 }
 
-const escanear = async () => {
+// ─── Capa 2: Escanear ───
+async function escanear() {
   escaneando.value = true
-  escaneoResultado.value = null
   try {
     const res = await apiClient.get('/configuracion/escanear')
     escaneoResultado.value = res.data
-    if (res.data.resumen.total_huerfanos === 0) {
-      mostrarMensaje('success', 'Escaneo completado: no se encontraron registros huérfanos.')
-    } else {
-      mostrarMensaje('info', `Escaneo completado: ${res.data.resumen.total_huerfanos} registro(s) huérfano(s) encontrado(s).`)
-    }
-  } catch (error) {
-    mostrarMensaje('error', 'Error al escanear: ' + (error.response?.data?.detail || error.message))
+    showToast('Escaneo completado', 'success')
+  } catch (e) {
+    showToast('Error al escanear: ' + (e.response?.data?.detail || e.message), 'error')
   } finally {
     escaneando.value = false
   }
 }
 
-const recuperar = async () => {
-  if (!confirm('¿Está seguro de recuperar los registros huérfanos? Se crearán nuevos registros en la base de datos a partir de los archivos .meta.json.')) {
-    return
-  }
+async function recuperar() {
+  if (!confirm('¿Recuperar registros huérfanos desde los archivos .meta.json?')) return
   recuperando.value = true
-  recuperacionResultado.value = null
   try {
     const res = await apiClient.post('/configuracion/recuperar')
-    recuperacionResultado.value = res.data
-    mostrarMensaje('success', `Recuperación completada: ${res.data.total_recuperados} registro(s) recuperado(s).`)
-    // Actualizar estados
+    const total = res.data.total_recuperados
+    showToast(`Recuperación completada: ${total} registros recuperados`, 'success')
     await cargarEstadosBD()
-    if (escaneoResultado.value) {
-      await escanear()
-    }
-  } catch (error) {
-    mostrarMensaje('error', 'Error al recuperar: ' + (error.response?.data?.detail || error.message))
+    escaneoResultado.value = null
+  } catch (e) {
+    showToast('Error al recuperar: ' + (e.response?.data?.detail || e.message), 'error')
   } finally {
     recuperando.value = false
   }
 }
 
-const descargarBackup = async () => {
-  backupLoading.value = true
-  try {
-    const res = await apiClient.get('/configuracion/backup/descargar', {
-      responseType: 'blob'
-    })
-    // Crear enlace de descarga
-    const url = window.URL.createObjectURL(new Blob([res.data]))
-    const link = document.createElement('a')
-    link.href = url
-    // Extraer nombre del header
-    const contentDisposition = res.headers['content-disposition']
-    let filename = 'cmms_bioai_backup.json'
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?(.+?)"?$/)
-      if (match) filename = match[1]
-    }
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-    mostrarMensaje('success', 'Backup descargado correctamente.')
-  } catch (error) {
-    mostrarMensaje('error', 'Error al generar backup: ' + (error.response?.data?.detail || error.message))
-  } finally {
-    backupLoading.value = false
-  }
-}
-
-const verBackupPantalla = async () => {
-  backupLoading.value = true
+// ─── Capa 3: Backup ───
+async function generarBackup() {
+  cargando.value = true
   try {
     const res = await apiClient.get('/configuracion/backup')
-    // Mostrar en una ventana nueva como JSON formateado
-    const jsonStr = JSON.stringify(res.data, null, 2)
-    const blob = new Blob([jsonStr], { type: 'application/json' })
-    const url = window.URL.createObjectURL(blob)
-    window.open(url, '_blank')
-    mostrarMensaje('info', 'Backup generado. Se abrió en una nueva pestaña.')
-  } catch (error) {
-    mostrarMensaje('error', 'Error al generar backup: ' + (error.response?.data?.detail || error.message))
+    backupData.value = res.data
+    showToast('Backup generado correctamente', 'success')
+  } catch (e) {
+    showToast('Error al generar backup: ' + (e.response?.data?.detail || e.message), 'error')
   } finally {
-    backupLoading.value = false
+    cargando.value = false
   }
 }
 
-const seleccionarArchivo = (event) => {
-  archivoBackup.value = event.target.files[0]
+function descargarBackup() {
+  if (!backupData.value) return
+  const blob = new Blob([JSON.stringify(backupData.value, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `cmms_bioai_backup_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.json`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
-const subirRestore = async () => {
-  if (!archivoBackup.value) {
-    mostrarMensaje('error', 'Seleccione un archivo de backup primero.')
+async function restaurarDesdeJSON() {
+  const backup = backupData.value
+  if (!backup) {
+    showToast('Primero genera un backup', 'error')
     return
   }
+  if (!confirm('⚠️ ADVERTENCIA: Esto ELIMINARÁ todos los datos actuales y los reemplazará con el backup. ¿Está seguro?')) return
+  if (!confirm('¿Seguro? Esta operación NO se puede deshacer.')) return
 
-  if (!confirm('⚠️ ATENCIÓN: Esta operación ELIMINARÁ todos los datos actuales y los reemplazará con el backup. ¿Está completamente seguro?')) {
-    return
+  restaurando.value = true
+  try {
+    const res = await apiClient.post('/configuracion/restore', backup)
+    const total = res.data.total_registros
+    const errores = res.data.errores?.length || 0
+    const configOk = res.data.config_restaurada
+    let msg = `Restauración completada: ${total} registros restaurados`
+    if (configOk) msg += ' + configuración restaurada'
+    if (errores > 0) {
+      showToast(`${msg} con ${errores} errores.`, 'warning')
+    } else {
+      showToast(msg, 'success')
+    }
+    await cargarEstadosBD()
+    await cargarConfig()
+  } catch (e) {
+    showToast('Error al restaurar: ' + (e.response?.data?.detail || e.message), 'error')
+  } finally {
+    restaurando.value = false
   }
-  if (!confirm('Esta acción NO se puede deshacer. ¿Continuar con la restauración?')) {
-    return
-  }
+}
 
-  restoreLoading.value = true
-  restoreResultado.value = null
+async function subirRestaurar() {
+  if (!archivoRestore.value) {
+    showToast('Selecciona un archivo JSON de backup', 'error')
+    return
+  }
+  if (!confirm('⚠️ ADVERTENCIA: Esto ELIMINARÁ todos los datos actuales. ¿Está seguro?')) return
+
+  restaurando.value = true
   try {
     const formData = new FormData()
-    formData.append('archivo', archivoBackup.value)
+    formData.append('archivo', archivoRestore.value)
     const res = await apiClient.post('/configuracion/restore/subir', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    restoreResultado.value = res.data
-    mostrarMensaje('success', `Restauración completada: ${res.data.total_registros} registro(s) restaurados.`)
-    // Actualizar estados
+    const total = res.data.total_registros
+    const configOk = res.data.config_restaurada
+    let msg = `Restauración completada: ${total} registros`
+    if (configOk) msg += ' + configuración restaurada'
+    showToast(msg, 'success')
     await cargarEstadosBD()
-    archivoBackup.value = null
-  } catch (error) {
-    mostrarMensaje('error', 'Error al restaurar: ' + (error.response?.data?.detail || error.message))
+    await cargarConfig()
+    archivoRestore.value = null
+    if (fileInput.value) fileInput.value.value = ''
+  } catch (e) {
+    showToast('Error al restaurar: ' + (e.response?.data?.detail || e.message), 'error')
   } finally {
-    restoreLoading.value = false
+    restaurando.value = false
   }
 }
 
-onMounted(async () => {
-  loading.value = true
-  await Promise.all([cargarEstadosBD(), cargarConfig()])
-  loading.value = false
-})
-</script>
+// ─── Configuración editable ───
+async function guardarConfig() {
+  guardandoConfig.value = true
+  movimientoResultado.value = null
+  try {
+    const payload = {
+      empresa: configEdit.value.empresa,
+      directorios: configEdit.value.directorios
+    }
+    const res = await apiClient.put('/configuracion/', payload)
+    configOriginal.value = JSON.parse(JSON.stringify(res.data.config))
+    showToast('Configuración guardada correctamente', 'success')
+  } catch (e) {
+    showToast('Error al guardar: ' + (e.response?.data?.detail || e.message), 'error')
+  } finally {
+    guardandoConfig.value = false
+  }
+}
+
+async function moverArchivos() {
+  if (!confirm(`¿Mover todos los archivos de "${uploadsBaseAnterior.value}" a "${configEdit.value.directorios?.uploads_base}"?\n\nEsta operación copiará los archivos y luego eliminará los originales.`)) return
+
+  moviendoArchivos.value = true
+  movimientoResultado.value = null
+  try {
+    const res = await apiClient.post('/configuracion/mover-archivos', {
+      origen: uploadsBaseAnterior.value,
+      destino: configEdit.value.directorios?.uploads_base
+    })
+    movimientoResultado.value = res.data
+    uploadsBaseAnterior.value = configEdit.value.directorios?.uploads_base
+    showToast(`Archivos movidos: ${res.data.archivos_movidos} archivos`, 'success')
+  } catch (e) {
+    showToast('Error al mover: ' + (e.response?.data?.detail || e.message), 'error')
+  } finally {
+    moviendoArchivos.value = false
+  }
+}
+
+function resetConfig() {
+  configEdit.value = JSON.parse(JSON.stringify(configOriginal.value))
+  showToast('Configuración revertida al último guardado', 'info')
+}
+
+// ─── Labels para directorios ───
+const dirLabels = {
+  uploads_base: 'Carpeta base (uploads)',
+  equipos_imagenes: 'Imágenes de Equipos',
+  equipos_documentos: 'Documentos de Equipos',
+  ot_documentos: 'Documentos de OT',
+  repuestos_imagenes: 'Imágenes de Repuestos',
+  repuestos_documentos: 'Documentos de Repuestos',
+  herramientas_imagenes: 'Imágenes de Herramientas',
+  herramientas_documentos: 'Documentos de Herramientas',
+  reportes: 'Reportes'
+}</script>
 
 <template>
   <div class="dashboard-container">
     <Navbar @logout="$router.push('/')" />
 
     <main class="content">
-      <div class="config-header">
-        <h2>Configuración</h2>
-        <p class="config-subtitle">Administración y recuperación del sistema CMMS-BioAI</p>
+      <h2>Configuración del Sistema</h2>
+
+      <!-- Toast -->
+      <div v-if="toast.show" class="toast" :class="'toast--' + toast.type">
+        {{ toast.msg }}
       </div>
 
-      <!-- Mensaje flotante -->
-      <div v-if="mensaje" class="mensaje-toast" :class="'toast--' + mensaje.tipo">
-        {{ mensaje.texto }}
-      </div>
+      <!-- Tabs -->
+      <nav class="config-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          class="config-tab"
+          :class="{ 'config-tab--active': tabActiva === tab.id }"
+          @click="tabActiva = tab.id"
+        >
+          <span class="tab-icon">{{ tab.icon }}</span>
+          <span class="tab-label">{{ tab.label }}</span>
+        </button>
+      </nav>
 
-      <div v-if="loading" class="loading-state">Cargando información del sistema...</div>
+      <!-- ═══════════ CAPA 1: Estados BD ═══════════ -->
+      <section v-if="tabActiva === 'capa1'" class="config-section">
+        <div class="config-card">
+          <h3>Capa 1 — Metadatos en Archivos</h3>
+          <p>Los archivos <code>.meta.json</code> se crean automáticamente junto a cada imagen o documento subido. Si la base de datos se pierde, los datos esenciales pueden reconstruirse escaneando estos archivos.</p>
+          <div class="status-badge status-badge--ok">ACTIVO</div>
+        </div>
 
-      <template v-if="!loading">
-        <!-- ===== CAPA 1: Metadatos en Archivos ===== -->
-        <section class="capa-section">
-          <div class="capa-header">
-            <span class="capa-num capa-num--done">1</span>
-            <div>
-              <h3>Metadatos en Archivos</h3>
-              <p class="capa-status estado--implementado">IMPLEMENTADO</p>
+        <div class="config-card">
+          <h3>Estado de la Base de Datos</h3>
+          <div class="bd-grid">
+            <div v-for="(count, tabla) in estadosBD" :key="tabla" class="bd-item">
+              <span class="bd-count">{{ count }}</span>
+              <span class="bd-label">{{ tabla.replace(/_/g, ' ') }}</span>
             </div>
           </div>
-          <p class="capa-desc">
-            Cada archivo subido genera un <code>.meta.json</code> con los datos clave del registro.
-            Esto permite reconstruir la información si la base de datos se pierde.
-            A continuación se muestra el estado actual de la base de datos:
-          </p>
+        </div>
+      </section>
 
-          <div v-if="estadosBD" class="stats-grid">
-            <div class="stat-item">
-              <span class="stat-icon">⚙️</span>
-              <div>
-                <span class="stat-value">{{ estadosBD.equipos }}</span>
-                <span class="stat-label">Equipos</span>
-              </div>
-            </div>
-            <div class="stat-item">
-              <span class="stat-icon">🔩</span>
-              <div>
-                <span class="stat-value">{{ estadosBD.repuestos }}</span>
-                <span class="stat-label">Repuestos</span>
-              </div>
-            </div>
-            <div class="stat-item">
-              <span class="stat-icon">🔧</span>
-              <div>
-                <span class="stat-value">{{ estadosBD.herramientas }}</span>
-                <span class="stat-label">Herramientas</span>
-              </div>
-            </div>
-            <div class="stat-item">
-              <span class="stat-icon">📋</span>
-              <div>
-                <span class="stat-value">{{ estadosBD.ordenes_trabajo }}</span>
-                <span class="stat-label">OTs</span>
-              </div>
-            </div>
-            <div class="stat-item">
-              <span class="stat-icon">📄</span>
-              <div>
-                <span class="stat-value">{{ estadosBD.documentos }}</span>
-                <span class="stat-label">Documentos</span>
-              </div>
-            </div>
-            <div class="stat-item">
-              <span class="stat-icon">📜</span>
-              <div>
-                <span class="stat-value">{{ estadosBD.eventos_historial }}</span>
-                <span class="stat-label">Historial</span>
-              </div>
-            </div>
-            <div class="stat-item">
-              <span class="stat-icon">🛡️</span>
-              <div>
-                <span class="stat-value">{{ estadosBD.tareas_preventivas }}</span>
-                <span class="stat-label">Preventivo</span>
-              </div>
-            </div>
-            <div class="stat-item">
-              <span class="stat-icon">👥</span>
-              <div>
-                <span class="stat-value">{{ estadosBD.usuarios }}</span>
-                <span class="stat-label">Usuarios</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ===== CAPA 2: Escaneo y Recuperación ===== -->
-        <section class="capa-section">
-          <div class="capa-header">
-            <span class="capa-num capa-num--new">2</span>
-            <div>
-              <h3>Escaneo y Recuperación</h3>
-              <p class="capa-status estado--nuevo">NUEVO</p>
-            </div>
-          </div>
-          <p class="capa-desc">
-            Escanea los archivos <code>.meta.json</code> del directorio de uploads y compara
-            con los registros existentes en la base de datos. Los registros "huérfanos"
-            (que existen en archivos pero no en la BD) pueden ser recuperados automáticamente.
-          </p>
-
-          <div class="capa-actions">
-            <button
-              class="btn btn--primary"
-              @click="escanear"
-              :disabled="escaneando"
-            >
-              {{ escaneando ? 'Escaneando...' : '🔍 Escanear Archivos' }}
+      <!-- ═══════════ CAPA 2: Escaneo ═══════════ -->
+      <section v-if="tabActiva === 'capa2'" class="config-section">
+        <div class="config-card">
+          <h3>Capa 2 — Escaneo y Recuperación</h3>
+          <p>Escanea los archivos <code>.meta.json</code> y compara con la BD. Detecta registros huérfanos (existentes en archivos pero no en la BD) y permite recuperarlos.</p>
+          <div class="btn-row">
+            <button class="btn btn--primary" @click="escanear" :disabled="escaneando">
+              {{ escaneando ? 'Escaneando...' : '🔍 Escanear .meta.json' }}
             </button>
             <button
-              class="btn btn--success"
+              v-if="escaneoResultado && escaneoResultado.resumen.total_huerfanos > 0"
+              class="btn btn--warning"
               @click="recuperar"
-              :disabled="recuperando || !escaneoResultado || escaneoResultado.resumen.total_huerfanos === 0"
+              :disabled="recuperando"
             >
-              {{ recuperando ? 'Recuperando...' : '♻️ Recuperar Huérfanos' }}
+              {{ recuperando ? 'Recuperando...' : '🔄 Recuperar huérfanos' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Resultado del escaneo -->
+        <div v-if="escaneoResultado" class="config-card">
+          <h3>Resultado del Escaneo</h3>
+          <div class="scan-summary">
+            <div class="scan-stat">
+              <span class="scan-num">{{ escaneoResultado.resumen.total_en_archivos }}</span>
+              <span class="scan-label">En archivos</span>
+            </div>
+            <div class="scan-stat">
+              <span class="scan-num">{{ escaneoResultado.resumen.total_en_bd }}</span>
+              <span class="scan-label">En BD</span>
+            </div>
+            <div class="scan-stat scan-stat--alert" v-if="escaneoResultado.resumen.total_huerfanos > 0">
+              <span class="scan-num">{{ escaneoResultado.resumen.total_huerfanos }}</span>
+              <span class="scan-label">Huérfanos</span>
+            </div>
+            <div class="scan-stat scan-stat--ok" v-else>
+              <span class="scan-num">0</span>
+              <span class="scan-label">Huérfanos</span>
+            </div>
+          </div>
+
+          <!-- Detalle por tipo -->
+          <div v-for="(data, tipo) in escaneoResultado.detalle" :key="tipo" class="scan-detail">
+            <h4>{{ tipo }}</h4>
+            <span>En BD: {{ data.en_bd }} | En archivos: {{ data.en_archivos.length }} | Huérfanos: {{ data.huerfanos.length }}</span>
+            <ul v-if="data.huerfanos.length > 0" class="huerfanos-list">
+              <li v-for="h in data.huerfanos" :key="h.id">
+                ID {{ h.id }} — {{ h.nombre }} ({{ h.carpeta }})
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ CAPA 3: Backup/Restore ═══════════ -->
+      <section v-if="tabActiva === 'capa3'" class="config-section">
+        <div class="config-card">
+          <h3>Capa 3 — Backup y Restore</h3>
+          <p>Exporta toda la base de datos <strong>y la configuración del sistema</strong> (nombre, directorios, parámetros) como un archivo JSON descargable. Restaurar reemplaza todos los datos existentes y restaura la configuración guardada.</p>
+          <div class="btn-row">
+            <button class="btn btn--primary" @click="generarBackup" :disabled="cargando">
+              {{ cargando ? 'Generando...' : '📦 Generar Backup' }}
+            </button>
+            <button v-if="backupData" class="btn btn--secondary" @click="descargarBackup">
+              ⬇️ Descargar JSON
+            </button>
+          </div>
+        </div>
+
+        <!-- Info del backup generado -->
+        <div v-if="backupData" class="config-card config-card--info">
+          <h3>Backup Generado</h3>
+          <p><strong>Fecha:</strong> {{ backupData.metadatos.fecha_backup }}</p>
+          <p v-if="backupData.configuracion"><strong>Incluye configuración:</strong> nombre, directorios y parámetros del sistema</p>
+          <p><strong>Registros:</strong></p>
+          <div class="backup-totals">
+            <span v-for="(total, tabla) in backupData.metadatos.totales" :key="tabla" class="backup-tag">
+              {{ tabla }}: {{ total }}
+            </span>
+          </div>
+          <div class="btn-row" style="margin-top: 1rem;">
+            <button class="btn btn--danger" @click="restaurarDesdeJSON" :disabled="restaurando">
+              {{ restaurando ? 'Restaurando...' : '⚠️ Restaurar este backup' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Subir backup -->
+        <div class="config-card">
+          <h3>Restaurar desde Archivo</h3>
+          <p>Sube un archivo JSON de backup previamente descargado.</p>
+          <div class="upload-row">
+            <input
+              ref="fileInput"
+              type="file"
+              accept=".json"
+              @change="archivoRestore = $event.target.files[0]"
+              class="file-input"
+            />
+            <button
+              class="btn btn--warning"
+              @click="subirRestaurar"
+              :disabled="restaurando || !archivoRestore"
+            >
+              {{ restaurando ? 'Restaurando...' : '📤 Subir y Restaurar' }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ CONFIGURACIÓN EDITABLE ═══════════ -->
+      <section v-if="tabActiva === 'config'" class="config-section">
+
+        <!-- Empresa -->
+        <div class="config-card config-card--edit">
+          <h3>🏥 Nombre del Sistema</h3>
+          <p>El nombre se muestra en la barra de navegación y en el título del sistema. Se respalda junto con el backup y se restaura automáticamente.</p>
+          <div class="form-group">
+            <label>Nombre del Sistema</label>
+            <input
+              v-model="configEdit.empresa.nombre"
+              type="text"
+              class="form-input"
+              placeholder="CMMS-BioAI"
+            />
+            <small>Este nombre aparecerá en la barra superior de navegación de todas las páginas.</small>
+          </div>
+        </div>
+
+        <!-- Directorios: solo uploads_base editable -->
+        <div class="config-card config-card--edit">
+          <h3>📁 Carpeta Base de Almacenamiento</h3>
+          <p>Todos los archivos (imágenes, documentos, reportes) se guardan dentro de esta carpeta. Las sub-carpetas (<code>EQUIPOS</code>, <code>REPUESTOS</code>, etc.) se crean automáticamente dentro de ella.</p>
+
+          <div class="form-group form-group--highlight">
+            <label>
+              Carpeta base (uploads_base)
+              <span class="label-badge">EDITABLE</span>
+            </label>
+            <input
+              v-model="configEdit.directorios.uploads_base"
+              type="text"
+              class="form-input"
+              placeholder="uploads"
+            />
+            <small>
+              ⚡ Puede ser relativa a <code>backend/</code> (ej: <code>uploads</code>) o absoluta
+              (ej: <code>D:/uploads</code> en Windows o <code>/mnt/datos/uploads</code> en Linux).<br/>
+              Al cambiar esta ruta, <strong>todas las sub-carpetas se reubican automáticamente</strong>
+              — no es necesario editarlas individualmente.
+            </small>
+          </div>
+
+          <!-- Preview de estructura resultante -->
+          <div class="structure-preview">
+            <h4>Estructura resultante:</h4>
+            <div class="tree">
+              <div class="tree-item tree-item--base">
+                📂 {{ configEdit.directorios.uploads_base || 'uploads' }}/
+              </div>
+              <div class="tree-item" v-for="(subdir, key) in subdirectorios" :key="key">
+                ├── 📁 {{ subdir }}/
+                <span class="tree-label">{{ dirLabels[key] || key }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aviso si uploads_base cambió -->
+          <div v-if="uploadsBaseCambio" class="move-notice">
+            <div class="move-notice-icon">⚠️</div>
+            <div class="move-notice-text">
+              <strong>Ha cambiado la carpeta base de uploads.</strong><br/>
+              Antes: <code>{{ uploadsBaseAnterior }}</code> → Ahora: <code>{{ configEdit.directorios.uploads_base }}</code><br/>
+              <span>Pasos: 1) Guarde la configuración → 2) Mueva los archivos → 3) Reinicie el servidor.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botones de acción -->
+        <div class="config-card config-card--actions">
+          <div class="btn-row">
+            <button class="btn btn--primary" @click="guardarConfig" :disabled="guardandoConfig">
+              {{ guardandoConfig ? 'Guardando...' : '💾 Guardar Configuración' }}
+            </button>
+            <button class="btn btn--secondary" @click="resetConfig">
+              ↩️ Revertir cambios
+            </button>
+            <button
+              v-if="uploadsBaseCambio"
+              class="btn btn--warning"
+              @click="moverArchivos"
+              :disabled="moviendoArchivos"
+            >
+              {{ moviendoArchivos ? 'Moviendo...' : '🚚 Mover archivos a nueva ubicación' }}
             </button>
           </div>
 
-          <!-- Resultado del escaneo -->
-          <div v-if="escaneoResultado" class="resultado-panel">
-            <h4>Resultado del Escaneo</h4>
-            <div class="escaneo-grid">
-              <div class="escaneo-card">
-                <span class="escaneo-num">{{ escaneoResultado.resumen.total_en_archivos }}</span>
-                <span class="escaneo-label">En archivos</span>
-              </div>
-              <div class="escaneo-card">
-                <span class="escaneo-num">{{ escaneoResultado.resumen.total_en_bd }}</span>
-                <span class="escaneo-label">En BD</span>
-              </div>
-              <div class="escaneo-card escaneo-card--alert" v-if="escaneoResultado.resumen.total_huerfanos > 0">
-                <span class="escaneo-num">{{ escaneoResultado.resumen.total_huerfanos }}</span>
-                <span class="escaneo-label">Huérfanos</span>
-              </div>
-              <div class="escaneo-card escaneo-card--ok" v-else>
-                <span class="escaneo-num">0</span>
-                <span class="escaneo-label">Huérfanos</span>
-              </div>
-              <div class="escaneo-card">
-                <span class="escaneo-num">{{ escaneoResultado.resumen.total_docs_en_archivos }}</span>
-                <span class="escaneo-label">Docs en archivos</span>
-              </div>
-              <div class="escaneo-card" :class="escaneoResultado.resumen.total_docs_huerfanos > 0 ? 'escaneo-card--alert' : ''">
-                <span class="escaneo-num">{{ escaneoResultado.resumen.total_docs_huerfanos }}</span>
-                <span class="escaneo-label">Docs huérfanos</span>
-              </div>
-            </div>
+          <!-- Resultado del movimiento -->
+          <div v-if="movimientoResultado" class="move-result" :class="movimientoResultado.origen_mantenido ? 'move-result--warn' : 'move-result--ok'">
+            <p>✅ {{ movimientoResultado.mensaje }}</p>
+            <p>Archivos movidos: <strong>{{ movimientoResultado.archivos_movidos }}</strong> ({{ formatBytes(movimientoResultado.bytes_movidos) }})</p>
+            <p v-if="movimientoResultado.origen_mantenido">⚠️ La carpeta original no se pudo eliminar automáticamente. Puede eliminarla manualmente.</p>
+          </div>
+        </div>
 
-            <!-- Detalle de huérfanos por tipo -->
-            <div v-if="escaneoResultado.resumen.total_huerfanos > 0" class="huerfanos-detalle">
-              <h5>Detalle de registros huérfanos:</h5>
-              <div v-for="(tipo_data, tipo) in escaneoResultado.detalle" :key="tipo">
-                <div v-if="tipo_data.huerfanos && tipo_data.huerfanos.length > 0" class="huerfano-tipo">
-                  <strong>{{ tipo }}:</strong>
-                  <span v-for="h in tipo_data.huerfanos" :key="h.id" class="huerfano-badge">
-                    ID {{ h.id }} — {{ h.nombre }}
-                  </span>
-                </div>
-              </div>
+        <!-- Sistema (solo lectura) -->
+        <div class="config-card config-card--readonly">
+          <h3>🔒 Parámetros del Sistema <span class="readonly-badge">SOLO LECTURA</span></h3>
+          <p>Estos parámetros son específicos para el mercado boliviano y no se modifican por ahora.</p>
+          <div class="readonly-grid">
+            <div class="readonly-item">
+              <span class="readonly-label">Idioma</span>
+              <span class="readonly-value">{{ configEdit.sistema?.idioma || 'es' }}</span>
+            </div>
+            <div class="readonly-item">
+              <span class="readonly-label">Zona Horaria</span>
+              <span class="readonly-value">{{ configEdit.sistema?.zona_horaria || 'America/La_Paz' }}</span>
+            </div>
+            <div class="readonly-item">
+              <span class="readonly-label">Moneda</span>
+              <span class="readonly-value">{{ configEdit.sistema?.moneda || 'BOB' }}</span>
+            </div>
+            <div class="readonly-item">
+              <span class="readonly-label">Prefijo Equipos</span>
+              <span class="readonly-value">{{ configEdit.sistema?.prefijo_equipos || 'E' }}</span>
+            </div>
+            <div class="readonly-item">
+              <span class="readonly-label">Prefijo Órdenes</span>
+              <span class="readonly-value">{{ configEdit.sistema?.prefijo_ordenes || 'OT' }}</span>
+            </div>
+            <div class="readonly-item">
+              <span class="readonly-label">Prefijo Repuestos</span>
+              <span class="readonly-value">{{ configEdit.sistema?.prefijo_inventario || 'R' }}</span>
             </div>
           </div>
+        </div>
+      </section>
 
-          <!-- Resultado de la recuperación -->
-          <div v-if="recuperacionResultado" class="resultado-panel resultado--success">
-            <h4>Resultado de la Recuperación</h4>
-            <div class="escaneo-grid">
-              <div class="escaneo-card">
-                <span class="escaneo-num">{{ recuperacionResultado.recuperados.equipos }}</span>
-                <span class="escaneo-label">Equipos</span>
-              </div>
-              <div class="escaneo-card">
-                <span class="escaneo-num">{{ recuperacionResultado.recuperados.repuestos }}</span>
-                <span class="escaneo-label">Repuestos</span>
-              </div>
-              <div class="escaneo-card">
-                <span class="escaneo-num">{{ recuperacionResultado.recuperados.herramientas }}</span>
-                <span class="escaneo-label">Herramientas</span>
-              </div>
-              <div class="escaneo-card">
-                <span class="escaneo-num">{{ recuperacionResultado.recuperados.documentos }}</span>
-                <span class="escaneo-label">Documentos</span>
-              </div>
-            </div>
-            <p v-if="recuperacionResultado.total_recuperados > 0" class="recuperacion-ok">
-              ✅ Total recuperados: {{ recuperacionResultado.total_recuperados }} registro(s)
-            </p>
-            <p v-else class="recuperacion-vacio">
-              No se encontraron registros nuevos para recuperar.
-            </p>
-            <div v-if="recuperacionResultado.errores && recuperacionResultado.errores.length > 0" class="errores-lista">
-              <strong>Errores:</strong>
-              <ul>
-                <li v-for="(err, idx) in recuperacionResultado.errores" :key="idx">{{ err }}</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        <!-- ===== CAPA 3: Backup y Restore ===== -->
-        <section class="capa-section">
-          <div class="capa-header">
-            <span class="capa-num capa-num--new">3</span>
-            <div>
-              <h3>Backup y Restore</h3>
-              <p class="capa-status estado--nuevo">NUEVO</p>
-            </div>
-          </div>
-          <p class="capa-desc">
-            Exporta toda la base de datos como un archivo JSON que puede descargarse y
-            guardarse como respaldo. En caso de pérdida de datos, el archivo puede
-            restaurarse para recuperar el estado completo del sistema.
-          </p>
-
-          <div class="capa-split">
-            <!-- Backup -->
-            <div class="capa-split-card">
-              <h4>📥 Generar Backup</h4>
-              <p>Exporta todos los registros de la base de datos como archivo JSON.</p>
-              <div class="capa-actions">
-                <button
-                  class="btn btn--primary"
-                  @click="descargarBackup"
-                  :disabled="backupLoading"
-                >
-                  {{ backupLoading ? 'Generando...' : '💾 Descargar Backup' }}
-                </button>
-                <button
-                  class="btn btn--secondary"
-                  @click="verBackupPantalla"
-                  :disabled="backupLoading"
-                >
-                  👁️ Ver en Pantalla
-                </button>
-              </div>
-            </div>
-
-            <!-- Restore -->
-            <div class="capa-split-card">
-              <h4>📤 Restaurar Backup</h4>
-              <p>⚠️ <strong>ELIMINARÁ</strong> todos los datos actuales y los reemplazará con el backup.</p>
-              <div class="restore-upload">
-                <input
-                  type="file"
-                  accept=".json"
-                  @change="seleccionarArchivo"
-                  class="file-input"
-                />
-                <span v-if="archivoBackup" class="file-name">📎 {{ archivoBackup.name }}</span>
-              </div>
-              <div class="capa-actions">
-                <button
-                  class="btn btn--danger"
-                  @click="subirRestore"
-                  :disabled="restoreLoading || !archivoBackup"
-                >
-                  {{ restoreLoading ? 'Restaurando...' : '🔄 Restaurar Backup' }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Resultado del restore -->
-          <div v-if="restoreResultado" class="resultado-panel resultado--success">
-            <h4>Resultado de la Restauración</h4>
-            <div class="escaneo-grid">
-              <div v-for="(count, tabla) in restoreResultado.restaurados" :key="tabla" class="escaneo-card">
-                <span class="escaneo-num">{{ count }}</span>
-                <span class="escaneo-label">{{ tabla.replace(/_/g, ' ') }}</span>
-              </div>
-            </div>
-            <p class="recuperacion-ok">
-              ✅ Total restaurados: {{ restoreResultado.total_registros }} registro(s)
-            </p>
-            <p v-if="restoreResultado.backup_origen.fecha_backup" class="backup-origen">
-              Backup del: {{ restoreResultado.backup_origen.fecha_backup }}
-            </p>
-            <div v-if="restoreResultado.errores && restoreResultado.errores.length > 0" class="errores-lista">
-              <strong>Errores:</strong>
-              <ul>
-                <li v-for="(err, idx) in restoreResultado.errores" :key="idx">{{ err }}</li>
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        <!-- ===== Configuración del Sistema ===== -->
-        <section class="capa-section">
-          <div class="capa-header">
-            <span class="capa-icon">🛠️</span>
-            <div>
-              <h3>Configuración del Sistema</h3>
-              <p class="capa-status estado--info">SOLO LECTURA</p>
-            </div>
-          </div>
-          <p class="capa-desc">
-            Configuración actual del sistema almacenada en <code>config.json</code>.
-          </p>
-
-          <div v-if="config" class="config-grid">
-            <div class="config-card">
-              <h5>Empresa</h5>
-              <div class="config-row">
-                <span>Nombre:</span>
-                <strong>{{ config.empresa?.nombre || '—' }}</strong>
-              </div>
-            </div>
-            <div class="config-card">
-              <h5>Sistema</h5>
-              <div class="config-row">
-                <span>Idioma:</span>
-                <strong>{{ config.sistema?.idioma || '—' }}</strong>
-              </div>
-              <div class="config-row">
-                <span>Zona horaria:</span>
-                <strong>{{ config.sistema?.zona_horaria || '—' }}</strong>
-              </div>
-              <div class="config-row">
-                <span>Moneda:</span>
-                <strong>{{ config.sistema?.moneda || '—' }}</strong>
-              </div>
-            </div>
-            <div class="config-card">
-              <h5>Prefijos</h5>
-              <div class="config-row">
-                <span>Equipos:</span>
-                <strong class="prefijo-badge">{{ config.sistema?.prefijo_equipos || 'E' }}</strong>
-              </div>
-              <div class="config-row">
-                <span>Repuestos:</span>
-                <strong class="prefijo-badge">{{ config.sistema?.prefijo_repuestos || 'R' }}</strong>
-              </div>
-              <div class="config-row">
-                <span>Órdenes:</span>
-                <strong class="prefijo-badge">{{ config.sistema?.prefijo_ordenes || 'OT' }}</strong>
-              </div>
-            </div>
-            <div class="config-card">
-              <h5>Directorios</h5>
-              <div v-for="(ruta, key) in config.directorios" :key="key" class="config-row">
-                <span>{{ key }}:</span>
-                <code>{{ ruta }}</code>
-              </div>
-            </div>
-          </div>
-        </section>
-      </template>
     </main>
   </div>
 </template>
@@ -542,412 +565,189 @@ onMounted(async () => {
 <style scoped>
 .dashboard-container { padding: 0; }
 .content { padding: 2rem; }
+.content h2 { color: #1e293b; margin: 0 0 1.5rem 0; font-size: 1.5rem; }
 
-.config-header {
-  margin-bottom: 1.5rem;
-}
-.config-header h2 {
-  margin: 0 0 0.25rem 0;
-  color: #1e293b;
-  font-size: 1.5rem;
-}
-.config-subtitle {
-  margin: 0;
-  color: #64748b;
-  font-size: 0.95rem;
-}
-
-.loading-state {
-  text-align: center;
-  padding: 3rem;
-  color: #64748b;
-}
-
-/* === Mensaje toast === */
-.mensaje-toast {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  padding: 0.85rem 1.25rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: white;
-  z-index: 1000;
+/* === Toast === */
+.toast {
+  position: fixed; top: 1.5rem; right: 1.5rem;
+  padding: 0.85rem 1.5rem; border-radius: 8px;
+  font-weight: 600; font-size: 0.9rem;
+  z-index: 9999; animation: slideIn 0.3s ease;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  animation: slideIn 0.3s ease;
 }
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(50px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-.toast--success { background: #22c55e; }
-.toast--error { background: #ef4444; }
-.toast--info { background: #3b82f6; }
+.toast--info { background: #dbeafe; color: #1e40af; }
+.toast--success { background: #dcfce7; color: #166534; }
+.toast--error { background: #fee2e2; color: #991b1b; }
+.toast--warning { background: #fef3c7; color: #92400e; }
+@keyframes slideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
 
-/* === Capa Section === */
-.capa-section {
-  background: white;
-  border-radius: 10px;
-  padding: 1.5rem;
-  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.07);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  margin-bottom: 1.25rem;
+/* === Tabs === */
+.config-tabs {
+  display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;
 }
-.capa-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+.config-tab {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.6rem 1.1rem; border: 2px solid #e2e8f0;
+  border-radius: 8px; background: white; cursor: pointer;
+  font-size: 0.88rem; font-weight: 600; color: #475569;
+  transition: all 0.2s ease;
 }
-.capa-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  font-weight: 700;
-  font-size: 1.05rem;
-  flex-shrink: 0;
-}
-.capa-num--done {
-  background: #dcfce7;
-  color: #16a34a;
-  border: 2px solid #86efac;
-}
-.capa-num--new {
-  background: #dbeafe;
-  color: #2563eb;
-  border: 2px solid #93c5fd;
-}
-.capa-icon {
-  font-size: 1.5rem;
-  flex-shrink: 0;
-  margin-top: 0.1rem;
-}
-.capa-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  color: #1e293b;
-}
-.capa-status {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0.1rem 0.5rem;
-  border-radius: 4px;
-  margin-top: 0.2rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.estado--implementado { background: #dcfce7; color: #16a34a; }
-.estado--nuevo { background: #dbeafe; color: #2563eb; }
-.estado--info { background: #f1f5f9; color: #64748b; }
-.capa-desc {
-  color: #475569;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  margin: 0 0 1rem 0;
-}
-.capa-desc code {
-  background: #f1f5f9;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  font-size: 0.82rem;
-  color: #7c3aed;
-}
+.config-tab:hover { border-color: #3b82f6; color: #2563eb; background: #eff6ff; }
+.config-tab--active { border-color: #3b82f6; background: #3b82f6; color: white; }
+.config-tab--active:hover { background: #2563eb; color: white; }
+.tab-icon { font-size: 1.1rem; }
 
-/* === Stats Grid (Capa 1) === */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.65rem;
-}
-@media (max-width: 900px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 550px) {
-  .stats-grid { grid-template-columns: 1fr; }
-}
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.65rem;
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-}
-.stat-icon {
-  font-size: 1.2rem;
-}
-.stat-value {
-  display: block;
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #1e293b;
-  line-height: 1.2;
-}
-.stat-label {
-  display: block;
-  font-size: 0.72rem;
-  color: #64748b;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-/* === Botones === */
-.capa-actions {
-  display: flex;
-  gap: 0.65rem;
-  flex-wrap: wrap;
+/* === Cards === */
+.config-card {
+  background: white; border-radius: 10px; padding: 1.25rem;
+  box-shadow: 0 1px 6px rgba(15,23,42,0.07); border: 1px solid rgba(0,0,0,0.06);
   margin-bottom: 1rem;
 }
+.config-card h3 {
+  margin: 0 0 0.75rem 0; font-size: 1.05rem; font-weight: 700; color: #1e293b;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.config-card p { margin: 0 0 0.5rem 0; color: #475569; line-height: 1.6; font-size: 0.9rem; }
+.config-card code { background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.82rem; color: #7c3aed; }
+.config-card--info { border-left: 4px solid #3b82f6; }
+.config-card--edit { border-left: 4px solid #22c55e; }
+.config-card--readonly { border-left: 4px solid #94a3b8; background: #f8fafc; }
+.config-card--actions { border-left: 4px solid #f59e0b; }
+
+/* === Status Badge === */
+.status-badge {
+  display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px;
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em;
+}
+.status-badge--ok { background: #dcfce7; color: #166534; }
+
+/* === BD Grid === */
+.bd-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem; margin-top: 0.75rem;
+}
+.bd-item {
+  background: #f8fafc; border-radius: 8px; padding: 0.75rem;
+  text-align: center; border: 1px solid #e2e8f0;
+}
+.bd-count { display: block; font-size: 1.8rem; font-weight: 700; color: #1e293b; }
+.bd-label { display: block; font-size: 0.78rem; color: #64748b; text-transform: capitalize; margin-top: 0.25rem; }
+
+/* === Buttons === */
+.btn-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem; }
 .btn {
-  padding: 0.55rem 1.15rem;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 0.88rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  padding: 0.55rem 1.2rem; border-radius: 6px; border: none;
+  font-weight: 600; font-size: 0.88rem; cursor: pointer;
+  transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.35rem;
 }
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.btn--primary {
-  background: #3b82f6;
-  color: white;
-}
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn--primary { background: #3b82f6; color: white; }
 .btn--primary:hover:not(:disabled) { background: #2563eb; }
-.btn--success {
-  background: #22c55e;
-  color: white;
-}
-.btn--success:hover:not(:disabled) { background: #16a34a; }
-.btn--secondary {
-  background: #64748b;
-  color: white;
-}
+.btn--secondary { background: #64748b; color: white; }
 .btn--secondary:hover:not(:disabled) { background: #475569; }
-.btn--danger {
-  background: #ef4444;
-  color: white;
-}
+.btn--warning { background: #f59e0b; color: white; }
+.btn--warning:hover:not(:disabled) { background: #d97706; }
+.btn--danger { background: #ef4444; color: white; }
 .btn--danger:hover:not(:disabled) { background: #dc2626; }
 
-/* === Resultado Panel === */
-.resultado-panel {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 1rem;
-  margin-top: 0.75rem;
+/* === Scan Summary === */
+.scan-summary { display: flex; gap: 1.5rem; margin: 1rem 0; flex-wrap: wrap; }
+.scan-stat { text-align: center; padding: 0.75rem 1.5rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+.scan-num { display: block; font-size: 1.8rem; font-weight: 700; color: #1e293b; }
+.scan-label { display: block; font-size: 0.78rem; color: #64748b; margin-top: 0.2rem; }
+.scan-stat--alert { border-color: #fca5a5; background: #fef2f2; }
+.scan-stat--alert .scan-num { color: #dc2626; }
+.scan-stat--ok { border-color: #86efac; background: #f0fdf4; }
+.scan-stat--ok .scan-num { color: #16a34a; }
+
+.scan-detail { margin-top: 0.75rem; padding: 0.75rem; background: #f8fafc; border-radius: 6px; }
+.scan-detail h4 { margin: 0 0 0.35rem 0; font-size: 0.9rem; color: #1e293b; }
+.scan-detail span { font-size: 0.82rem; color: #64748b; }
+.huerfanos-list { margin: 0.35rem 0 0 0; padding-left: 1.2rem; font-size: 0.82rem; color: #dc2626; }
+
+/* === Backup === */
+.backup-totals { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+.backup-tag {
+  display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px;
+  background: #eff6ff; color: #1e40af; font-size: 0.78rem; font-weight: 600;
 }
-.resultado-panel h4 {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.95rem;
-  color: #1e293b;
+.upload-row { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.75rem; flex-wrap: wrap; }
+.file-input { font-size: 0.88rem; }
+
+/* === Form === */
+.form-group { margin-bottom: 1rem; }
+.form-group label {
+  display: block; font-weight: 600; font-size: 0.88rem; color: #334155;
+  margin-bottom: 0.35rem;
 }
-.resultado--success {
-  border-color: #86efac;
-  background: #f0fdf4;
+.form-input {
+  width: 100%; padding: 0.55rem 0.75rem; border: 2px solid #e2e8f0;
+  border-radius: 6px; font-size: 0.9rem; transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.form-input:focus { outline: none; border-color: #3b82f6; }
+.form-group small { display: block; margin-top: 0.25rem; font-size: 0.78rem; color: #64748b; }
+.form-group--highlight .form-input { border-color: #f59e0b; background: #fffbeb; }
+.form-group--highlight .form-input:focus { border-color: #d97706; }
+.label-badge {
+  display: inline-block; padding: 0.1rem 0.4rem; border-radius: 3px;
+  background: #f59e0b; color: white; font-size: 0.68rem; font-weight: 700;
+  vertical-align: middle; margin-left: 0.35rem;
 }
 
-/* === Escaneo Grid === */
-.escaneo-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 0.65rem;
-  margin-bottom: 0.75rem;
+/* === Move Notice === */
+.move-notice {
+  display: flex; gap: 0.75rem; align-items: flex-start;
+  padding: 1rem; border-radius: 8px; background: #fef3c7;
+  border: 1px solid #fde68a; margin-top: 0.75rem;
 }
-.escaneo-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0.75rem;
-  background: white;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  text-align: center;
-}
-.escaneo-card--alert {
-  border-color: #fca5a5;
-  background: #fef2f2;
-}
-.escaneo-card--ok {
-  border-color: #86efac;
-  background: #f0fdf4;
-}
-.escaneo-num {
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: #1e293b;
-  line-height: 1.2;
-}
-.escaneo-card--alert .escaneo-num { color: #dc2626; }
-.escaneo-card--ok .escaneo-num { color: #16a34a; }
-.escaneo-label {
-  font-size: 0.72rem;
-  color: #64748b;
-  font-weight: 600;
-  text-transform: uppercase;
-  margin-top: 0.2rem;
-}
+.move-notice-icon { font-size: 1.4rem; flex-shrink: 0; }
+.move-notice-text { font-size: 0.88rem; color: #92400e; line-height: 1.5; }
+.move-notice-text code { background: #fde68a; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.82rem; }
 
-/* === Huérfanos detalle === */
-.huerfanos-detalle {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid #e2e8f0;
+/* === Move Result === */
+.move-result {
+  margin-top: 1rem; padding: 1rem; border-radius: 8px;
+  font-size: 0.88rem; line-height: 1.6;
 }
-.huerfanos-detalle h5 {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.85rem;
-  color: #dc2626;
-}
-.huerfano-tipo {
-  margin-bottom: 0.4rem;
-  font-size: 0.85rem;
-  color: #475569;
-}
-.huerfano-badge {
-  display: inline-block;
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fca5a5;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  margin-left: 0.35rem;
-  margin-bottom: 0.25rem;
-}
+.move-result--ok { background: #dcfce7; border: 1px solid #86efac; color: #166534; }
+.move-result--warn { background: #fef3c7; border: 1px solid #fde68a; color: #92400e; }
+.move-result p { margin: 0.25rem 0; }
 
-/* === Recuperación resultado === */
-.recuperacion-ok {
-  color: #16a34a;
-  font-weight: 600;
-  font-size: 0.9rem;
-  margin: 0.5rem 0 0 0;
+/* === Readonly === */
+.readonly-badge {
+  display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px;
+  background: #94a3b8; color: white; font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.05em; vertical-align: middle;
 }
-.recuperacion-vacio {
-  color: #64748b;
-  font-size: 0.85rem;
-  margin: 0.5rem 0 0 0;
+.readonly-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem; margin-top: 0.75rem;
 }
-.backup-origen {
-  color: #64748b;
-  font-size: 0.82rem;
-  margin: 0.25rem 0 0 0;
-}
-.errores-lista {
-  margin-top: 0.5rem;
-  color: #dc2626;
-  font-size: 0.82rem;
-}
-.errores-lista ul {
-  margin: 0.25rem 0 0 0;
-  padding-left: 1.2rem;
-}
-
-/* === Capa Split (Backup/Restore) === */
-.capa-split {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-@media (max-width: 700px) {
-  .capa-split { grid-template-columns: 1fr; }
-}
-.capa-split-card {
-  padding: 1rem;
-  background: #f8fafc;
-  border-radius: 8px;
+.readonly-item {
+  background: #f1f5f9; padding: 0.65rem 0.85rem; border-radius: 6px;
   border: 1px solid #e2e8f0;
 }
-.capa-split-card h4 {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.95rem;
-  color: #1e293b;
-}
-.capa-split-card p {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.85rem;
-  color: #475569;
-  line-height: 1.5;
-}
-.restore-upload {
-  margin-bottom: 0.75rem;
-}
-.file-input {
-  font-size: 0.85rem;
-  width: 100%;
-}
-.file-name {
-  display: block;
-  font-size: 0.82rem;
-  color: #475569;
-  margin-top: 0.25rem;
-}
+.readonly-label { display: block; font-size: 0.75rem; color: #64748b; font-weight: 600; text-transform: uppercase; }
+.readonly-value { display: block; font-size: 1rem; color: #1e293b; font-weight: 700; margin-top: 0.15rem; }
 
-/* === Config Grid === */
-.config-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
+/* === Structure Preview Tree === */
+.structure-preview {
+  margin-top: 1rem; padding: 1rem; background: #f8fafc;
+  border-radius: 8px; border: 1px solid #e2e8f0;
 }
-@media (max-width: 700px) {
-  .config-grid { grid-template-columns: 1fr; }
+.structure-preview h4 {
+  margin: 0 0 0.75rem 0; font-size: 0.88rem; font-weight: 700; color: #475569;
 }
-.config-card {
-  padding: 0.85rem;
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
+.tree-item {
+  font-family: 'Courier New', monospace; font-size: 0.85rem; color: #334155;
+  padding: 0.2rem 0; line-height: 1.6;
 }
-.config-card h5 {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.88rem;
-  color: #1e293b;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 0.35rem;
+.tree-item--base {
+  font-weight: 700; color: #1e293b; font-size: 0.92rem; margin-bottom: 0.15rem;
 }
-.config-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.25rem 0;
-  font-size: 0.82rem;
-  color: #475569;
-  gap: 0.5rem;
-}
-.config-row span {
-  flex-shrink: 0;
-  font-weight: 500;
-}
-.config-row strong {
-  text-align: right;
-  font-size: 0.85rem;
-}
-.config-row code {
-  background: #f1f5f9;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  font-size: 0.78rem;
-  color: #7c3aed;
-  word-break: break-all;
-}
-.prefijo-badge {
-  background: #dbeafe;
-  color: #2563eb;
-  padding: 0.1rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.85rem;
+.tree-label {
+  font-family: inherit; font-size: 0.78rem; color: #64748b;
+  margin-left: 0.5rem; font-style: italic;
 }
 </style>

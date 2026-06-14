@@ -11,7 +11,8 @@ import openpyxl
 import csv
 import os
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from config import get_dir
+from config import get_dir, sanitize_filename
+from utils.meta_json import write_meta_json, build_herramienta_meta
 
 router = APIRouter(prefix="/herramientas", tags=["Herramientas"])
 
@@ -25,6 +26,19 @@ def crear_herramienta(herramienta: HerramientaCreate, session: Session = Depends
     session.add(db_herr)
     session.commit()
     session.refresh(db_herr)
+    
+    # Crear carpeta de la herramienta y escribir .meta.json
+    try:
+        herr_code = f"H{db_herr.id:04d}"
+        nombre_safe = sanitize_filename(db_herr.nombre_herramienta, "SN")
+        folder_name = f"{herr_code}_{nombre_safe}"
+        herr_dir = get_dir("herramientas_imagenes") / folder_name
+        herr_dir.mkdir(parents=True, exist_ok=True)
+        meta_data = build_herramienta_meta(db_herr)
+        write_meta_json(herr_dir, meta_data)
+    except Exception as e:
+        print(f"[herramientas.py] WARNING: No se pudo crear .meta.json: {e}")
+    
     return db_herr
 
 
@@ -422,18 +436,18 @@ async def upload_imagen_herramienta(herr_id: int, file: UploadFile = File(...), 
     with open(str(file_path), "wb") as f:
         f.write(contents)
 
-    # Derivar imagen_ruta desde el path real de config (no hardcodear nombre de carpeta)
-    uploads_base = get_dir("uploads_base")
-    imagen_ruta = str(file_path.relative_to(uploads_base))
+    imagen_ruta = f"HERRAMIENTAS/{folder_name}/{filename}"
     db_herr.imagen_ruta = imagen_ruta
     session.add(db_herr)
     session.commit()
     session.refresh(db_herr)
 
-    # Crear archivo .meta.json con datos de la herramienta para recuperación ante pérdida de BD
-    from utils.meta_json import write_meta_json, build_herramienta_meta
-    meta_data = build_herramienta_meta(db_herr, imagen_ruta)
-    write_meta_json(uploads_dir, meta_data)
+    # Actualizar .meta.json con la nueva imagen
+    try:
+        meta_data = build_herramienta_meta(db_herr, imagen_ruta)
+        write_meta_json(uploads_dir, meta_data)
+    except Exception as e:
+        print(f"[herramientas.py] WARNING: No se pudo actualizar .meta.json: {e}")
 
     return {"ok": True, "imagen_ruta": db_herr.imagen_ruta, "nombre_archivo": file.filename}
 
@@ -458,6 +472,18 @@ def eliminar_imagen_herramienta(herr_id: int, session: Session = Depends(get_ses
     db_herr.imagen_ruta = None
     session.add(db_herr)
     session.commit()
+
+    # Actualizar .meta.json (sin imagen)
+    try:
+        herr_code = f"H{db_herr.id:04d}"
+        nombre_safe = sanitize_filename(db_herr.nombre_herramienta, "SN")
+        folder_name = f"{herr_code}_{nombre_safe}"
+        herr_dir = get_dir("herramientas_imagenes") / folder_name
+        if herr_dir.exists():
+            meta_data = build_herramienta_meta(db_herr)
+            write_meta_json(herr_dir, meta_data)
+    except Exception as e:
+        print(f"[herramientas.py] WARNING: No se pudo actualizar .meta.json: {e}")
 
     return {"ok": True, "message": "Imagen eliminada"}
 
@@ -484,6 +510,19 @@ def actualizar_herramienta(
     session.add(db_herr)
     session.commit()
     session.refresh(db_herr)
+    
+    # Actualizar .meta.json
+    try:
+        herr_code = f"H{db_herr.id:04d}"
+        nombre_safe = sanitize_filename(db_herr.nombre_herramienta, "SN")
+        folder_name = f"{herr_code}_{nombre_safe}"
+        herr_dir = get_dir("herramientas_imagenes") / folder_name
+        if herr_dir.exists():
+            meta_data = build_herramienta_meta(db_herr, db_herr.imagen_ruta)
+            write_meta_json(herr_dir, meta_data)
+    except Exception as e:
+        print(f"[herramientas.py] WARNING: No se pudo actualizar .meta.json: {e}")
+    
     return db_herr
 
 

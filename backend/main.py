@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from database import create_db_and_tables, seed_database
 from models import Usuario, Equipo, EstadoEquipo, OrdenTrabajo, EstadoOT, EventoHistorial, DocumentoAdjunto, OtRepuestoUtilizado
-from api.routes import estados, users, equipos, ordenes, auth, repuestos, preventivo, historial, reportes, documentos, herramientas
+from api.routes import estados, users, equipos, ordenes, auth, repuestos, preventivo, historial, reportes, documentos, herramientas, configuracion
 from config import get_dir
 
 @asynccontextmanager
@@ -38,6 +38,7 @@ app.include_router(historial.router)
 app.include_router(reportes.router)
 app.include_router(documentos.router)
 app.include_router(herramientas.router)
+app.include_router(configuracion.router)
 
 # Servir archivos estaticos (documentos subidos) - usa config.py
 uploads_dir = get_dir("uploads_base")

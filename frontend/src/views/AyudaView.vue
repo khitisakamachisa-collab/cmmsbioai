@@ -216,8 +216,8 @@ const pendientes = [
     emoji: '⚙️',
     nombre: 'Configuracion',
     prioridad: 'Alta',
-    descripcion: 'Pagina de configuracion del sistema (icono: ⚙️) con tres capas: Capa 1 — Metadatos de archivos (.meta.json) [YA IMPLEMENTADO]; Capa 2 — Escaneo y recuperacion: reconstruir la base de datos a partir de los archivos .meta.json si se pierde la BD; Capa 3 — Backup/Restore: exportar e importar la base de datos completa como archivo JSON o SQLite.',
-    estado: 'Parcial (Capa 1 implementada)'
+    descripcion: 'Pagina de configuracion del sistema (icono: ⚙️) con tres capas: Capa 1 — Metadatos de archivos (.meta.json) [IMPLEMENTADO]; Capa 2 — Escaneo y recuperacion: reconstruir la base de datos a partir de los archivos .meta.json si se pierde la BD [IMPLEMENTADO]; Capa 3 — Backup/Restore: exportar e importar la base de datos completa como archivo JSON [IMPLEMENTADO].',
+    estado: 'Implementado'
   },
   {
     emoji: '📅',
@@ -259,7 +259,7 @@ const pendientes = [
     nombre: 'Renombrar menu Inventario → Repuestos',
     prioridad: 'Baja',
     descripcion: 'El menu lateral muestra "Inventario" pero internamente ya se renombro a Repuestos. Actualizar la etiqueta del menu para consistencia.',
-    estado: 'Pendiente'
+    estado: 'Implementado'
   }
 ]
 
@@ -521,17 +521,17 @@ const metaJsonEjemplo = `{
               <p><strong>ESTADO: IMPLEMENTADO</strong></p>
               <p>Los archivos .meta.json almacenan metadatos junto a los archivos fisicos. Si se pierde la BD, los datos esenciales pueden recuperarse escaneando estos archivos.</p>
             </div>
-            <div class="capa-card capa-card--pending">
+            <div class="capa-card capa-card--done">
               <span class="capa-num">2</span>
               <h4>Escaneo y Recuperacion</h4>
-              <p><strong>ESTADO: PENDIENTE</strong></p>
+              <p><strong>ESTADO: IMPLEMENTADO</strong></p>
               <p>Funcionalidad en la pagina Configuracion que leera los .meta.json y recreara los registros en la base de datos automaticamente.</p>
             </div>
-            <div class="capa-card capa-card--pending">
+            <div class="capa-card capa-card--done">
               <span class="capa-num">3</span>
               <h4>Backup y Restore</h4>
-              <p><strong>ESTADO: PENDIENTE</strong></p>
-              <p>Exportacion e importacion de la base de datos completa como archivo JSON o SQLite para respaldo y restauracion.</p>
+              <p><strong>ESTADO: IMPLEMENTADO</strong></p>
+              <p>Exportacion e importacion de la base de datos completa como archivo JSON para respaldo y restauracion.</p>
             </div>
           </div>
         </div>

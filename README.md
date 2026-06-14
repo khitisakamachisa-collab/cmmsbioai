@@ -1,6 +1,6 @@
 # CMMS-BioAI
 
-[![Version](https://img.shields.io/badge/versi%C3%B3n-v0.6.x-blue.svg)](https://github.com/khitisakamachisa-collab/cmmsbioai)
+[![Version](https://img.shields.io/badge/versi%C3%B3n-v0.7.0-blue.svg)](https://github.com/khitisakamachisa-collab/cmmsbioai)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![Vue.js](https://img.shields.io/badge/Vue.js-3.5+-4FC08D.svg?logo=vue.js&logoColor=white)](https://vuejs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -20,6 +20,7 @@
 - [Instalación y Ejecución Local](#instalación-y-ejecución-local)
 - [Configuración del Sistema](#configuración-del-sistema)
 - [Estructura de Almacenamiento de Archivos](#estructura-de-almacenamiento-de-archivos)
+- [Estrategia de Recuperación de Datos](#estrategia-de-recuperación-de-datos)
 - [Modelo de Base de Datos](#modelo-de-base-de-datos)
 - [API REST — Endpoints](#api-rest--endpoints)
 - [Datos Seed (Carga Automática)](#datos-seed-carga-automática)
@@ -34,7 +35,7 @@
 
 ## Estado del Proyecto
 
-**Versión actual:** v0.6.x — Prototipo Funcional en Desarrollo Activo
+**Versión actual:** v0.7.0 — Prototipo Funcional en Desarrollo Activo
 
 ### Módulos Completados
 
@@ -45,17 +46,21 @@
 - [x] **RF05 — Historial de Mantenimiento:** Timeline visual de eventos por equipo, registro automático al completar OT, creación manual de eventos, tipos de evento (preventivo, correctivo, calibración, otro).
 - [x] **RF06 — Reportes y Estadísticas:** 6 reportes con gráficos interactivos — mantenimiento por equipo, OTs por período, análisis de costos, cumplimiento preventivo, disponibilidad de equipos, inventario.
 - [x] **RF08 — Autenticación de Usuarios:** Login con JWT y contraseñas hasheadas con bcrypt, gestión de usuarios (admin/técnico), seed automático de usuario admin por defecto.
-- [x] **Gestión Documental:** Módulo transversal de documentos adjuntos con drag-and-drop, categorías (manual, fotografía, reporte, garantía, calibración, informe, otro), visualización inline y descarga, asociación a equipos, OTs y repuestos.
-- [x] **Dashboard con Métricas:** Tarjetas con indicadores en tiempo real + gráficos de Equipos por Estado, Órdenes por Prioridad y Órdenes por Estado.
+- [x] **RF09 — Gestión de Inventario de Herramientas y Materiales de Trabajo:** CRUD completo con categorías (Instrumento de Medición, Herramienta Manual, Consumible, Kit), estados de uso, importación/exportación Excel, subida de imágenes, documentos adjuntos, diferenciación clara respecto a repuestos (costo operativo vs. costo de mantenimiento).
+- [x] **Gestión Documental:** Módulo transversal de documentos adjuntos con drag-and-drop, categorías (manual, fotografía, reporte, garantía, calibración, informe, otro), visualización inline y descarga, asociación a equipos, OTs, repuestos y herramientas.
+- [x] **Dashboard con Métricas:** Tarjetas con indicadores en tiempo real + gráficos de Equipos por Estado, Órdenes por Prioridad y Órdenes por Estado + sugerencias automáticas del sistema.
 - [x] **Configuración Centralizada:** Sistema de configuración mediante `config.json` + `config.py` con `get_dir()` para rutas de almacenamiento, nombres sanitizados para carpetas, y parámetros del sistema configurables.
+- [x] **Página de Configuración (⚙️):** Interfaz de gestión del sistema con 3 capas de recuperación de datos — metadatos en archivos `.meta.json`, escaneo y recuperación de registros huérfanos, backup y restore completo de la base de datos como JSON.
+- [x] **Página de Ayuda (?):** Documentación integrada del sistema con descripción de módulos, entidades, estructura de archivos y lista de funcionalidades pendientes.
 
 ### Módulos Pendientes
 
 - [ ] **RF07 — Módulo de Inteligencia Artificial:** Sugerencias de mantenimiento, detección de patrones, recomendaciones de repuestos.
-- [ ] **RF09 — Gestión de Inventario de Herramientas y Materiales de Trabajo:** Inventario separado para herramientas del taller (osciloscopios, testers, kits) y consumibles generales (alcohol, estaño), diferenciado de repuestos en impacto financiero y control de disponibilidad.
+- [ ] **RF10 — Calendario Preventivo:** Vista de calendario visual para tareas preventivas programadas.
+- [ ] **RF12 — Gestión de Proveedores:** CRUD de proveedores con datos de contacto e historial de compras.
 - [ ] Roles y permisos de usuario (autorización por roles en frontend y backend).
-- [ ] Página de Configuración del sistema (gestión de estados, rutas, parámetros).
-- [ ] Página de Ayuda (guía de uso, FAQ).
+- [ ] Protección de endpoints con autenticación JWT.
+- [ ] Paginación en listados.
 
 ---
 
@@ -65,13 +70,16 @@
 
 | Módulo | Descripción |
 |--------|-------------|
-| Dashboard | Métricas en tiempo real con gráficos interactivos (Chart.js) |
+| Dashboard | Métricas en tiempo real con gráficos interactivos (Chart.js) + sugerencias automáticas |
 | Equipos | CRUD de activos médicos con imágenes y documentos adjuntos |
 | Órdenes de Trabajo | Gestión del ciclo completo de OTs correctivas |
-| Inventario | Control de repuestos con stock automático |
+| Repuestos | Control de repuestos con stock automático e importación Excel |
+| Herramientas | Inventario de herramientas del taller con categorías y estados de uso |
 | Preventivo | Programación de tareas de mantenimiento preventivo |
 | Historial | Timeline visual de eventos de mantenimiento por equipo |
 | Reportes | 6 reportes estadísticos con gráficos interactivos |
+| Configuración | 3 capas de recuperación + gestión del sistema |
+| Ayuda | Documentación integrada del sistema |
 
 ---
 
@@ -107,6 +115,7 @@
 - **Proxy Vite:** `/uploads` → `http://127.0.0.1:8000` (servir archivos estáticos del backend)
 - **CORS:** Configurado con `allow_origins=["*"]` para desarrollo
 - **Base de datos:** Archivo único `cmms_bioai.db` (SQLite, portátil)
+- **Recuperación:** 3 capas — `.meta.json`, escaneo/recuperación, backup/restore JSON
 
 ---
 
@@ -141,17 +150,19 @@ CMMS-BioAI/
 │       ├── services/
 │       │   └── api.js           # Cliente Axios (baseURL: localhost:8000)
 │       ├── router/
-│       │   └── index.js         # 9 rutas SPA
+│       │   └── index.js         # 11 rutas SPA
 │       ├── views/
 │       │   ├── LoginView.vue
 │       │   ├── HomeDashboard.vue
 │       │   ├── EquiposView.vue
 │       │   ├── OrdenesView.vue
-│       │   ├── InventarioView.vue
+│       │   ├── InventarioView.vue         # Repuestos + Herramientas
 │       │   ├── PreventivoView.vue
 │       │   ├── HistorialView.vue
 │       │   ├── ReportesView.vue
-│       │   └── UsuariosView.vue
+│       │   ├── UsuariosView.vue
+│       │   ├── AyudaView.vue              # Documentación del sistema
+│       │   └── ConfiguracionView.vue      # Configuración y recuperación
 │       └── components/
 │           ├── Navbar.vue
 │           ├── DocumentosAdjuntos.vue      # Drag-and-drop de archivos
@@ -172,6 +183,7 @@ CMMS-BioAI/
     │   ├── estados.py           # EstadoEquipo (catálogo)
     │   ├── ordenes.py           # OrdenTrabajo + EstadoOT (catálogo)
     │   ├── repuestos.py         # Repuesto + OtRepuestoUtilizado
+    │   ├── herramientas.py      # Herramienta (nuevo en v0.7.0)
     │   ├── preventivo.py        # TareaPreventiva + TareaRepuesto
     │   ├── historial.py         # EventoHistorial
     │   └── documentos.py        # DocumentoAdjunto
@@ -180,6 +192,7 @@ CMMS-BioAI/
     │   ├── equipo.py
     │   ├── orden_trabajo.py
     │   ├── repuesto.py
+    │   ├── herramienta.py       # (nuevo en v0.7.0)
     │   ├── preventivo.py
     │   ├── historial.py
     │   ├── user.py
@@ -190,21 +203,25 @@ CMMS-BioAI/
     │   ├── equipos.py           # CRUD + Excel + imágenes
     │   ├── ordenes.py           # CRUD + stock + auto-historial
     │   ├── repuestos.py         # CRUD + Excel + imágenes
+    │   ├── herramientas.py      # CRUD + Excel + imágenes (nuevo en v0.7.0)
     │   ├── preventivo.py        # CRUD + generar-OT
     │   ├── estados.py           # CRUD estados de equipo
     │   ├── users.py             # Gestión de usuarios
     │   ├── historial.py         # CRUD + enriquecer respuestas
     │   ├── reportes.py          # 6 endpoints de reportes
     │   ├── documentos.py        # Upload/download/ver/eliminar
-    │   └── dashboard.py         # Métricas del dashboard
+    │   ├── dashboard.py         # Métricas del dashboard
+    │   └── configuracion.py     # Config + escaneo + backup/restore (nuevo en v0.7.0)
     │
     ├── utils/
-    │   └── security.py          # bcrypt + JWT
+    │   ├── security.py          # bcrypt + JWT
+    │   └── meta_json.py         # Escritura de .meta.json para recuperación
     │
     └── uploads/                 # Almacenamiento de archivos (no versionado)
         ├── EQUIPOS/             # E0001_Modelo_Serie/ (imágenes + DOC/)
+        ├── REPUESTOS/           # R0001_Nombre/ (imágenes + DOC/)
+        ├── HERRAMIENTAS/        # H0001_Nombre/ (imágenes + DOC/)
         ├── OT/                  # Archivos índice .txt de OTs
-        ├── INVENTARIO/          # I0001_xxx/ (imágenes + DOC/)
         └── REPORTES/            # Reportes generados
 ```
 
@@ -291,6 +308,8 @@ Para reiniciar la base de datos a cero:
 2. Eliminar el archivo `backend/cmms_bioai.db`
 3. Reiniciar el backend — las tablas y datos seed se recrean automáticamente
 
+> **Nota:** Si se tiene un backup JSON (generado desde la página Configuración), se puede restaurar después del reinicio para recuperar todos los datos sin perder información.
+
 ---
 
 ## Configuración del Sistema
@@ -308,8 +327,10 @@ El archivo `backend/config.json` centraliza la configuración del sistema:
     "equipos_imagenes": "uploads/EQUIPOS",
     "equipos_documentos": "uploads/EQUIPOS",
     "ot_documentos": "uploads/OT",
-    "inventario_imagenes": "uploads/INVENTARIO",
-    "inventario_documentos": "uploads/INVENTARIO",
+    "repuestos_imagenes": "uploads/REPUESTOS",
+    "repuestos_documentos": "uploads/REPUESTOS",
+    "herramientas_imagenes": "uploads/HERRAMIENTAS",
+    "herramientas_documentos": "uploads/HERRAMIENTAS",
     "reportes": "uploads/REPORTES"
   },
   "sistema": {
@@ -318,7 +339,7 @@ El archivo `backend/config.json` centraliza la configuración del sistema:
     "moneda": "BOB",
     "prefijo_equipos": "E",
     "prefijo_ordenes": "OT",
-    "prefijo_inventario": "I"
+    "prefijo_repuestos": "R"
   }
 }
 ```
@@ -344,9 +365,36 @@ El sistema organiza los archivos subidos en una estructura jerárquica bajo `bac
 uploads/EQUIPOS/
 └── E0001_CX23_MIC-OLY-001/         # Carpeta del equipo (E + ID + Modelo + Nro. Serie)
     ├── E0001_CX23_MIC-OLY-001.jpg  # Imagen principal del equipo
+    ├── .meta.json                   # Metadatos para recuperación
     └── DOC/                         # Documentos asociados al equipo
+        ├── .meta.json               # Índice de documentos
         ├── manual_usuario.pdf
         └── certificado_garantia.pdf
+```
+
+### Repuestos
+
+```text
+uploads/REPUESTOS/
+└── R0001_nombre_repuesto/
+    ├── R0001_nombre_repuesto.jpg    # Imagen del repuesto
+    ├── .meta.json                   # Metadatos para recuperación
+    └── DOC/                         # Documentos asociados
+        ├── .meta.json               # Índice de documentos
+        ├── ficha_tecnica.pdf
+        └── certificado_calibracion.pdf
+```
+
+### Herramientas
+
+```text
+uploads/HERRAMIENTAS/
+└── H0001_nombre_herramienta/
+    ├── H0001_nombre_herramienta.jpg # Imagen de la herramienta
+    ├── .meta.json                   # Metadatos para recuperación
+    └── DOC/                         # Documentos asociados
+        ├── .meta.json               # Índice de documentos
+        └── manual_osciloscopio.pdf
 ```
 
 ### Órdenes de Trabajo
@@ -364,23 +412,13 @@ uploads/EQUIPOS/E0001_CX23_MIC-OLY-001/
 
 La carpeta de OT dentro del equipo comparte el mismo nombre que el archivo índice `.txt` en `uploads/OT/`, lo que permite la referencia cruzada directa entre ambos.
 
-### Inventario (Repuestos)
-
-```text
-uploads/INVENTARIO/
-└── I0001_nombre_repuesto/
-    ├── I0001_nombre_repuesto.jpg   # Imagen del repuesto
-    └── DOC/                        # Documentos asociados
-        ├── ficha_tecnica.pdf
-        └── certificado_calibracion.pdf
-```
-
 ### Convención de Nombres
 
 | Entidad | Formato | Ejemplo |
 |---------|---------|---------|
 | Carpeta de Equipo | `E{ID4d}_Modelo_Serie` | `E0001_CX23_MIC-OLY-001` |
-| Carpeta de Inventario | `I{ID4d}_NombreSanitizado` | `I0001_Gel_Ecografico` |
+| Carpeta de Repuesto | `R{ID4d}_NombreSanitizado` | `R0001_Gel_Ecografico` |
+| Carpeta de Herramienta | `H{ID4d}_NombreSanitizado` | `H0001_Osciloscopio_Rigol` |
 | Archivo índice OT | `OT{ID4d}_Titulo_Tipo_Modelo_Serie.txt` | `OT0001_Calibracion_Preventivo_CX23_MIC-OLY-001.txt` |
 | Carpeta OT en equipo | `OT{ID4d}_Titulo_Tipo_Modelo_Serie/` | `OT0001_Calibracion_Preventivo_CX23_MIC-OLY-001/` |
 
@@ -388,9 +426,93 @@ Los nombres se sanitizan mediante `config.py → sanitize_filename()`, que reemp
 
 ---
 
+## Estrategia de Recuperación de Datos
+
+El sistema implementa una estrategia de recuperación en **3 capas** para proteger los datos contra la pérdida de la base de datos SQLite. Esta funcionalidad se gestiona desde la página **Configuración (⚙️)** del sistema.
+
+### Capa 1 — Metadatos en Archivos (.meta.json)
+
+Cada carpeta de entidad (equipo, repuesto, herramienta) contiene un archivo `.meta.json` con los metadatos esenciales del registro y sus documentos adjuntos. Este archivo se actualiza automáticamente cada vez que se sube una imagen o un documento. Si la base de datos se pierde, los datos esenciales pueden reconstruirse escaneando estos archivos.
+
+**Ejemplo de `.meta.json`:**
+
+```json
+{
+  "entidad_tipo": "equipo",
+  "entidad_id": 1,
+  "entidad_nombre": "Monitor de Signos Vitales",
+  "codigo": "E0001",
+  "modelo": "IntelliVue MX800",
+  "marca": "Philips",
+  "numero_serie": "SN-2024-001",
+  "imagen_ruta": "EQUIPOS/E0001_MonitorSignos/E0001_MonitorSignos.jpg",
+  "documentos": [
+    {
+      "nombre_archivo": "manual_usuario.pdf",
+      "ruta_archivo": "EQUIPOS/E0001_MonitorSignos/DOC/manual_usuario.pdf",
+      "tipo_archivo": "application/pdf",
+      "categoria": "manual",
+      "fecha_subida": "2025-01-15T10:30:00"
+    }
+  ]
+}
+```
+
+### Capa 2 — Escaneo y Recuperación
+
+La página Configuración incluye un escáner que lee todos los archivos `.meta.json` y los compara con los registros existentes en la base de datos. Si detecta entidades que existen en archivos pero no en la BD (registros huérfanos), permite recuperarlas y recrear los registros automáticamente con los datos disponibles en los metadatos.
+
+- **Endpoint:** `GET /configuracion/escanear` — Escanea y reporta estado
+- **Endpoint:** `POST /configuracion/recuperar` — Recupera registros huérfanos
+
+### Capa 3 — Backup y Restore
+
+Permite exportar toda la base de datos como un archivo JSON descargable y restaurarla desde ese archivo. El backup incluye metadatos (sistema, versión, fecha, totales) y todos los datos de las tablas. La restauración respeta el orden de dependencias de claves foráneas (padres primero) para garantizar la integridad referencial.
+
+- **Endpoint:** `GET /configuracion/backup` — Genera backup como JSON
+- **Endpoint:** `GET /configuracion/backup/descargar` — Descarga backup como archivo
+- **Endpoint:** `POST /configuracion/restore` — Restaura desde JSON en el body
+- **Endpoint:** `POST /configuracion/restore/subir` — Restaura subiendo un archivo JSON
+
+**Formato del backup:**
+
+```json
+{
+  "metadatos": {
+    "sistema": "CMMS-BioAI",
+    "version": "1.0",
+    "fecha_backup": "2025-06-14T10:30:00",
+    "descripcion": "Backup completo de la base de datos",
+    "totales": {
+      "estados_equipo": 19,
+      "equipos": 15,
+      "repuestos": 8
+    }
+  },
+  "datos": {
+    "estados_equipo": [...],
+    "estados_ot": [...],
+    "usuarios": [...],
+    "equipos": [...],
+    "repuestos": [...],
+    "herramientas": [...],
+    "ordenes_trabajo": [...],
+    "documentos": [...],
+    "eventos_historial": [...],
+    "tareas_preventivas": [...],
+    "tareas_repuestos": [...],
+    "ot_repuestos_utilizados": [...]
+  }
+}
+```
+
+**Orden de restauración (respeta FK):** estados_equipo → estados_ot → usuarios → equipos → repuestos → herramientas → ordenes_trabajo → documentos → eventos_historial → tareas_preventivas → tareas_repuestos → ot_repuestos_utilizados
+
+---
+
 ## Modelo de Base de Datos
 
-El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
+El sistema utiliza 11 tablas en SQLite, gestionadas con SQLModel:
 
 ### Tablas Principales
 
@@ -455,6 +577,25 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 | precio_referencia | float? | Precio para análisis de costos |
 | imagen_ruta | str? | Ruta relativa a imagen |
 
+**`herramienta`** — Inventario de herramientas y materiales de trabajo
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | int (PK) | Identificador automático |
+| nombre_herramienta | str | Nombre descriptivo |
+| numero_identificacion | str? (unique) | Código interno del taller |
+| descripcion | str? | Descripción detallada |
+| categoria | str | Instrumento de Medición / Herramienta Manual / Consumible / Kit |
+| cantidad_disponible | int | Stock actual |
+| unidad_medida | str | Unidad (unidad, juego, litro, etc.) |
+| ubicacion_almacen | str? | Ubicación física |
+| estado_uso | str | Disponible / En Uso / En Reparación / Dado de Baja |
+| imagen_ruta | str? | Ruta relativa a imagen |
+| costo_adquisicion | float? | Costo de adquisición |
+| fecha_adquisicion | date? | Fecha de adquisición |
+| proveedor_ultimo | str? | Último proveedor |
+| observaciones | str? | Notas adicionales |
+
 **`tareapreventiva`** — Tareas de mantenimiento preventivo
 
 | Campo | Tipo | Descripción |
@@ -493,6 +634,7 @@ El sistema utiliza 10 tablas en SQLite, gestionadas con SQLModel:
 | orden_trabajo_id | int? (FK→ordentrabajo) | OT asociada |
 | equipo_id | int? (FK→equipo) | Equipo asociado |
 | repuesto_id | int? (FK→repuesto) | Repuesto asociado |
+| herramienta_id | int? (FK→herramienta) | Herramienta asociada |
 | nombre_archivo | str | Nombre original |
 | ruta_archivo | str | Ruta relativa en servidor |
 | tipo_archivo | str | MIME type |
@@ -590,7 +732,7 @@ La documentación interactiva completa está disponible en `http://127.0.0.1:800
 | GET | `/ordenes/estados/` | Lista estados de OT |
 | POST | `/ordenes/estados/` | Crea un nuevo estado de OT |
 
-### Inventario / Repuestos (`/repuestos`)
+### Repuestos (`/repuestos`)
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
@@ -603,6 +745,20 @@ La documentación interactiva completa está disponible en `http://127.0.0.1:800
 | POST | `/repuestos/import-excel` | Importa repuestos desde Excel |
 | POST | `/repuestos/{id}/upload_imagen` | Sube imagen de repuesto |
 | GET | `/repuestos/{id}/imagen` | Obtiene imagen de repuesto |
+
+### Herramientas (`/herramientas`)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/herramientas/` | Lista todas las herramientas |
+| POST | `/herramientas/` | Crea una herramienta |
+| GET | `/herramientas/{id}` | Obtiene una herramienta |
+| PUT | `/herramientas/{id}` | Actualiza una herramienta |
+| DELETE | `/herramientas/{id}` | Elimina una herramienta |
+| GET | `/herramientas/plantilla-excel` | Descarga plantilla Excel |
+| POST | `/herramientas/import-excel` | Importa herramientas desde Excel |
+| POST | `/herramientas/{id}/upload_imagen` | Sube imagen de herramienta |
+| DELETE | `/herramientas/{id}/imagen` | Elimina imagen de herramienta |
 
 ### Mantenimiento Preventivo (`/preventivo`)
 
@@ -667,6 +823,20 @@ La documentación interactiva completa está disponible en `http://127.0.0.1:800
 | PUT | `/estados-equipo/{id}` | Actualiza un estado |
 | DELETE | `/estados-equipo/{id}` | Elimina un estado |
 
+### Configuración (`/configuracion`)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/configuracion/` | Lee configuración actual |
+| PUT | `/configuracion/` | Actualiza configuración |
+| GET | `/configuracion/estados-bd` | Resumen de registros por tabla |
+| GET | `/configuracion/escanear` | Escanea .meta.json y reporta huérfanos |
+| POST | `/configuracion/recuperar` | Recupera registros huérfanos |
+| GET | `/configuracion/backup` | Genera backup completo como JSON |
+| GET | `/configuracion/backup/descargar` | Descarga backup como archivo |
+| POST | `/configuracion/restore` | Restaura BD desde JSON |
+| POST | `/configuracion/restore/subir` | Restaura BD subiendo archivo JSON |
+
 ---
 
 ## Datos Seed (Carga Automática)
@@ -730,13 +900,25 @@ La documentación interactiva completa está disponible en `http://127.0.0.1:800
 | RF06 | Reporting y Estadísticas | Completado |
 | RF07 | Módulo de Inteligencia Artificial | Pendiente |
 | RF08 | Autenticación de Usuarios | Completado |
-| RF09 | Gestión de Inventario de Herramientas y Materiales de Trabajo | Planificado |
+| RF09 | Gestión de Inventario de Herramientas y Materiales de Trabajo | Completado |
+| RF10 | Calendario Preventivo | Pendiente |
+| RF12 | Gestión de Proveedores | Pendiente |
 
-### RF09 — Gestión de Inventario de Herramientas (Planificado)
+### RF09 — Gestión de Inventario de Herramientas y Materiales de Trabajo
 
-Diferencia herramientas del taller (osciloscopios, testers, kits) de los repuestos médicos. Las herramientas son activos del taller que no se consumen en una OT; su costo se contabiliza como costo operativo del departamento, no como costo de mantenimiento de un equipo individual.
+Módulo de inventario separado para herramientas del taller (osciloscopios, testers, kits) y consumibles generales (alcohol, estaño), diferenciado de repuestos en impacto financiero y control de disponibilidad.
 
-**Atributos planificados:** id, nombre_herramienta, numero_identificacion, descripcion, categoria (Instrumento de Medición / Herramienta Manual / Consumible / Kit), cantidad_disponible, unidad_medida, ubicacion_almacen, estado_uso (Disponible / En Uso / En Reparación / Dado de Baja), imagen_ruta, costo_adquisicion, fecha_adquisicion, proveedor_ultimo, observaciones.
+**Atributos:** id, nombre_herramienta, numero_identificacion, descripcion, categoria (Instrumento de Medición / Herramienta Manual / Consumible / Kit), cantidad_disponible, unidad_medida, ubicacion_almacen, estado_uso (Disponible / En Uso / En Reparación / Dado de Baja), imagen_ruta, costo_adquisicion, fecha_adquisicion, proveedor_ultimo, observaciones.
+
+**Funcionalidades implementadas:**
+- CRUD completo de herramientas
+- Importación/exportación Excel con lógica de upsert
+- Subida de imagen principal por herramienta
+- Documentos adjuntos por herramienta
+- 4 categorías: Instrumento de Medición, Herramienta Manual, Consumible, Kit
+- 4 estados de uso: Disponible, En Uso, En Reparación, Dado de Baja
+- Integración con la vista Inventario (pestañas Repuestos / Herramientas)
+- Archivo .meta.json para recuperación de datos
 
 **Diferenciación clave con RF04 (Repuestos):**
 
@@ -760,6 +942,7 @@ Diferencia herramientas del taller (osciloscopios, testers, kits) de los repuest
 | v0.5.0 | **Reportes** | 6 reportes con gráficos (costos, disponibilidad, cumplimiento, etc.) |
 | v0.6.0 | **Documentos** | Subida/descarga/eliminación de archivos, drag-and-drop, categorías |
 | v0.6.x | **Mejoras UI** | Scrollbars en modales, acceso a documentos desde acciones, nombres preservados, categoría "informe", configuración centralizada config.json, imágenes en equipos y repuestos, visualización inline de documentos |
+| v0.7.0 | **Herramientas + Configuración + Ayuda** | RF09 Herramientas (CRUD, Excel, imágenes, documentos, .meta.json), página Configuración con 3 capas de recuperación (metadatos, escaneo/recuperación, backup/restore JSON), página Ayuda con documentación integrada, navbar actualizado (Inventario→Repuestos, ?, ⚙️), 11 tablas en BD |
 
 ---
 
@@ -767,13 +950,16 @@ Diferencia herramientas del taller (osciloscopios, testers, kits) de los repuest
 
 - **Seed de Estados:** Los estados se crean automáticamente al iniciar el backend. Si se personaliza la base de datos manualmente, el seed no sobrescribirá datos existentes (solo inserta si las tablas están vacías).
 - **IDs de Base de Datos:** Los IDs son automáticos e incrementales. Si se elimina un registro, ese ID no se reutiliza. Para control normado de inventario, usar `numero_serie` o `numero_material`.
-- **Importación Excel:** Las plantillas se generan dinámicamente en el backend (no son archivos estáticos), garantizando sincronización con los modelos de datos actuales.
+- **Importación Excel:** Las plantillas se generan dinámicamente en el backend (no son archivos estáticos), garantizando sincronización con los modelos de datos actuales. Soportan lógica de upsert (actualiza si el registro ya existe).
 - **Configuración Centralizada:** Todos los módulos deben usar `from config import get_dir` para obtener rutas de almacenamiento. Nunca calcular rutas con `__file__` desde otros módulos.
 - **Sanitización de Nombres:** La función `sanitize_filename()` en `config.py` normaliza nombres de archivos/carpetas a ASCII seguro, reemplazando caracteres especiales por guiones bajos.
+- **Archivos .meta.json:** Cada carpeta de entidad contiene un `.meta.json` con metadatos esenciales para recuperación. Estos archivos se actualizan automáticamente al subir imágenes o documentos.
+- **Backup/Restore:** El backup exporta toda la BD como JSON. La restauración limpia las tablas existentes e inserta los datos respetando el orden de dependencias FK. Los campos fecha se convierten automáticamente entre string ISO y tipos Python date/datetime.
 - **Seguridad:** El JWT secret está hardcodeado en `utils/security.py`. Para producción, mover a variable de entorno. Los endpoints no tienen protección de autenticación todavía (pendiente de implementar).
 - **CORS:** Configurado con `allow_origins=["*"]` para desarrollo. Restringir para producción.
 - **Proxy Vite:** Las peticiones `/uploads/*` desde el frontend se redirigen automáticamente al backend en puerto 8000 mediante el proxy configurado en `vite.config.js`.
 - **Migraciones:** La función `_migrate_repuesto_columns()` en `database.py` agrega columnas nuevas a la tabla `repuesto` si no existen (SQLite ALTER TABLE), permitiendo evolución del esquema sin pérdida de datos.
+- **Herramientas vs Repuestos:** Las herramientas se diferencian de los repuestos en su modelo de uso: las herramientas no se consumen en OTs (solo cambia su estado_uso), mientras que los repuestos se descuentan del stock. Los costos de herramientas son operativos del taller, no de mantenimiento de un equipo individual.
 
 ---
 
@@ -781,26 +967,24 @@ Diferencia herramientas del taller (osciloscopios, testers, kits) de los repuest
 
 ### Próximos Pasos (Prioridad Alta)
 
-1. **Buscadores faltantes** — Agregar búsqueda en Órdenes y Preventivo
-2. **Mejoras UX** — Iconos en barras de búsqueda, placeholders más cortos
-3. **INVENTARIO: Mejoras de UI** — Separar campos Numero de Material / Código en dos campos, mostrar solo numero_serie en tabla
+1. **RF10 — Calendario Preventivo** — Vista de calendario visual para tareas preventivas programadas (mensual/semanal)
+2. **Protección de rutas por autenticación** — `Depends(get_current_user)` en endpoints protegidos + navigation guards en frontend
+3. **Paginación en listados** — Implementar offset/limit en endpoints de listado para mejorar rendimiento
 
 ### Prioridad Media
 
-4. **RF09 — Herramientas y Materiales** — Nuevo módulo de inventario de herramientas del taller
+4. **RF12 — Gestión de Proveedores** — CRUD de proveedores, vinculación con equipos y OTs
 5. **Roles y permisos** — Autorización por roles en frontend (route guards) y backend (dependencias de auth)
-6. **Página de Configuración** — Gestión de estados, rutas y parámetros desde la UI
-7. **Página de Ayuda** — Guía de uso, FAQ, tour guiado
-8. **Módulo de Proveedores** — CRUD de proveedores, vinculación con equipos y OTs
+6. **Secret JWT configurable** — Mover secreto JWT a variable de entorno o config.json
+7. **Reportes PDF** — Exportación de reportes a formato PDF
 
 ### Prioridad Baja (Post v1.0)
 
-9. **RF07 — Módulo IA** — Sugerencias de mantenimiento, detección de patrones, recomendaciones
-10. **Despliegue unificado** — Frontend compilado servido desde FastAPI (un solo puerto)
-11. **Empaquetado** — PyInstaller (.exe) + instalador Inno Setup / NSIS
-12. **Reportes PDF** — Exportación de reportes a formato PDF
-13. **Normalización** — Estándares UMDNS / GMDN para registro de equipos
-14. **Notificaciones** — Alertas de vencimiento, stock bajo, calibraciones próximas
+8. **RF07 — Módulo IA** — Sugerencias de mantenimiento, detección de patrones, recomendaciones
+9. **Despliegue unificado** — Frontend compilado servido desde FastAPI (un solo puerto)
+10. **Empaquetado** — PyInstaller (.exe) + instalador Inno Setup / NSIS
+11. **Normalización** — Estándares UMDNS / GMDN para registro de equipos
+12. **Notificaciones** — Alertas de vencimiento, stock bajo, calibraciones próximas
 
 ---
 

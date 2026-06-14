@@ -9,6 +9,7 @@ import PreventivoView from '../views/PreventivoView.vue'
 import HistorialView from '../views/HistorialView.vue'
 import ReportesView from '../views/ReportesView.vue'
 import AyudaView from '../views/AyudaView.vue'
+import ConfiguracionView from '../views/ConfiguracionView.vue'
 
 
 const routes = [
@@ -61,6 +62,11 @@ const routes = [
     path: '/ayuda',
     name: 'ayuda',
     component: AyudaView
+  },
+  {
+    path: '/configuracion',
+    name: 'configuracion',
+    component: ConfiguracionView
   }
 ]
 

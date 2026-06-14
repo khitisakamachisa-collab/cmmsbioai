@@ -7,12 +7,13 @@ const navLinks = [
   { path: '/inicio', label: 'Inicio' },
   { path: '/equipos', label: 'Equipos' },
   { path: '/ordenes', label: 'Ordenes' },
-  { path: '/inventario', label: 'Inventario' },
+  { path: '/inventario', label: 'Repuestos' },
   { path: '/preventivo', label: 'Preventivo' },
   { path: '/historial', label: 'Historial' },
   { path: '/reportes', label: 'Reportes' },
   { path: '/usuarios', label: 'Usuarios' },
-  { path: '/ayuda', label: '\u2753 Ayuda' }
+  { path: '/ayuda', label: '?' },
+  { path: '/configuracion', label: '\u2699\uFE0F' }
 ]
 
 const emit = defineEmits(['logout'])

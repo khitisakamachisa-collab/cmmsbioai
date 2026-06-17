@@ -1,0 +1,77 @@
+# ============================================
+# CMMS-BioAI - Archivos excluidos de Git
+# ============================================
+
+# --------------------------------------------
+# Backend - Python
+# --------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Entorno virtual
+venv/
+.venv/
+env/
+
+# Base de datos SQLite (se regenera con seed)
+backend/cmms_bioai.db
+backend/cmms_bioai_OLD.db
+backend/cmms_bioai.sqbpro
+
+# Archivos subidos por usuarios (no versionar)
+backend/uploads/
+
+# Logs
+*.log
+backend/log*.txt
+
+# --------------------------------------------
+# Frontend - Node.js / Vue.js
+# --------------------------------------------
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# --------------------------------------------
+# IDE / Editor
+# --------------------------------------------
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*~
+
+# --------------------------------------------
+# Sistema operativo
+# --------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --------------------------------------------
+# Archivos temporales / auxiliares
+# --------------------------------------------
+*.tmp
+*.bak
+*.cache
+package-lock.json
+
+# --------------------------------------------
+# Archivos del proyecto que no se suben
+# --------------------------------------------
+#Readme.txt
+#subir.txt
+#user.txt
+#user.md
+#ruta.md
+#BD.xlsx
+#BD.csv
+#BD 2022.xlsx
+#pendientes diseño.md

@@ -66,12 +66,12 @@ package-lock.json
 # --------------------------------------------
 # Archivos del proyecto que no se suben
 # --------------------------------------------
-Readme.txt
-subir.txt
-user.txt
-user.md
-ruta.md
-BD.xlsx
-BD.csv
-BD 2022.xlsx
-pendientes diseño.md
+#Readme.txt
+#subir.txt
+#user.txt
+#user.md
+#ruta.md
+#BD.xlsx
+#BD.csv
+#BD 2022.xlsx
+#pendientes diseño.md

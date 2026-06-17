@@ -13,6 +13,7 @@ const navLinks = [
   { path: '/inventario', label: 'Repuestos' },
   { path: '/preventivo', label: 'Preventivo' },
   { path: '/historial', label: 'Historial' },
+  { path: '/proveedores', label: 'Proveedores' },
   { path: '/reportes', label: 'Reportes' },
   { path: '/usuarios', label: 'Usuarios' },
   { path: '/ayuda', label: '?' },

@@ -9,6 +9,7 @@ from .preventivo import TareaPreventiva, TareaRepuesto
 from .historial import EventoHistorial
 from .documentos import DocumentoAdjunto
 from .herramientas import Herramienta
+from .proveedores import Proveedor, ContactoProveedor
 
 # Si tienes __all__, agrégalos allí también
 __all__ = [
@@ -18,5 +19,6 @@ __all__ = [
     "TareaPreventiva", "TareaRepuesto",
     "EventoHistorial",
     "DocumentoAdjunto",
-    "Herramienta"
+    "Herramienta",
+    "Proveedor", "ContactoProveedor"
 ]

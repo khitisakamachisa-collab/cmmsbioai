@@ -10,6 +10,7 @@ import HistorialView from '../views/HistorialView.vue'
 import ReportesView from '../views/ReportesView.vue'
 import AyudaView from '../views/AyudaView.vue'
 import ConfiguracionView from '../views/ConfiguracionView.vue'
+import ProveedoresView from '../views/ProveedoresView.vue'
 
 
 const routes = [
@@ -67,6 +68,11 @@ const routes = [
     path: '/configuracion',
     name: 'configuracion',
     component: ConfiguracionView
+  },
+  {
+    path: '/proveedores',
+    name: 'proveedores',
+    component: ProveedoresView
   }
 ]
 

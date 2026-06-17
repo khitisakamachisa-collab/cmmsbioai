@@ -1,9 +1,9 @@
 {
   "empresa": {
-    "nombre": "CMMS"
+    "nombre": "CMMS-BioAI"
   },
   "directorios": {
-    "uploads_base": "D:\\uploads",
+    "uploads_base": "uploads",
     "equipos_imagenes": "EQUIPOS",
     "equipos_documentos": "EQUIPOS",
     "ot_documentos": "OT",

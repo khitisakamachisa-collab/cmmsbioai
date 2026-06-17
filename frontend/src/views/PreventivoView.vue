@@ -15,6 +15,28 @@ const loading = ref(true)
 const currentPage = ref(1)
 const pageSize = ref(10)
 
+// --- Filtros de busqueda ---
+const searchQuery = ref('')
+const filterEquipo = ref('')
+const filterUbicacion = ref('')
+const filterUsuario = ref('')
+const filterEstado = ref('')
+
+// --- Vista: Tabla o Calendario ---
+const vistaActiva = ref('tabla')
+
+// --- Calendario ---
+const hoy = new Date()
+const calAnio = ref(hoy.getFullYear())
+const calMes = ref(hoy.getMonth()) // 0-based
+
+const DIAS_SEMANA = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+// --- Modal Detalle Calendario ---
+const showDetalleModal = ref(false)
+const detalleTarea = ref(null)
+
 // --- Modal ---
 const showModal = ref(false)
 const isEditing = ref(false)
@@ -54,6 +76,72 @@ const fetchData = async () => {
     loading.value = false
   }
 }
+
+// --- Opciones de filtros (derivadas de datos) ---
+const ubicacionesUnicas = computed(() => {
+  const uds = new Set()
+  equipos.value.forEach(eq => {
+    if (eq.ubicacion_actual) uds.add(eq.ubicacion_actual)
+  })
+  return Array.from(uds).sort()
+})
+
+// --- Tareas filtradas (afecta tabla + calendario) ---
+const filteredTareas = computed(() => {
+  let result = tareas.value
+
+  // Filtro texto
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    result = result.filter(t => {
+      const titulo = String(t.titulo ?? '').toLowerCase()
+      const equipoNombre = getEquipoNombre(t.equipo_id).toLowerCase()
+      const usuarioNombre = getUsuarioNombre(t.responsable_id).toLowerCase()
+      return titulo.includes(q) || equipoNombre.includes(q) || usuarioNombre.includes(q)
+    })
+  }
+
+  // Filtro equipo
+  if (filterEquipo.value) {
+    result = result.filter(t => String(t.equipo_id) === String(filterEquipo.value))
+  }
+
+  // Filtro ubicacion (del equipo asociado)
+  if (filterUbicacion.value) {
+    result = result.filter(t => {
+      const eq = equipos.value.find(e => e.id === t.equipo_id)
+      return eq && eq.ubicacion_actual === filterUbicacion.value
+    })
+  }
+
+  // Filtro usuario/responsable
+  if (filterUsuario.value) {
+    result = result.filter(t => String(t.responsable_id) === String(filterUsuario.value))
+  }
+
+  // Filtro estado
+  if (filterEstado.value) {
+    result = result.filter(t => getStatusClass(t.proxima_fecha) === filterEstado.value)
+  }
+
+  return result
+})
+
+const tieneFiltrosActivos = computed(() => {
+  return searchQuery.value.trim() || filterEquipo.value || filterUbicacion.value || filterUsuario.value || filterEstado.value
+})
+
+const limpiarFiltros = () => {
+  searchQuery.value = ''
+  filterEquipo.value = ''
+  filterUbicacion.value = ''
+  filterUsuario.value = ''
+  filterEstado.value = ''
+}
+
+watch([searchQuery, filterEquipo, filterUbicacion, filterUsuario, filterEstado], () => {
+  currentPage.value = 1
+})
 
 // --- Acciones CRUD ---
 const openCreateModal = async () => {
@@ -108,7 +196,7 @@ const addRepuesto = () => {
   const repInfo = listaInventario.value.find((r) => r.id === selectedRepuestoId.value)
   if (!repInfo) return
   if (repuestosSeleccionados.value.some((r) => r.repuesto_id === repInfo.id)) {
-    alert('Este repuesto ya está en el kit')
+    alert('Este repuesto ya esta en el kit')
     return
   }
   repuestosSeleccionados.value.push({
@@ -169,7 +257,7 @@ const saveTarea = async () => {
 }
 
 const deleteTarea = async (id) => {
-  if (confirm("¿Eliminar esta tarea preventiva?")) {
+  if (confirm('Eliminar esta tarea preventiva?')) {
     try {
       await apiClient.delete(`/preventivo/${id}`)
       alert('Tarea eliminada')
@@ -180,7 +268,7 @@ const deleteTarea = async (id) => {
   }
 }
 
-// --- NUEVO: Generar OT desde preventivo ---
+// --- Generar OT desde preventivo ---
 const openGenerarOTModal = (tarea) => {
   generarOTData.value = {
     tarea_id: tarea.id,
@@ -204,9 +292,9 @@ const generarOT = async () => {
     const res = await apiClient.post(`/preventivo/${generarOTData.value.tarea_id}/generar-ot`, payload)
     const otId = res.data.id
     showGenerarOTModal.value = false
+    showDetalleModal.value = false
     
-    // Preguntar si quiere ir a la OT para agregar repuestos
-    if (confirm(`OT #${otId} creada exitosamente. ¿Desea ir a editarla para agregar repuestos del kit?`)) {
+    if (confirm(`OT #${otId} creada exitosamente. Desea ir a editarla para agregar repuestos del kit?`)) {
       router.push('/ordenes')
     }
     
@@ -225,24 +313,28 @@ const getEquipoNombre = (id) => {
   const eq = equipos.value.find(e => e.id === id)
   return eq ? (eq.nombre_corto || eq.modelo) : 'N/A'
 }
+const getEquipoUbicacion = (id) => {
+  const eq = equipos.value.find(e => e.id === id)
+  return eq ? (eq.ubicacion_actual || 'Sin ubicacion') : 'N/A'
+}
 const getUsuarioNombre = (id) => {
   const u = usuarios.value.find(u => u.id === id)
   return u ? (u.full_name || u.username) : 'Sin asignar'
 }
 
-// Helper para calcular estado visual (Vencido, Próximo, OK)
+// Helper para calcular estado visual (Vencido, Proximo, OK)
 const getStatusClass = (proximaFecha) => {
   if (!proximaFecha) return 'status-unknown'
   const today = new Date().setHours(0,0,0,0)
   const dueDate = new Date(proximaFecha).setHours(0,0,0,0)
   
-  if (dueDate < today) return 'status-overdue' // Rojo: Vencido
-  if (dueDate === today) return 'status-due-today' // Naranja: Hoy
+  if (dueDate < today) return 'status-overdue'
+  if (dueDate === today) return 'status-due-today'
   
   const diffDays = (dueDate - today) / (1000 * 60 * 60 * 24)
-  if (diffDays <= 7) return 'status-upcoming' // Amarillo: Próximo (7 días)
+  if (diffDays <= 7) return 'status-upcoming'
   
-  return 'status-ok' // Verde: OK
+  return 'status-ok'
 }
 
 const getStatusLabel = (proximaFecha) => {
@@ -254,22 +346,156 @@ const getStatusLabel = (proximaFecha) => {
   if (dueDate === today) return 'Hoy'
   
   const diffDays = (dueDate - today) / (1000 * 60 * 60 * 24)
-  if (diffDays <= 7) return 'Próxima'
+  if (diffDays <= 7) return 'Proxima'
   
   return 'OK'
 }
 
+// Color para el calendario
+const getCalEventColor = (proximaFecha) => {
+  if (!proximaFecha) return '#94a3b8' // gris
+  const today = new Date().setHours(0,0,0,0)
+  const dueDate = new Date(proximaFecha).setHours(0,0,0,0)
+  
+  if (dueDate < today) return '#ef4444' // rojo
+  if (dueDate === today) return '#f97316' // naranja
+  
+  const diffDays = (dueDate - today) / (1000 * 60 * 60 * 24)
+  if (diffDays <= 7) return '#eab308' // amarillo
+  
+  return '#22c55e' // verde
+}
+
+const getCalEventBg = (proximaFecha) => {
+  if (!proximaFecha) return '#f1f5f9'
+  const today = new Date().setHours(0,0,0,0)
+  const dueDate = new Date(proximaFecha).setHours(0,0,0,0)
+  
+  if (dueDate < today) return '#fef2f2'
+  if (dueDate === today) return '#fff7ed'
+  
+  const diffDays = (dueDate - today) / (1000 * 60 * 60 * 24)
+  if (diffDays <= 7) return '#fefce8'
+  
+  return '#f0fdf4'
+}
+
+// --- Calendario: logica de grilla ---
+const calTitulo = computed(() => `${MESES[calMes.value]} ${calAnio.value}`)
+
+// Tareas agrupadas por fecha del mes actual (usando filteredTareas)
+const tareasPorDia = computed(() => {
+  const map = {}
+  filteredTareas.value.forEach(tarea => {
+    if (!tarea.proxima_fecha || !tarea.activa) return
+    const fecha = new Date(tarea.proxima_fecha)
+    if (fecha.getFullYear() === calAnio.value && fecha.getMonth() === calMes.value) {
+      const dia = fecha.getDate()
+      if (!map[dia]) map[dia] = []
+      map[dia].push(tarea)
+    }
+  })
+  return map
+})
+
+// Generar la grilla del mes: array de semanas, cada semana = 7 celdas
+const calGrilla = computed(() => {
+  const primerDia = new Date(calAnio.value, calMes.value, 1)
+  const ultimoDia = new Date(calAnio.value, calMes.value + 1, 0)
+  const totalDias = ultimoDia.getDate()
+  
+  // Dia de la semana del primer dia (0=domingo, convertir a lunes=0)
+  let inicioSemana = primerDia.getDay() - 1
+  if (inicioSemana < 0) inicioSemana = 6
+  
+  const celdas = []
+  
+  // Dias del mes anterior (celdas vacias)
+  const mesAnteriorUltimoDia = new Date(calAnio.value, calMes.value, 0).getDate()
+  for (let i = inicioSemana - 1; i >= 0; i--) {
+    celdas.push({ dia: mesAnteriorUltimoDia - i, esMesActual: false, tareas: [] })
+  }
+  
+  // Dias del mes actual
+  for (let d = 1; d <= totalDias; d++) {
+    celdas.push({ dia: d, esMesActual: true, tareas: tareasPorDia.value[d] || [] })
+  }
+  
+  // Completar ultima semana hasta 7 celdas
+  const resto = celdas.length % 7
+  if (resto > 0) {
+    for (let i = 1; i <= 7 - resto; i++) {
+      celdas.push({ dia: i, esMesActual: false, tareas: [] })
+    }
+  }
+  
+  // Dividir en semanas
+  const semanas = []
+  for (let i = 0; i < celdas.length; i += 7) {
+    semanas.push(celdas.slice(i, i + 7))
+  }
+  
+  return semanas
+})
+
+const esHoy = (dia) => {
+  return dia.esMesActual &&
+    dia.dia === hoy.getDate() &&
+    calMes.value === hoy.getMonth() &&
+    calAnio.value === hoy.getFullYear()
+}
+
+const calAnterior = () => {
+  if (calMes.value === 0) {
+    calMes.value = 11
+    calAnio.value--
+  } else {
+    calMes.value--
+  }
+}
+
+const calSiguiente = () => {
+  if (calMes.value === 11) {
+    calMes.value = 0
+    calAnio.value++
+  } else {
+    calMes.value++
+  }
+}
+
+const calHoy = () => {
+  calAnio.value = hoy.getFullYear()
+  calMes.value = hoy.getMonth()
+}
+
+// --- Detalle de tarea desde calendario ---
+const openDetalleTarea = (tarea) => {
+  detalleTarea.value = tarea
+  showDetalleModal.value = true
+}
+
+const closeDetalleYGenerarOT = () => {
+  showDetalleModal.value = false
+  openGenerarOTModal(detalleTarea.value)
+}
+
+const closeDetalleYEditar = () => {
+  showDetalleModal.value = false
+  openEditModal(detalleTarea.value)
+}
+
+// --- Paginacion tabla (usando filteredTareas) ---
 const paginatedTareas = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return tareas.value.slice(start, start + pageSize.value)
+  return filteredTareas.value.slice(start, start + pageSize.value)
 })
 
 const totalPages = computed(() =>
-  Math.max(1, Math.ceil(tareas.value.length / pageSize.value))
+  Math.max(1, Math.ceil(filteredTareas.value.length / pageSize.value))
 )
 
 watch(
-  () => tareas.value.length,
+  () => filteredTareas.value.length,
   (len) => {
     const tp = Math.max(1, Math.ceil(len / pageSize.value))
     if (currentPage.value > tp) currentPage.value = tp
@@ -284,6 +510,16 @@ const irPaginaSiguiente = () => {
   if (currentPage.value < totalPages.value) currentPage.value += 1
 }
 
+// --- Resumen rapido para el calendario (usando filteredTareas) ---
+const resumenCalendario = computed(() => {
+  const activas = filteredTareas.value.filter(t => t.activa)
+  const total = activas.length
+  const vencidas = activas.filter(t => getStatusClass(t.proxima_fecha) === 'status-overdue').length
+  const hoyCount = activas.filter(t => getStatusClass(t.proxima_fecha) === 'status-due-today').length
+  const proximas = activas.filter(t => getStatusClass(t.proxima_fecha) === 'status-upcoming').length
+  return { total, vencidas, hoy: hoyCount, proximas }
+})
+
 onMounted(() => {
   fetchData()
 })
@@ -296,86 +532,321 @@ onMounted(() => {
     <main class="content">
       <div class="top-bar">
         <h2>Mantenimiento Preventivo</h2>
-        <button class="btn-primary" @click="openCreateModal">+ Nueva Tarea</button>
+        <div class="top-bar-actions">
+          <!-- Busqueda texto -->
+          <div class="search-wrapper">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+            </svg>
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="search-input"
+              placeholder="Titulo, equipo, responsable..."
+              autocomplete="off"
+              aria-label="Buscar tareas preventivas"
+            >
+          </div>
+          <!-- Toggle vista -->
+          <div class="vista-toggle">
+            <button 
+              class="vista-btn" 
+              :class="{ 'vista-btn--active': vistaActiva === 'tabla' }"
+              @click="vistaActiva = 'tabla'"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm1 9v2a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2H1zm0-1h14V2a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8zm7-4a.5.5 0 0 0 0 1h4a.5.5 0 0 0 0-1H8zm0 2a.5.5 0 0 0 0 1h4a.5.5 0 0 0 0-1H8zM2 5.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm0 2a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/>
+              </svg>
+              Tabla
+            </button>
+            <button 
+              class="vista-btn" 
+              :class="{ 'vista-btn--active': vistaActiva === 'calendario' }"
+              @click="vistaActiva = 'calendario'"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+              </svg>
+              Calendario
+            </button>
+          </div>
+          <button class="btn-primary" @click="openCreateModal">+ Nueva Tarea</button>
+        </div>
+      </div>
+
+      <!-- Barra de filtros -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <label class="filter-label">Equipo:</label>
+          <select v-model="filterEquipo" class="filter-select">
+            <option value="">Todos</option>
+            <option v-for="eq in equipos" :key="eq.id" :value="eq.id">{{ eq.nombre_corto || eq.modelo }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Ubicacion:</label>
+          <select v-model="filterUbicacion" class="filter-select">
+            <option value="">Todas</option>
+            <option v-for="ub in ubicacionesUnicas" :key="ub" :value="ub">{{ ub }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Responsable:</label>
+          <select v-model="filterUsuario" class="filter-select">
+            <option value="">Todos</option>
+            <option v-for="u in usuarios" :key="u.id" :value="u.id">{{ u.full_name || u.username }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Estado:</label>
+          <select v-model="filterEstado" class="filter-select">
+            <option value="">Todos</option>
+            <option value="status-overdue">Vencida</option>
+            <option value="status-due-today">Hoy</option>
+            <option value="status-upcoming">Proxima</option>
+            <option value="status-ok">OK</option>
+            <option value="status-unknown">Sin fecha</option>
+          </select>
+        </div>
+        <button v-if="tieneFiltrosActivos" class="btn-clear-filters" @click="limpiarFiltros" title="Limpiar todos los filtros">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+          </svg>
+          Limpiar
+        </button>
+        <span v-if="tieneFiltrosActivos" class="filter-count">{{ filteredTareas.length }} de {{ tareas.length }}</span>
       </div>
 
       <div v-if="loading">Cargando...</div>
 
-      <table v-if="!loading && tareas.length">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Equipo</th>
-            <th>Título</th>
-            <th>Frecuencia</th>
-            <th>Próxima Fecha</th>
-            <th>Estado</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="tarea in paginatedTareas" :key="tarea.id">
-            <td>#{{ tarea.id }}</td>
-            <td>{{ getEquipoNombre(tarea.equipo_id) }}</td>
-            <td><strong>{{ tarea.titulo }}</strong></td>
-            <td>Cada {{ tarea.frecuencia_dias }} días</td>
-            <td>{{ tarea.proxima_fecha || 'Pendiente' }}</td>
-            <td>
-              <span class="badge" :class="getStatusClass(tarea.proxima_fecha)">
-                {{ getStatusLabel(tarea.proxima_fecha) }}
-              </span>
-            </td>
-            <td class="actions-cell">
-              <button class="btn-icon btn-generate-icon" title="Generar OT" @click="openGenerarOTModal(tarea)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
-                </svg>
-              </button>
-              <button class="btn-icon" title="Editar" @click="openEditModal(tarea)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                   <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10z"/>
-                </svg>
-              </button>
-              <button class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteTarea(tarea.id)">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                  <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                </svg>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- ==================== VISTA TABLA ==================== -->
+      <template v-if="!loading && vistaActiva === 'tabla'">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Equipo</th>
+              <th>Ubicacion</th>
+              <th>Titulo</th>
+              <th>Frecuencia</th>
+              <th>Proxima Fecha</th>
+              <th>Responsable</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!filteredTareas.length">
+              <td class="table-empty-cell" colspan="9">
+                {{ tieneFiltrosActivos ? 'No hay tareas que coincidan con los filtros.' : 'No hay tareas preventivas registradas.' }}
+              </td>
+            </tr>
+            <tr v-for="tarea in paginatedTareas" :key="tarea.id">
+              <td>#{{ tarea.id }}</td>
+              <td>{{ getEquipoNombre(tarea.equipo_id) }}</td>
+              <td>{{ getEquipoUbicacion(tarea.equipo_id) }}</td>
+              <td><strong>{{ tarea.titulo }}</strong></td>
+              <td>Cada {{ tarea.frecuencia_dias }} dias</td>
+              <td>{{ tarea.proxima_fecha || 'Pendiente' }}</td>
+              <td>{{ getUsuarioNombre(tarea.responsable_id) }}</td>
+              <td>
+                <span class="badge" :class="getStatusClass(tarea.proxima_fecha)">
+                  {{ getStatusLabel(tarea.proxima_fecha) }}
+                </span>
+              </td>
+              <td class="actions-cell">
+                <button class="btn-icon btn-generate-icon" title="Generar OT" @click="openGenerarOTModal(tarea)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
+                  </svg>
+                </button>
+                <button class="btn-icon" title="Editar" @click="openEditModal(tarea)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                     <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10z"/>
+                  </svg>
+                </button>
+                <button class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteTarea(tarea.id)">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                    <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                  </svg>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-      <div
-        v-if="!loading && tareas.length"
-        class="table-pagination"
-        role="navigation"
-        aria-label="Paginación de tareas preventivas"
-      >
-        <button
-          type="button"
-          class="btn-pagination"
-          :disabled="currentPage <= 1"
-          @click="irPaginaAnterior"
+        <div
+          v-if="filteredTareas.length"
+          class="table-pagination"
+          role="navigation"
+          aria-label="Paginacion de tareas preventivas"
         >
-          Anterior
-        </button>
-        <span class="table-pagination-meta">
-          Página {{ currentPage }} de {{ totalPages }}
-        </span>
-        <button
-          type="button"
-          class="btn-pagination"
-          :disabled="currentPage >= totalPages"
-          @click="irPaginaSiguiente"
-        >
-          Siguiente
-        </button>
+          <button
+            type="button"
+            class="btn-pagination"
+            :disabled="currentPage <= 1"
+            @click="irPaginaAnterior"
+          >
+            Anterior
+          </button>
+          <span class="table-pagination-meta">
+            Pagina {{ currentPage }} de {{ totalPages }}
+          </span>
+          <button
+            type="button"
+            class="btn-pagination"
+            :disabled="currentPage >= totalPages"
+            @click="irPaginaSiguiente"
+          >
+            Siguiente
+          </button>
+        </div>
+      </template>
+
+      <div v-if="!loading && vistaActiva === 'tabla' && !filteredTareas.length && tieneFiltrosActivos" class="empty-state">
+        No hay tareas que coincidan con los filtros seleccionados.
       </div>
+
+      <!-- ==================== VISTA CALENDARIO ==================== -->
+      <template v-if="!loading && vistaActiva === 'calendario'">
+        <!-- Leyenda de colores -->
+        <div class="cal-legend">
+          <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#ef4444"></span> Vencida</span>
+          <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#f97316"></span> Hoy</span>
+          <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#eab308"></span> Proxima</span>
+          <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#22c55e"></span> OK</span>
+          <span class="cal-legend-item"><span class="cal-legend-dot" style="background:#94a3b8"></span> Sin fecha</span>
+        </div>
+
+        <!-- Resumen rapido -->
+        <div class="cal-summary">
+          <div class="cal-summary-card cal-summary--total">
+            <span class="cal-summary-num">{{ resumenCalendario.total }}</span>
+            <span class="cal-summary-label">Tareas Activas</span>
+          </div>
+          <div class="cal-summary-card cal-summary--overdue">
+            <span class="cal-summary-num">{{ resumenCalendario.vencidas }}</span>
+            <span class="cal-summary-label">Vencidas</span>
+          </div>
+          <div class="cal-summary-card cal-summary--today">
+            <span class="cal-summary-num">{{ resumenCalendario.hoy }}</span>
+            <span class="cal-summary-label">Hoy</span>
+          </div>
+          <div class="cal-summary-card cal-summary--upcoming">
+            <span class="cal-summary-num">{{ resumenCalendario.proximas }}</span>
+            <span class="cal-summary-label">Proximas (7d)</span>
+          </div>
+        </div>
+
+        <!-- Navegacion del calendario -->
+        <div class="cal-nav">
+          <button class="cal-nav-btn" @click="calAnterior">&larr; Anterior</button>
+          <div class="cal-nav-center">
+            <h3 class="cal-title">{{ calTitulo }}</h3>
+            <button class="cal-hoy-btn" @click="calHoy">Hoy</button>
+          </div>
+          <button class="cal-nav-btn" @click="calSiguiente">Siguiente &rarr;</button>
+        </div>
+
+        <!-- Grilla del calendario -->
+        <div class="cal-grid">
+          <!-- Encabezado dias -->
+          <div class="cal-header" v-for="dia in DIAS_SEMANA" :key="dia">{{ dia }}</div>
+          
+          <!-- Celdas -->
+          <div 
+            v-for="(celda, idx) in calGrilla.flat()" 
+            :key="idx"
+            class="cal-cell"
+            :class="{ 
+              'cal-cell--other': !celda.esMesActual, 
+              'cal-cell--today': esHoy(celda),
+              'cal-cell--has-tasks': celda.tareas.length > 0
+            }"
+          >
+            <div class="cal-cell-header">
+              <span class="cal-day-num">{{ celda.dia }}</span>
+              <span v-if="celda.tareas.length > 1" class="cal-task-count">{{ celda.tareas.length }}</span>
+            </div>
+            <div class="cal-cell-events">
+              <div 
+                v-for="tarea in celda.tareas.slice(0, 3)" 
+                :key="tarea.id"
+                class="cal-event"
+                :style="{ 
+                  borderLeftColor: getCalEventColor(tarea.proxima_fecha),
+                  backgroundColor: getCalEventBg(tarea.proxima_fecha)
+                }"
+                @click="openDetalleTarea(tarea)"
+              >
+                <span class="cal-event-title">{{ tarea.titulo }}</span>
+                <span class="cal-event-equipo">{{ getEquipoNombre(tarea.equipo_id) }}</span>
+              </div>
+              <div v-if="celda.tareas.length > 3" class="cal-event-more" @click="vistaActiva = 'tabla'">
+                +{{ celda.tareas.length - 3 }} mas
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
     </main>
 
-    <!-- Modal Crear/Editar -->
+    <!-- ==================== Modal Detalle (Calendario) ==================== -->
+    <div v-if="showDetalleModal" class="modal-overlay" @click.self="showDetalleModal = false">
+      <div class="modal" style="width: 520px;">
+        <h3>Detalle de Tarea Preventiva</h3>
+        <div v-if="detalleTarea" class="detalle-content">
+          <div class="detalle-row">
+            <span class="detalle-label">ID:</span>
+            <span>#{{ detalleTarea.id }}</span>
+          </div>
+          <div class="detalle-row">
+            <span class="detalle-label">Titulo:</span>
+            <span><strong>{{ detalleTarea.titulo }}</strong></span>
+          </div>
+          <div class="detalle-row">
+            <span class="detalle-label">Equipo:</span>
+            <span>{{ getEquipoNombre(detalleTarea.equipo_id) }}</span>
+          </div>
+          <div class="detalle-row">
+            <span class="detalle-label">Frecuencia:</span>
+            <span>Cada {{ detalleTarea.frecuencia_dias }} dias</span>
+          </div>
+          <div class="detalle-row">
+            <span class="detalle-label">Proxima Fecha:</span>
+            <span>
+              <span class="badge" :class="getStatusClass(detalleTarea.proxima_fecha)">
+                {{ detalleTarea.proxima_fecha || 'Sin fecha' }} - {{ getStatusLabel(detalleTarea.proxima_fecha) }}
+              </span>
+            </span>
+          </div>
+          <div class="detalle-row">
+            <span class="detalle-label">Responsable:</span>
+            <span>{{ getUsuarioNombre(detalleTarea.responsable_id) }}</span>
+          </div>
+          <div class="detalle-row" v-if="detalleTarea.descripcion">
+            <span class="detalle-label">Descripcion:</span>
+            <span>{{ detalleTarea.descripcion }}</span>
+          </div>
+          <div v-if="detalleTarea.repuestos_detalle && detalleTarea.repuestos_detalle.length" class="detalle-kit">
+            <h4>Kit de Repuestos</h4>
+            <ul>
+              <li v-for="rep in detalleTarea.repuestos_detalle" :key="rep.repuesto_id">
+                {{ rep.cantidad_requerida }} x {{ rep.nombre_repuesto || 'Repuesto #' + rep.repuesto_id }}
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="showDetalleModal = false">Cerrar</button>
+          <button class="btn-edit-modal" @click="closeDetalleYEditar">Editar</button>
+          <button class="btn-primary" @click="closeDetalleYGenerarOT">Generar OT</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== Modal Crear/Editar ==================== -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal">
         <h3>{{ isEditing ? 'Editar Tarea Preventiva' : 'Nueva Tarea Preventiva' }}</h3>
@@ -390,17 +861,17 @@ onMounted(() => {
           </div>
 
           <div class="form-group">
-            <label>Título de la Tarea *</label>
-            <input v-model="formData.titulo" placeholder="Ej: Calibración Anual" required>
+            <label>Titulo de la Tarea *</label>
+            <input v-model="formData.titulo" placeholder="Ej: Calibracion Anual" required>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label>Frecuencia (días)</label>
+              <label>Frecuencia (dias)</label>
               <input v-model="formData.frecuencia_dias" type="number" min="1" required>
             </div>
             <div class="form-group">
-              <label>Última Fecha Realizada</label>
+              <label>Ultima Fecha Realizada</label>
               <input v-model="formData.ultima_fecha" type="date">
             </div>
           </div>
@@ -460,7 +931,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- NUEVO: Modal Generar OT desde Preventivo -->
+    <!-- ==================== Modal Generar OT ==================== -->
     <div v-if="showGenerarOTModal" class="modal-overlay" @click.self="showGenerarOTModal = false">
       <div class="modal" style="width: 480px;">
         <h3>Generar Orden de Trabajo</h3>
@@ -481,7 +952,7 @@ onMounted(() => {
           </div>
 
           <div class="form-group">
-            <label>Técnico Asignado</label>
+            <label>Tecnico Asignado</label>
             <select v-model="generarOTData.tecnico_asignado_id">
               <option :value="null">-- Sin Asignar --</option>
               <option v-for="u in usuarios" :key="u.id" :value="u.id">{{ u.full_name || u.username }}</option>
@@ -497,7 +968,7 @@ onMounted(() => {
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
               <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8 4a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 4zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
             </svg>
-            <span>Se creará una OT vinculada a esta tarea preventiva. Los repuestos del kit se sugerirán al editar la OT.</span>
+            <span>Se creara una OT vinculada a esta tarea preventiva. Los repuestos del kit se sugeriran al editar la OT.</span>
           </div>
 
           <div class="modal-actions">
@@ -516,13 +987,115 @@ onMounted(() => {
 /* Reutilizamos estilos de DashboardView */
 .dashboard-container { padding: 0; }
 .content { padding: 2rem; }
-table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; }
-th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-th { background-color: #f8f9fa; }
-.top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #ddd; font-size: 0.88rem; }
+th { background-color: #f8f9fa; font-weight: bold; }
+.top-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem 1rem; margin-bottom: 1rem; }
+.top-bar h2 { margin: 0; }
+.top-bar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
+
+/* Busqueda */
+.search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 200px;
+  flex: 1 1 180px;
+  max-width: 320px;
+}
+.search-icon {
+  position: absolute;
+  left: 10px;
+  color: #94a3b8;
+  pointer-events: none;
+  z-index: 1;
+}
+.search-input {
+  width: 100%;
+  padding: 0.55rem 0.85rem 0.55rem 2.2rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  background: #fff;
+}
+.search-input::placeholder { color: #94a3b8; }
+.search-input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* Barra de filtros */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.filter-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+.filter-select {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  background: #fff;
+  color: #334155;
+  min-width: 120px;
+  max-width: 180px;
+}
+.filter-select:focus {
+  outline: none;
+  border-color: #3498db;
+}
+.btn-clear-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-clear-filters:hover {
+  background: #fee2e2;
+}
+.filter-count {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+/* Tabla vacia */
+.table-empty-cell { text-align: center; color: #64748b; padding: 1.5rem 12px; font-size: 0.95rem; }
+.empty-state { text-align: center; padding: 2.5rem 1rem; color: #64748b; font-size: 0.95rem; }
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
 .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
+.btn-edit-modal { background-color: #f59e0b; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
 
 /* Iconos */
 .actions-cell { display: flex; gap: 0.5rem; }
@@ -533,15 +1106,15 @@ th { background-color: #f8f9fa; }
 
 /* Badges de Estado Preventivo */
 .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
-.status-ok { background-color: #d4edda; color: #155724; } /* Verde: OK */
-.status-upcoming { background-color: #fff3cd; color: #856404; } /* Amarillo: Próximo */
-.status-overdue { background-color: #f8d7da; color: #721c24; } /* Rojo: Vencido */
-.status-due-today { background-color: #ffeaa7; color: #856404; } /* Naranja: Hoy */
+.status-ok { background-color: #d4edda; color: #155724; }
+.status-upcoming { background-color: #fff3cd; color: #856404; }
+.status-overdue { background-color: #f8d7da; color: #721c24; }
+.status-due-today { background-color: #ffeaa7; color: #856404; }
 .status-unknown { background-color: #e2e3e5; color: #383d41; }
 
 /* Modales */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
-.modal { background: white; padding: 2rem; border-radius: 8px; width: 500px; max-width: 90%; }
+.modal { background: white; padding: 2rem; border-radius: 8px; width: 500px; max-width: 90%; max-height: 90vh; overflow-y: auto; }
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
 .form-group input, .form-group select { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; }
@@ -690,5 +1263,360 @@ th { background-color: #f8f9fa; }
   flex-shrink: 0;
   margin-top: 2px;
   color: #d97706;
+}
+
+/* ==================== TOGGLE VISTA ==================== */
+.vista-toggle {
+  display: flex;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.vista-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  transition: all 0.2s;
+}
+.vista-btn:first-child {
+  border-right: 1px solid #e2e8f0;
+}
+.vista-btn:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+.vista-btn--active {
+  background: #3b82f6;
+  color: white;
+}
+.vista-btn--active:hover {
+  background: #2563eb;
+  color: white;
+}
+
+/* ==================== CALENDARIO ==================== */
+.cal-legend {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+.cal-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: #475569;
+  font-weight: 500;
+}
+.cal-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Resumen rapido */
+.cal-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 700px) {
+  .cal-summary { grid-template-columns: repeat(2, 1fr); }
+}
+.cal-summary-card {
+  background: white;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+}
+.cal-summary-num {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.cal-summary-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.cal-summary--total .cal-summary-num { color: #3b82f6; }
+.cal-summary--overdue .cal-summary-num { color: #ef4444; }
+.cal-summary--today .cal-summary-num { color: #f97316; }
+.cal-summary--upcoming .cal-summary-num { color: #eab308; }
+
+/* Navegacion */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  background: white;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.cal-nav-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #334155;
+  transition: all 0.2s;
+}
+.cal-nav-btn:hover {
+  background: #e2e8f0;
+}
+.cal-nav-center {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.cal-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+.cal-hoy-btn {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 0.3rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.cal-hoy-btn:hover {
+  background: #2563eb;
+}
+
+/* Grilla del calendario */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(15,23,42,0.07);
+}
+.cal-header {
+  padding: 0.6rem 0.5rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #64748b;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cal-cell {
+  min-height: 90px;
+  border-right: 1px solid #f1f5f9;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 0.35rem;
+  position: relative;
+  transition: background 0.15s;
+}
+.cal-cell:nth-child(7n) {
+  border-right: none;
+}
+.cal-cell--other {
+  background: #fafbfc;
+}
+.cal-cell--other .cal-day-num {
+  color: #c0c7d0;
+}
+.cal-cell--today {
+  background: #eff6ff;
+}
+.cal-cell--today .cal-day-num {
+  background: #3b82f6;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+.cal-cell:hover {
+  background: #f8fafc;
+}
+.cal-cell--today:hover {
+  background: #dbeafe;
+}
+
+.cal-cell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+.cal-day-num {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+}
+.cal-task-count {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: #3b82f6;
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cal-cell-events {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.cal-event {
+  padding: 0.2rem 0.4rem;
+  border-left: 3px solid;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+  overflow: hidden;
+}
+.cal-event:hover {
+  filter: brightness(0.95);
+  transform: translateX(1px);
+}
+.cal-event-title {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-event-equipo {
+  display: block;
+  font-size: 0.65rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cal-event-more {
+  font-size: 0.68rem;
+  color: #3b82f6;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.1rem 0.4rem;
+}
+.cal-event-more:hover {
+  text-decoration: underline;
+}
+
+/* Detalle modal */
+.detalle-content {
+  margin: 1rem 0;
+}
+.detalle-row {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.9rem;
+  color: #334155;
+}
+.detalle-label {
+  font-weight: 700;
+  color: #64748b;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+.detalle-kit {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+.detalle-kit h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.88rem;
+  color: #1e293b;
+}
+.detalle-kit ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+  color: #475569;
+}
+.detalle-kit li {
+  padding: 0.15rem 0;
+}
+
+/* Responsive calendario */
+@media (max-width: 900px) {
+  .cal-cell {
+    min-height: 70px;
+    padding: 0.2rem;
+  }
+  .cal-event-title {
+    font-size: 0.65rem;
+  }
+  .cal-event-equipo {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .cal-grid {
+    font-size: 0.8rem;
+  }
+  .cal-cell {
+    min-height: 55px;
+  }
+  .cal-event {
+    padding: 0.1rem 0.2rem;
+  }
+  .cal-event-equipo {
+    display: none;
+  }
+  .top-bar {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+  .top-bar-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 </style>

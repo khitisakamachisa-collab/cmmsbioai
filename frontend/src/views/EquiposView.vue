@@ -15,8 +15,12 @@ const error_msg = ref('')
 const PAGE_SIZE = 10
 const currentPage = ref(1)
 const searchQuery = ref('')
-const searchSerie = ref('')
-const searchUbicacion = ref('')
+
+// --- Filtros de busqueda ---
+const filterModelo = ref('')
+const filterSerie = ref('')
+const filterMarca = ref('')
+const filterMaterial = ref('')
 
 // --- Variables Modal ---
 const showModal = ref(false)
@@ -94,8 +98,8 @@ const handleImagenSelect = (event) => {
 // Helper: obtener nombre legible de la ruta de imagen
 const getImagenNombre = (ruta) => {
   if (!ruta) return ''
-  // Extraer solo el nombre del archivo (soporta / y \)
-  const parts = ruta.split(/[/\\]/)
+  // Extraer solo el nombre del archivo de la ruta
+  const parts = ruta.split('/')
   return parts[parts.length - 1] || ruta
 }
 
@@ -172,31 +176,75 @@ const fetchTecnicos = async () => {
   }
 }
 
-const filteredEquipos = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  const qSerie = searchSerie.value.trim().toLowerCase()
-  const qUbicacion = searchUbicacion.value.trim().toLowerCase()
+// --- Opciones de filtros (derivadas de datos) ---
+const modelosUnicos = computed(() => {
+  const vals = new Set()
+  equipos.value.forEach(eq => { if (eq.modelo) vals.add(eq.modelo) })
+  return Array.from(vals).sort()
+})
+const seriesUnicas = computed(() => {
+  const vals = new Set()
+  equipos.value.forEach(eq => { if (eq.numero_serie) vals.add(eq.numero_serie) })
+  return Array.from(vals).sort()
+})
+const marcasUnicas = computed(() => {
+  const vals = new Set()
+  equipos.value.forEach(eq => { if (eq.marca) vals.add(eq.marca) })
+  return Array.from(vals).sort()
+})
+const materialesUnicos = computed(() => {
+  const vals = new Set()
+  equipos.value.forEach(eq => { if (eq.numero_material) vals.add(eq.numero_material) })
+  return Array.from(vals).sort()
+})
 
-  return equipos.value.filter((eq) => {
-    // Filtro 1: Búsqueda general (OR entre nombre, marca, modelo)
-    if (q) {
+const tieneFiltrosActivos = computed(() => {
+  return searchQuery.value.trim() || filterModelo.value || filterSerie.value || filterMarca.value || filterMaterial.value
+})
+
+const limpiarFiltros = () => {
+  searchQuery.value = ''
+  filterModelo.value = ''
+  filterSerie.value = ''
+  filterMarca.value = ''
+  filterMaterial.value = ''
+}
+
+const filteredEquipos = computed(() => {
+  let result = equipos.value
+
+  // Filtro texto libre
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    result = result.filter((eq) => {
       const nombre = String(eq.nombre_corto ?? '').toLowerCase()
       const marca = String(eq.marca ?? '').toLowerCase()
       const modelo = String(eq.modelo ?? '').toLowerCase()
-      if (!nombre.includes(q) && !marca.includes(q) && !modelo.includes(q)) return false
-    }
-    // Filtro 2: Número de Serie
-    if (qSerie) {
-      const serie = String(eq.numero_serie ?? '').toLowerCase()
-      if (!serie.includes(qSerie)) return false
-    }
-    // Filtro 3: Ubicación
-    if (qUbicacion) {
-      const ubicacion = String(eq.ubicacion_actual ?? '').toLowerCase()
-      if (!ubicacion.includes(qUbicacion)) return false
-    }
-    return true
-  })
+      return nombre.includes(q) || marca.includes(q) || modelo.includes(q)
+    })
+  }
+
+  // Filtro modelo
+  if (filterModelo.value) {
+    result = result.filter(eq => eq.modelo === filterModelo.value)
+  }
+
+  // Filtro numero de serie
+  if (filterSerie.value) {
+    result = result.filter(eq => eq.numero_serie === filterSerie.value)
+  }
+
+  // Filtro marca
+  if (filterMarca.value) {
+    result = result.filter(eq => eq.marca === filterMarca.value)
+  }
+
+  // Filtro numero de material
+  if (filterMaterial.value) {
+    result = result.filter(eq => eq.numero_material === filterMaterial.value)
+  }
+
+  return result
 })
 
 const totalPages = computed(() =>
@@ -211,7 +259,7 @@ watch(
   }
 )
 
-watch([searchQuery, searchSerie, searchUbicacion], () => {
+watch([searchQuery, filterModelo, filterSerie, filterMarca, filterMaterial], () => {
   currentPage.value = 1
 })
 
@@ -490,49 +538,18 @@ onMounted(() => {
       <div class="top-bar">
         <h2>Gestión de Equipos Médicos</h2>
         <div class="top-bar-actions">
-          <div class="search-filters">
-            <div class="search-wrapper">
-              <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-              </svg>
-              <input
-                v-model="searchQuery"
-                type="search"
-                class="search-input"
-                placeholder="Nombre, marca, modelo..."
-                autocomplete="off"
-                aria-label="Buscar por nombre, marca o modelo"
-              >
-            </div>
-            <div class="search-wrapper">
-              <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-              </svg>
-              <input
-                v-model="searchSerie"
-                type="search"
-                class="search-input"
-                placeholder="N. Serie..."
-                autocomplete="off"
-                aria-label="Buscar por número de serie"
-              >
-            </div>
-            <div class="search-wrapper">
-              <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-              </svg>
-              <input
-                v-model="searchUbicacion"
-                type="search"
-                class="search-input"
-                placeholder="Ubicación..."
-                autocomplete="off"
-                aria-label="Buscar por ubicación"
-              >
-            </div>
-            <button v-if="searchQuery || searchSerie || searchUbicacion" class="btn-clear-filters" @click="searchQuery = ''; searchSerie = ''; searchUbicacion = ''" title="Limpiar todos los filtros">
-              ✕
-            </button>
+          <div class="search-wrapper">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+            </svg>
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="search-input"
+              placeholder="Nombre, marca, modelo..."
+              autocomplete="off"
+              aria-label="Buscar equipos"
+            >
           </div>
           <button class="btn-import" @click="openImportModal" title="Cargar equipos desde Excel">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -545,6 +562,45 @@ onMounted(() => {
         </div>
       </div>
       
+      <!-- Barra de filtros -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <label class="filter-label">Modelo:</label>
+          <select v-model="filterModelo" class="filter-select">
+            <option value="">Todos</option>
+            <option v-for="m in modelosUnicos" :key="m" :value="m">{{ m }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">N. Serie:</label>
+          <select v-model="filterSerie" class="filter-select">
+            <option value="">Todos</option>
+            <option v-for="s in seriesUnicas" :key="s" :value="s">{{ s }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Marca:</label>
+          <select v-model="filterMarca" class="filter-select">
+            <option value="">Todas</option>
+            <option v-for="m in marcasUnicas" :key="m" :value="m">{{ m }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label filter-label--extra">N. Material:</label>
+          <select v-model="filterMaterial" class="filter-select">
+            <option value="">Todos</option>
+            <option v-for="m in materialesUnicos" :key="m" :value="m">{{ m }}</option>
+          </select>
+        </div>
+        <button v-if="tieneFiltrosActivos" class="btn-clear-filters" @click="limpiarFiltros" title="Limpiar todos los filtros">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+          </svg>
+          Limpiar
+        </button>
+        <span v-if="tieneFiltrosActivos" class="filter-count">{{ filteredEquipos.length }} de {{ equipos.length }}</span>
+      </div>
+
       <div v-if="loading">Cargando equipos...</div>
       <div v-if="error_msg" class="error">{{ error_msg }}</div>
 
@@ -563,7 +619,7 @@ onMounted(() => {
         <tbody>
           <tr v-if="!filteredEquipos.length">
             <td class="table-empty-cell" colspan="7">
-              {{ (searchQuery.trim() || searchSerie.trim() || searchUbicacion.trim()) ? 'No hay equipos que coincidan con los filtros de búsqueda.' : 'No hay equipos para mostrar.' }}
+              {{ searchQuery.trim() ? 'No hay equipos que coincidan con la búsqueda.' : 'No hay equipos para mostrar.' }}
             </td>
           </tr>
           <template v-else>
@@ -1004,38 +1060,13 @@ onMounted(() => {
   align-items: center;
   gap: 0.65rem;
 }
-.search-filters {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  flex: 1 1 auto;
-}
 .search-wrapper {
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 150px;
-  flex: 1 1 140px;
-  max-width: 240px;
-}
-.btn-clear-filters {
-  background: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  font-size: 0.85rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.2s;
-}
-.btn-clear-filters:hover {
-  background: #dc2626;
+  min-width: 200px;
+  flex: 1 1 180px;
+  max-width: 320px;
 }
 .search-icon {
   position: absolute;
@@ -1058,6 +1089,72 @@ onMounted(() => {
   outline: none;
   border-color: #3498db;
   box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* Barra de filtros */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.filter-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+}
+.filter-label--extra {
+  color: #ca8a04;
+}
+.filter-select {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  background: #fff;
+  color: #334155;
+  min-width: 120px;
+  max-width: 180px;
+}
+.filter-select:focus {
+  outline: none;
+  border-color: #3498db;
+}
+.btn-clear-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-clear-filters:hover {
+  background: #fee2e2;
+}
+.filter-count {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
 }
 
 table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }

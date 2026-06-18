@@ -1,6 +1,6 @@
 # CMMS-BioAI
 
-[![Version](https://img.shields.io/badge/versi%C3%B3n-v0.8.1-blue.svg)](https://github.com/khitisakamachisa-collab/cmmsbioai)
+[![Version](https://img.shields.io/badge/versi%C3%B3n-v0.8.3-blue.svg)](https://github.com/khitisakamachisa-collab/cmmsbioai)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![Vue.js](https://img.shields.io/badge/Vue.js-3.5+-4FC08D.svg?logo=vue.js&logoColor=white)](https://vuejs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -35,7 +35,7 @@
 
 ## Estado del Proyecto
 
-**Versión actual:** v0.8.1 — Prototipo Funcional en Desarrollo Activo
+**Versión actual:** v0.8.3 — Prototipo Funcional en Desarrollo Activo
 
 ### Módulos Completados
 
@@ -140,6 +140,18 @@ CMMS-BioAI/
 │   ├── index.html
 │   ├── vite.config.js           # Config Vite + proxy /uploads
 │   ├── package.json
+│   ├── public/                  # Archivos estáticos servidos tal cual por Vite
+│   │   ├── favicon.svg
+│   │   ├── icons.svg
+│   │   └── plantillas/          # Plantillas Excel/CSV descargables desde la UI
+│   │       ├── plantilla_equipos.xlsx
+│   │       ├── plantilla_equipos.csv
+│   │       ├── plantilla_repuestos.xlsx
+│   │       ├── plantilla_repuestos.csv
+│   │       ├── plantilla_herramientas.xlsx
+│   │       ├── plantilla_herramientas.csv
+│   │       ├── plantilla_proveedores.xlsx
+│   │       └── plantilla_proveedores.csv
 │   └── src/
 │       ├── main.js
 │       ├── App.vue
@@ -510,14 +522,33 @@ Cada vez que se crea o actualiza una entidad (equipo, repuesto, herramienta) o s
 }
 ```
 
-### Capa 2 — Escaneo y Recuperación (Desde `.meta.json`)
+### Capa 2 — Escaneo y Recuperación (Desde `.meta.json` y `.txt` de OTs)
 
-Si la BD se pierde, el sistema puede escanear todos los `.meta.json` y recuperar los registros:
+Si la BD se pierde, el sistema puede escanear todos los `.meta.json` y los archivos `.txt` de referencia de OTs, y recuperar los registros:
 
 | Endpoint | Descripción |
 |----------|-------------|
-| `GET /configuracion/escanear` | Escanea `.meta.json` y reporta entidades huérfanas (en archivos pero no en BD) |
-| `POST /configuracion/recuperar` | Recupera registros huérfanos desde `.meta.json` y los inserta en la BD |
+| `GET /configuracion/escanear` | Escanea `.meta.json` (entidades + documentos) y `.txt` (OTs) y reporta entidades huérfanas e imágenes faltantes |
+| `POST /configuracion/recuperar` | Recupera registros huérfanos desde `.meta.json`/`.txt` y sincroniza imágenes faltantes en registros existentes |
+
+**Qué hace el escaneo (v0.8.3+):**
+
+1. **Detecta huérfanos** (entidades en archivos pero no en BD):
+   - Equipos, Repuestos, Herramientas desde `.meta.json` en sus carpetas raíz
+   - Órdenes de Trabajo desde archivos `.txt` en `uploads/OT/`
+   - Documentos desde `.meta.json` en carpetas `DOC/` y `OT/OTxxxx/`
+
+2. **Detecta imágenes faltantes**: si el registro existe en BD pero con `imagen_ruta=NULL` y el `.meta.json` tiene la ruta, se reporta como "imagen faltante". Al ejecutar "Recuperar / Sincronizar", se actualiza el campo en la BD.
+
+3. **Recupera documentos de OTs**: ahora se escanean las carpetas `OT/OTxxxx_Titulo_Modelo_Serie/` dentro de cada equipo (donde se guardan los documentos asociados a esa OT). Antes solo se escaneaba la carpeta `DOC/` de cada entidad.
+
+4. **Reconstruye OTs desde `.txt`**: el archivo `uploads/OT/OTxxxx_Titulo_Modelo_Serie.txt` (generado automáticamente al subir el primer documento de una OT) contiene el ID, título, prioridad, descripción de la falla y los datos del equipo asociado. La recuperación crea la OT con estado "Abierta" y la asocia al equipo correspondiente.
+
+**Limitaciones conocidas:**
+- Las OTs recuperadas se crean con estado "Abierta" (no se puede saber el estado original desde el `.txt`).
+- Los campos `acciones_realizadas`, `tiempo_real_invertido`, `costo_adicional` y `costos_adicionales` no se restauran (no están en el `.txt`).
+- Los repuestos utilizados en cada OT (`OtRepuestoUtilizado`) no se recuperan (no hay `.meta.json` para esta relación).
+- El historial de mantenimiento (`EventoHistorial`) no se recupera (no tiene `.meta.json`).
 
 ### Capa 3 — Backup y Restore (Exportación/Importación JSON)
 
@@ -1070,6 +1101,8 @@ Centraliza el directorio de empresas proveedoras de equipos, repuestos, herramie
 | v0.7.0 | **Herramientas + Recuperación** | RF09 completo, estrategia de recuperación de datos (3 capas), archivos `.meta.json`, escaneo y recuperación de registros huérfanos, backup/restore completo (BD + config.json), página de configuración |
 | v0.8.0 | **Arquitectura + Configuración** | Rediseño de directorios (sub-carpetas relativas a `uploads_base`), cambio de prefijo `I`→`R` para repuestos, `uploads_base` editable desde UI, movimiento automático de archivos, re-montaje de archivos estáticos sin reiniciar, restore preserva `uploads_base` actual, nombre de empresa modificable |
 | v0.8.1 | **RF10 Proveedores + Ciudad** | Reorden del menú lateral, campo `ciudad` añadido a `Proveedor` (RF10) con migración automática, importación masiva de proveedores desde Excel/CSV con upsert por `nombre_empresa`, plantilla Excel descargable con 20 proveedores biomédicos de Bolivia de ejemplo, modal de resultados de importación con conteo de creados/actualizados/fallidos, página de Ayuda actualizada con relaciones de RF10 con RF01/RF04/RF09/RF03+RF05 |
+| v0.8.2 | **Plantillas Estáticas** | Plantillas Excel/CSV migradas del backend a archivos estáticos en `frontend/public/plantillas/` (8 archivos en total: 4 `.xlsx` + 4 `.csv` para Equipos, Repuestos, Herramientas y Proveedores). El frontend descarga directamente desde `/plantillas/<nombre>` sin llamar al backend. Los endpoints `/plantilla-excel` y `/plantilla-csv` del backend se mantienen como respaldo con aviso en su docstring. Script `scripts/generar_plantillas_estaticas.py` para regenerar los 8 archivos cuando se actualicen los modelos. |
+| v0.8.3 | **Capa 2 — Recuperación Mejorada** | Arreglo de 3 bugs en el endpoint `/configuracion/recuperar`: (1) **Sincronización de imágenes**: si un equipo/repuesto/herramienta existe en BD con `imagen_ruta=NULL` pero su `.meta.json` tiene la ruta, ahora se sincroniza automáticamente (antes se saltaba el registro por "ya existir"). (2) **Recuperación de OTs**: ahora se leen los archivos `.txt` de referencia en `uploads/OT/` y se reconstruyen las OTs con su título, prioridad, descripción y equipo asociado (antes no se recuperaba ninguna OT). (3) **Documentos de OTs**: ahora se escanean las carpetas `OT/OTxxxx_Titulo_Modelo_Serie/` dentro de cada equipo para recuperar los documentos asociados a cada OT (antes solo se escaneaba `DOC/`). UI del escaneo mejorada con tarjetas para "Imágenes faltantes" y resultados detallados por tipo. |
 
 ---
 
@@ -1077,7 +1110,7 @@ Centraliza el directorio de empresas proveedoras de equipos, repuestos, herramie
 
 - **Seed de Estados:** Los estados se crean automáticamente al iniciar el backend. Si se personaliza la base de datos manualmente, el seed no sobrescribirá datos existentes (solo inserta si las tablas están vacías).
 - **IDs de Base de Datos:** Los IDs son automáticos e incrementales. Si se elimina un registro, ese ID no se reutiliza. Para control normado de inventario, usar `numero_serie` o `numero_material`.
-- **Importación Excel:** Las plantillas se generan dinámicamente en el backend (no son archivos estáticos), garantizando sincronización con los modelos de datos actuales. Soporta formatos `.xlsx` y `.csv`.
+- **Importación Excel:** Las plantillas son **archivos estáticos** ubicados en `frontend/public/plantillas/` (8 archivos: 4 `.xlsx` + 4 `.csv` para Equipos, Repuestos, Herramientas y Proveedores). Vite los sirve directamente desde la URL `/plantillas/<nombre>` sin necesidad de llamar al backend. Los endpoints `/plantilla-excel` y `/plantilla-csv` del backend se mantienen como **respaldo** y para documentación Swagger. Soporta formatos `.xlsx` y `.csv`. Para modificar una plantilla, edita el archivo correspondiente en `frontend/public/plantillas/` o regenera los 8 archivos con `python scripts/generar_plantillas_estaticas.py`.
 - **Configuración Centralizada:** Todos los módulos deben usar `from config import get_dir` para obtener rutas de almacenamiento. Nunca calcular rutas con `__file__` desde otros módulos.
 - **Arquitectura de Directorios:** `uploads_base` es la única ruta configurable. Las sub-carpetas (`EQUIPOS`, `REPUESTOS`, etc.) son relativas a `uploads_base` y se derivan automáticamente. Al cambiar `uploads_base`, todas las sub-carpetas se reubican sin intervención manual.
 - **Re-montaje Dinámico:** Al cambiar `uploads_base`, los archivos estáticos se re-montan automáticamente sin reiniciar el backend. Las imágenes y documentos son accesibles inmediatamente desde la nueva ubicación.

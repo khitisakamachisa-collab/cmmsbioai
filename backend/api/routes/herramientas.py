@@ -54,6 +54,11 @@ def listar_herramientas(session: Session = Depends(get_session)):
 @router.get("/plantilla-excel")
 def descargar_plantilla_excel(session: Session = Depends(get_session)):
     """
+    [RESPALDO] La fuente principal de esta plantilla ahora es el archivo estatico en:
+        frontend/public/plantillas/plantilla_herramientas.xlsx
+    El frontend descarga directamente desde ahi (sin llamar al backend).
+    Este endpoint se mantiene como respaldo y para documentacion Swagger.
+
     Genera y descarga un archivo Excel plantilla con datos de ejemplo
     de herramientas para biolaboratorio.
     """

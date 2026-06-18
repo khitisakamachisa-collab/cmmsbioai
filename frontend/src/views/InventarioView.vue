@@ -327,54 +327,23 @@ const handleDrop = (e) => {
   }
 }
 
-const downloadTemplate = async () => {
-  try {
-    const response = await apiClient.get('/repuestos/plantilla-excel', {
-      responseType: 'blob'
-    })
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    const contentDisposition = response.headers['content-disposition']
-    let filename = 'CMMS-BioAI_Plantilla_Repuestos.xlsx'
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?(.+?)"?$/)
-      if (match) filename = match[1]
-    }
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-  } catch (error) {
-    alert('Error al descargar la plantilla')
-    console.error(error)
-  }
+const downloadTemplate = () => {
+  // Descarga directa desde archivos estáticos en /public/plantillas/
+  const link = document.createElement('a')
+  link.href = `${import.meta.env.BASE_URL}plantillas/plantilla_repuestos.xlsx`
+  link.download = 'CMMS-BioAI_Plantilla_Repuestos.xlsx'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
-const downloadTemplateCSV = async () => {
-  try {
-    const response = await apiClient.get('/repuestos/plantilla-csv', {
-      responseType: 'blob'
-    })
-    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }))
-    const link = document.createElement('a')
-    link.href = url
-    const contentDisposition = response.headers['content-disposition']
-    let filename = 'CMMS-BioAI_Plantilla_Repuestos.csv'
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?(.+?)"?$/)
-      if (match) filename = match[1]
-    }
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-  } catch (error) {
-    alert('Error al descargar la plantilla CSV')
-    console.error(error)
-  }
+const downloadTemplateCSV = () => {
+  const link = document.createElement('a')
+  link.href = `${import.meta.env.BASE_URL}plantillas/plantilla_repuestos.csv`
+  link.download = 'CMMS-BioAI_Plantilla_Repuestos.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
 const uploadExcel = async () => {
@@ -745,29 +714,14 @@ const herrHandleDrop = (e) => {
   }
 }
 
-const herrDownloadTemplate = async () => {
-  try {
-    const response = await apiClient.get('/herramientas/plantilla-excel', {
-      responseType: 'blob'
-    })
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    const contentDisposition = response.headers['content-disposition']
-    let filename = 'CMMS-BioAI_Plantilla_Herramientas.xlsx'
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?(.+?)"?$/)
-      if (match) filename = match[1]
-    }
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-  } catch (error) {
-    alert('Error al descargar la plantilla')
-    console.error(error)
-  }
+const herrDownloadTemplate = () => {
+  // Descarga directa desde archivos estáticos en /public/plantillas/
+  const link = document.createElement('a')
+  link.href = `${import.meta.env.BASE_URL}plantillas/plantilla_herramientas.xlsx`
+  link.download = 'CMMS-BioAI_Plantilla_Herramientas.xlsx'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
 const herrUploadExcel = async () => {

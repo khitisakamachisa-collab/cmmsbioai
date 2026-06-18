@@ -425,54 +425,24 @@ const handleDrop = (e) => {
   }
 }
 
-const downloadTemplate = async () => {
-  try {
-    const response = await apiClient.get('/equipos/plantilla-excel', {
-      responseType: 'blob'
-    })
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    const contentDisposition = response.headers['content-disposition']
-    let filename = 'CMMS-BioAI_Plantilla_Equipos.xlsx'
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?(.+?)"?$/)
-      if (match) filename = match[1]
-    }
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-  } catch (error) {
-    alert('Error al descargar la plantilla')
-    console.error(error)
-  }
+const downloadTemplate = () => {
+  // Descarga directa desde archivos estáticos en /public/plantillas/
+  // (sin llamar al backend, más rápido y funciona offline)
+  const link = document.createElement('a')
+  link.href = `${import.meta.env.BASE_URL}plantillas/plantilla_equipos.xlsx`
+  link.download = 'CMMS-BioAI_Plantilla_Equipos.xlsx'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
-const downloadTemplateCSV = async () => {
-  try {
-    const response = await apiClient.get('/equipos/plantilla-csv', {
-      responseType: 'blob'
-    })
-    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv' }))
-    const link = document.createElement('a')
-    link.href = url
-    const contentDisposition = response.headers['content-disposition']
-    let filename = 'CMMS-BioAI_Plantilla_Equipos.csv'
-    if (contentDisposition) {
-      const match = contentDisposition.match(/filename="?(.+?)"?$/)
-      if (match) filename = match[1]
-    }
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-  } catch (error) {
-    alert('Error al descargar la plantilla CSV')
-    console.error(error)
-  }
+const downloadTemplateCSV = () => {
+  const link = document.createElement('a')
+  link.href = `${import.meta.env.BASE_URL}plantillas/plantilla_equipos.csv`
+  link.download = 'CMMS-BioAI_Plantilla_Equipos.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
 const uploadExcel = async () => {

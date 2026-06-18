@@ -434,34 +434,45 @@ def escanear_meta_json():
     """
     Escanea todos los archivos .meta.json en el directorio uploads
     y los compara con los registros existentes en la BD.
+
+    Incluye:
+    - Entidades (equipos, repuestos, herramientas) desde .meta.json en su carpeta raíz
+    - Órdenes de Trabajo desde el archivo .txt de referencia en uploads/OT/
+    - Documentos desde .meta.json en subcarpetas DOC/ y OT/OTxxxx/ de cada entidad
+    - Detecta imágenes faltantes: si el .meta.json tiene imagen_ruta pero el
+      registro en BD tiene imagen_ruta=None, se reporta como "imagen_faltante"
     """
     resultados = {
-        "equipos": {"en_archivos": [], "en_bd": 0, "huerfanos": []},
-        "repuestos": {"en_archivos": [], "en_bd": 0, "huerfanos": []},
-        "herramientas": {"en_archivos": [], "en_bd": 0, "huerfanos": []},
+        "equipos": {"en_archivos": [], "en_bd": 0, "huerfanos": [], "imagenes_faltantes": []},
+        "repuestos": {"en_archivos": [], "en_bd": 0, "huerfanos": [], "imagenes_faltantes": []},
+        "herramientas": {"en_archivos": [], "en_bd": 0, "huerfanos": [], "imagenes_faltantes": []},
+        "ordenes": {"en_archivos": [], "en_bd": 0, "huerfanos": []},
         "documentos": {"en_archivos": [], "en_bd": 0, "huerfanos": []},
     }
 
     with Session(engine) as session:
-        ids_equipos_bd = set(e.id for e in session.exec(select(Equipo)).all())
-        ids_repuestos_bd = set(r.id for r in session.exec(select(Repuesto)).all())
-        ids_herramientas_bd = set(h.id for h in session.exec(select(Herramienta)).all())
+        ids_equipos_bd = {e.id: e for e in session.exec(select(Equipo)).all()}
+        ids_repuestos_bd = {r.id: r for r in session.exec(select(Repuesto)).all()}
+        ids_herramientas_bd = {h.id: h for h in session.exec(select(Herramienta)).all()}
+        ids_ots_bd = {o.id: o for o in session.exec(select(OrdenTrabajo)).all()}
         ids_docs_bd = set(d.id for d in session.exec(select(DocumentoAdjunto)).all())
 
         resultados["equipos"]["en_bd"] = len(ids_equipos_bd)
         resultados["repuestos"]["en_bd"] = len(ids_repuestos_bd)
         resultados["herramientas"]["en_bd"] = len(ids_herramientas_bd)
+        resultados["ordenes"]["en_bd"] = len(ids_ots_bd)
         resultados["documentos"]["en_bd"] = len(ids_docs_bd)
 
     uploads_base = UPLOADS_DIR
 
     carpetas_entidad = {
-        "EQUIPOS": "equipos",
-        "REPUESTOS": "repuestos",
-        "HERRAMIENTAS": "herramientas",
+        "EQUIPOS": ("equipos", ids_equipos_bd),
+        "REPUESTOS": ("repuestos", ids_repuestos_bd),
+        "HERRAMIENTAS": ("herramientas", ids_herramientas_bd),
     }
 
-    for carpeta_nombre, tipo in carpetas_entidad.items():
+    # ─── Paso 1: Escanear entidades (equipos, repuestos, herramientas) ───
+    for carpeta_nombre, (tipo, bd_dict) in carpetas_entidad.items():
         carpeta = uploads_base / carpeta_nombre
         if not carpeta.exists():
             continue
@@ -488,47 +499,74 @@ def escanear_meta_json():
                 "id": entidad_id,
                 "carpeta": str(subdir.relative_to(uploads_base)),
                 "nombre": meta.get("nombre_corto") or meta.get("nombre_repuesto") or meta.get("nombre_herramienta") or subdir.name,
-                "tipo_meta": meta.get("tipo", tipo),
+                "tipo_meta": meta.get("entidad_tipo", tipo),
+                "tiene_imagen_meta": bool(meta.get("imagen_ruta")),
             }
 
             resultados[tipo]["en_archivos"].append(info)
 
-            ids_bd = {
-                "equipos": ids_equipos_bd,
-                "repuestos": ids_repuestos_bd,
-                "herramientas": ids_herramientas_bd,
-            }.get(tipo, set())
-
-            if entidad_id not in ids_bd:
+            if entidad_id not in bd_dict:
                 resultados[tipo]["huerfanos"].append(info)
+            else:
+                # El registro existe en BD — verificar si le falta imagen_ruta
+                registro_bd = bd_dict[entidad_id]
+                imagen_meta = meta.get("imagen_ruta")
+                if imagen_meta and not registro_bd.imagen_ruta:
+                    resultados[tipo]["imagenes_faltantes"].append({
+                        "id": entidad_id,
+                        "carpeta": str(subdir.relative_to(uploads_base)),
+                        "nombre": info["nombre"],
+                        "imagen_ruta_meta": imagen_meta,
+                        "imagen_ruta_bd": registro_bd.imagen_ruta,
+                    })
 
-            # Escanear documentos en subcarpeta DOC/
+            # ─── Escanear documentos en subcarpeta DOC/ ───
             doc_dir = subdir / "DOC"
             if doc_dir.exists():
-                doc_meta_path = doc_dir / ".meta.json"
-                if doc_meta_path.exists():
-                    try:
-                        with open(doc_meta_path, "r", encoding="utf-8") as f:
-                            doc_meta = json.load(f)
-                        for doc_entry in doc_meta.get("documentos", []):
-                            doc_id = doc_entry.get("documento_id")
-                            doc_info = {
-                                "id": doc_id,
-                                "nombre_archivo": doc_entry.get("nombre_archivo"),
-                                "entidad_tipo": tipo,
-                                "entidad_id": entidad_id,
-                                "carpeta": str(doc_dir.relative_to(uploads_base)),
-                            }
-                            resultados["documentos"]["en_archivos"].append(doc_info)
-                            if doc_id not in ids_docs_bd:
-                                resultados["documentos"]["huerfanos"].append(doc_info)
-                    except (json.JSONDecodeError, IOError):
-                        pass
+                _escanear_documentos_carpeta(doc_dir, tipo, entidad_id, ids_docs_bd, resultados, uploads_base)
 
+            # ─── Escanear documentos en subcarpetas OT/OTxxxx/ (solo para equipos) ───
+            if tipo == "equipos":
+                ot_root = subdir / "OT"
+                if ot_root.exists():
+                    for ot_subdir in sorted(ot_root.iterdir()):
+                        if not ot_subdir.is_dir() or not ot_subdir.name.startswith("OT"):
+                            continue
+                        # Las carpetas OT/OTxxxx/ contienen .meta.json con documentos
+                        _escanear_documentos_carpeta(ot_subdir, "ordentrabajo", None, ids_docs_bd, resultados, uploads_base, parse_ot_id_from_name=True, ot_folder_name=ot_subdir.name)
+
+    # ─── Paso 2: Escanear Órdenes de Trabajo desde archivos .txt en uploads/OT/ ───
+    ot_root = uploads_base / "OT"
+    if ot_root.exists():
+        for txt_file in sorted(ot_root.iterdir()):
+            if not txt_file.is_file() or not txt_file.name.endswith(".txt"):
+                continue
+            ot_info = _parse_ot_txt_referencia(txt_file)
+            if ot_info is None:
+                continue
+            ot_id = ot_info.get("id")
+            if ot_id is None:
+                continue
+
+            info = {
+                "id": ot_id,
+                "carpeta": str(txt_file.relative_to(uploads_base)),
+                "titulo": ot_info.get("titulo", "N/A"),
+                "equipo_id": ot_info.get("equipo_id"),
+                "equipo_codigo": ot_info.get("equipo_codigo"),
+                "equipo_nombre": ot_info.get("equipo_nombre"),
+                "prioridad": ot_info.get("prioridad"),
+            }
+            resultados["ordenes"]["en_archivos"].append(info)
+            if ot_id not in ids_ots_bd:
+                resultados["ordenes"]["huerfanos"].append(info)
+
+    # ─── Resumen ───
     resumen = {
-        "total_en_archivos": sum(len(v["en_archivos"]) for v in resultados.values() if v != resultados["documentos"]),
-        "total_en_bd": sum(v["en_bd"] for v in resultados.values() if v != resultados["documentos"]),
+        "total_en_archivos": sum(len(v["en_archivos"]) for k, v in resultados.items() if k != "documentos"),
+        "total_en_bd": sum(v["en_bd"] for k, v in resultados.items() if k != "documentos"),
         "total_huerfanos": sum(len(v["huerfanos"]) for v in resultados.values()),
+        "total_imagenes_faltantes": sum(len(v.get("imagenes_faltantes", [])) for v in resultados.values()),
         "total_docs_en_archivos": len(resultados["documentos"]["en_archivos"]),
         "total_docs_huerfanos": len(resultados["documentos"]["huerfanos"]),
     }
@@ -536,18 +574,131 @@ def escanear_meta_json():
     return {"resumen": resumen, "detalle": resultados}
 
 
+def _escanear_documentos_carpeta(doc_dir, padre_tipo, padre_id, ids_docs_bd,
+                                  resultados, uploads_base,
+                                  parse_ot_id_from_name=False, ot_folder_name=None):
+    """
+    Lee el .meta.json de una carpeta de documentos y agrega las entradas al resultado.
+    Si parse_ot_id_from_name=True, intenta extraer el OT ID desde el nombre de la carpeta.
+    """
+    doc_meta_path = doc_dir / ".meta.json"
+    if not doc_meta_path.exists():
+        return
+
+    try:
+        with open(doc_meta_path, "r", encoding="utf-8") as f:
+            doc_meta = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return
+
+    for doc_entry in doc_meta.get("documentos", []):
+        doc_id = doc_entry.get("documento_id")
+        if doc_id is None:
+            continue
+
+        # Determinar el padre_type y padre_id reales desde el doc_entry
+        # (más confiable que el parámetro padre_tipo, porque los docs de OT
+        # tienen entidad_tipo="ot" en su .meta.json)
+        ent_tipo = doc_entry.get("entidad_tipo") or padre_tipo
+        ent_id = doc_entry.get("entidad_id") or padre_id
+
+        doc_info = {
+            "id": doc_id,
+            "nombre_archivo": doc_entry.get("nombre_archivo"),
+            "entidad_tipo": ent_tipo,
+            "entidad_id": ent_id,
+            "carpeta": str(doc_dir.relative_to(uploads_base)),
+        }
+        resultados["documentos"]["en_archivos"].append(doc_info)
+        if doc_id not in ids_docs_bd:
+            resultados["documentos"]["huerfanos"].append(doc_info)
+
+
+def _parse_ot_txt_referencia(txt_path: Path) -> Optional[dict]:
+    """
+    Lee un archivo .txt de referencia de OT (en uploads/OT/) y extrae los datos.
+
+    Formato esperado (líneas clave):
+        OT ID: 1
+        OT Codigo: OT0001
+        Titulo/Tipo: Correctivo
+        Prioridad: Alta
+        Equipo ID: 1
+        Equipo Codigo: E0001
+        Nombre corto: Microscopio Olympus CX23
+        Modelo: CX23
+    """
+    try:
+        with open(txt_path, "r", encoding="utf-8") as f:
+            contenido = f.read()
+    except (IOError, UnicodeDecodeError):
+        return None
+
+    datos = {}
+    for linea in contenido.splitlines():
+        if ":" not in linea:
+            continue
+        clave, _, valor = linea.partition(":")
+        clave = clave.strip()
+        valor = valor.strip()
+        if not clave or not valor:
+            continue
+
+        if clave == "OT ID":
+            try:
+                datos["id"] = int(valor)
+            except ValueError:
+                pass
+        elif clave == "OT Codigo":
+            datos["codigo"] = valor
+        elif clave == "Titulo/Tipo":
+            datos["titulo"] = valor
+        elif clave == "Prioridad":
+            datos["prioridad"] = valor
+        elif clave == "Descripcion falla":
+            datos["descripcion_falla"] = valor
+        elif clave == "Equipo ID":
+            try:
+                datos["equipo_id"] = int(valor)
+            except ValueError:
+                pass
+        elif clave == "Equipo Codigo":
+            datos["equipo_codigo"] = valor
+        elif clave == "Nombre corto":
+            datos["equipo_nombre"] = valor
+        elif clave == "Modelo":
+            datos["equipo_modelo"] = valor
+        elif clave == "Marca":
+            datos["equipo_marca"] = valor
+        elif clave == "Numero de serie":
+            datos["equipo_numero_serie"] = valor
+
+    if "id" not in datos:
+        return None
+    return datos
+
+
 @router.post("/recuperar")
 def recuperar_desde_meta_json():
     """
-    Recupera registros huérfanos desde los archivos .meta.json.
-    Para cada entidad encontrada en archivos que no exista en la BD,
-    crea el registro con los datos disponibles en el .meta.json.
+    Recupera registros huérfanos desde los archivos .meta.json y .txt de referencia.
+
+    Operaciones que realiza:
+    1. Crear registros de equipos/repuestos/herramientas que existen en archivos
+       pero no en BD (huérfanos).
+    2. Sincronizar imagen_ruta: si el registro existe en BD pero SIN imagen_ruta,
+       y el .meta.json lo tiene, actualizar el registro.
+    3. Crear registros de Órdenes de Trabajo desde los .txt de referencia en uploads/OT/.
+    4. Crear registros de DocumentoAdjunto huérfanos desde los .meta.json en
+       carpetas DOC/ y OT/OTxxxx/ de cada entidad.
     """
     recuperados = {
         "equipos": 0,
         "repuestos": 0,
         "herramientas": 0,
+        "ordenes": 0,
         "documentos": 0,
+        "imagenes_sincronizadas": 0,
     }
     errores = []
 
@@ -562,6 +713,7 @@ def recuperar_desde_meta_json():
     ids_recuperados = {"equipos": set(), "repuestos": set(), "herramientas": set()}
 
     with Session(engine) as session:
+        # ─── Paso 1: Recuperar entidades + sincronizar imagen_ruta ───
         for carpeta_nombre, (tipo, modelo) in carpetas_entidad.items():
             carpeta = uploads_base / carpeta_nombre
             if not carpeta.exists():
@@ -587,9 +739,20 @@ def recuperar_desde_meta_json():
                     continue
 
                 existente = session.exec(select(modelo).where(modelo.id == entidad_id)).first()
-                if existente:
-                    continue
 
+                if existente:
+                    # ─── Sincronizar imagen_ruta si falta en BD pero está en .meta.json ───
+                    imagen_meta = meta.get("imagen_ruta")
+                    if imagen_meta and not existente.imagen_ruta:
+                        try:
+                            existente.imagen_ruta = imagen_meta
+                            session.add(existente)
+                            recuperados["imagenes_sincronizadas"] += 1
+                        except Exception as e:
+                            errores.append(f"Error sincronizando imagen de {tipo} ID {entidad_id}: {str(e)}")
+                    continue  # No crear nuevo registro
+
+                # ─── Crear registro nuevo (huérfano) ───
                 try:
                     if tipo == "equipos":
                         registro = Equipo(
@@ -643,7 +806,56 @@ def recuperar_desde_meta_json():
                 except Exception as e:
                     errores.append(f"Error recuperando {tipo} ID {entidad_id}: {str(e)}")
 
-        # Paso 2: Recuperar documentos
+        # ─── Paso 2: Recuperar Órdenes de Trabajo desde .txt en uploads/OT/ ───
+        ot_root = uploads_base / "OT"
+        if ot_root.exists():
+            for txt_file in sorted(ot_root.iterdir()):
+                if not txt_file.is_file() or not txt_file.name.endswith(".txt"):
+                    continue
+                ot_info = _parse_ot_txt_referencia(txt_file)
+                if ot_info is None:
+                    continue
+                ot_id = ot_info.get("id")
+                if ot_id is None:
+                    continue
+
+                existente = session.exec(
+                    select(OrdenTrabajo).where(OrdenTrabajo.id == ot_id)
+                ).first()
+                if existente:
+                    continue
+
+                equipo_id = ot_info.get("equipo_id")
+                if equipo_id is None:
+                    errores.append(f"OT ID {ot_id}: no se pudo determinar equipo_id desde {txt_file.name}")
+                    continue
+
+                # Verificar que el equipo existe (recién recuperado o preexistente)
+                equipo = session.get(Equipo, equipo_id)
+                if not equipo:
+                    errores.append(f"OT ID {ot_id}: equipo_id {equipo_id} no existe en BD, no se puede recuperar la OT")
+                    continue
+
+                try:
+                    # Buscar estado por defecto (Abierta = id 1)
+                    estado_ot = session.get(EstadoOT, 1)
+                    estado_id = estado_ot.id if estado_ot else 1
+
+                    nueva_ot = OrdenTrabajo(
+                        id=ot_id,
+                        equipo_id=equipo_id,
+                        estado_id=estado_id,
+                        prioridad=ot_info.get("prioridad", "Media"),
+                        titulo=ot_info.get("titulo", "OT recuperada"),
+                        descripcion_falla=ot_info.get("descripcion_falla", "OT recuperada desde archivo .txt de referencia"),
+                        fecha_creacion=datetime.now(),
+                    )
+                    session.add(nueva_ot)
+                    recuperados["ordenes"] += 1
+                except Exception as e:
+                    errores.append(f"Error recuperando OT ID {ot_id}: {str(e)}")
+
+        # ─── Paso 3: Recuperar documentos desde DOC/ y OT/OTxxxx/ ───
         for carpeta_nombre, (tipo, modelo) in carpetas_entidad.items():
             carpeta = uploads_base / carpeta_nombre
             if not carpeta.exists():
@@ -653,69 +865,19 @@ def recuperar_desde_meta_json():
                 if not subdir.is_dir():
                     continue
 
+                # Documentos en DOC/
                 doc_dir = subdir / "DOC"
-                doc_meta_path = doc_dir / ".meta.json"
-                if not doc_meta_path.exists():
-                    continue
+                if doc_dir.exists():
+                    _recuperar_documentos_carpeta(doc_dir, session, ids_recuperados, recuperados, errores, uploads_base)
 
-                try:
-                    with open(doc_meta_path, "r", encoding="utf-8") as f:
-                        doc_meta = json.load(f)
-                except (json.JSONDecodeError, IOError):
-                    continue
-
-                for doc_entry in doc_meta.get("documentos", []):
-                    doc_id = doc_entry.get("documento_id")
-                    if doc_id is None:
-                        continue
-
-                    existente = session.exec(
-                        select(DocumentoAdjunto).where(DocumentoAdjunto.id == doc_id)
-                    ).first()
-                    if existente:
-                        continue
-
-                    padre_tipo = doc_entry.get("entidad_tipo", tipo)
-                    padre_id = doc_entry.get("entidad_id")
-
-                    if padre_tipo and padre_id:
-                        padre_existe = padre_id in ids_recuperados.get(padre_tipo, set())
-                        if not padre_existe:
-                            modelo_padre = {
-                                "equipos": Equipo,
-                                "repuestos": Repuesto,
-                                "herramientas": Herramienta,
-                            }.get(padre_tipo)
-                            if modelo_padre:
-                                padre = session.exec(
-                                    select(modelo_padre).where(modelo_padre.id == padre_id)
-                                ).first()
-                                padre_existe = padre is not None
-
-                        if not padre_existe:
-                            continue
-
-                    try:
-                        nombre_archivo = doc_entry.get("nombre_archivo", "")
-                        ruta_archivo = doc_entry.get("ruta_archivo") or str(doc_dir.relative_to(uploads_base) / nombre_archivo)
-
-                        doc_registro = DocumentoAdjunto(
-                            id=doc_id,
-                            nombre_archivo=nombre_archivo,
-                            ruta_archivo=ruta_archivo,
-                            tipo_archivo=doc_entry.get("tipo_archivo", "application/octet-stream"),
-                            tamanio_bytes=doc_entry.get("tamanio_bytes", 0),
-                            descripcion=doc_entry.get("descripcion"),
-                            categoria=doc_entry.get("categoria"),
-                            subido_por=doc_entry.get("subido_por"),
-                            equipo_id=padre_id if padre_tipo == "equipos" else None,
-                            repuesto_id=padre_id if padre_tipo == "repuestos" else None,
-                            herramienta_id=padre_id if padre_tipo == "herramientas" else None,
-                        )
-                        session.add(doc_registro)
-                        recuperados["documentos"] += 1
-                    except Exception as e:
-                        errores.append(f"Error recuperando documento ID {doc_id}: {str(e)}")
+                # Documentos en OT/OTxxxx/ (solo equipos)
+                if tipo == "equipos":
+                    ot_root_eq = subdir / "OT"
+                    if ot_root_eq.exists():
+                        for ot_subdir in sorted(ot_root_eq.iterdir()):
+                            if not ot_subdir.is_dir() or not ot_subdir.name.startswith("OT"):
+                                continue
+                            _recuperar_documentos_carpeta(ot_subdir, session, ids_recuperados, recuperados, errores, uploads_base, allow_ot_docs=True)
 
         session.commit()
 
@@ -725,6 +887,95 @@ def recuperar_desde_meta_json():
         "total_recuperados": sum(recuperados.values()),
         "errores": errores,
     }
+
+
+def _recuperar_documentos_carpeta(doc_dir, session, ids_recuperados, recuperados,
+                                    errores, uploads_base, allow_ot_docs=False):
+    """
+    Recupera documentos huérfanos desde un .meta.json dentro de una carpeta DOC/ u OT/OTxxxx/.
+    Si allow_ot_docs=True, acepta documentos con entidad_tipo="ot" y los asocia a la OT.
+    """
+    doc_meta_path = doc_dir / ".meta.json"
+    if not doc_meta_path.exists():
+        return
+
+    try:
+        with open(doc_meta_path, "r", encoding="utf-8") as f:
+            doc_meta = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return
+
+    for doc_entry in doc_meta.get("documentos", []):
+        doc_id = doc_entry.get("documento_id")
+        if doc_id is None:
+            continue
+
+        existente = session.exec(
+            select(DocumentoAdjunto).where(DocumentoAdjunto.id == doc_id)
+        ).first()
+        if existente:
+            continue
+
+        padre_tipo = doc_entry.get("entidad_tipo")
+        padre_id = doc_entry.get("entidad_id")
+
+        # Normalizar "ot" → "ordentrabajo"
+        if padre_tipo == "ot":
+            padre_tipo = "ordentrabajo"
+
+        # Validar que el padre exista
+        if padre_tipo and padre_id:
+            modelo_padre = {
+                "equipos": Equipo,
+                "repuestos": Repuesto,
+                "herramientas": Herramienta,
+                "ordentrabajo": OrdenTrabajo,
+            }.get(padre_tipo)
+
+            if modelo_padre:
+                padre = session.exec(
+                    select(modelo_padre).where(modelo_padre.id == padre_id)
+                ).first()
+                if not padre:
+                    # Si es OT y no se permite recuperar docs de OT aquí, saltar
+                    if padre_tipo == "ordentrabajo" and not allow_ot_docs:
+                        continue
+                    errores.append(f"Documento ID {doc_id}: padre {padre_tipo} ID {padre_id} no existe")
+                    continue
+            elif padre_tipo not in ("equipos", "repuestos", "herramientas", "ordentrabajo"):
+                # Tipo desconocido, intentar inferir desde la ruta
+                ruta_lower = str(doc_dir).lower().replace("\\", "/")
+                if "/ot/" in ruta_lower or "/ot" in ruta_lower:
+                    padre_tipo = "ordentrabajo"
+                elif "equipos" in ruta_lower:
+                    padre_tipo = "equipos"
+                elif "repuestos" in ruta_lower:
+                    padre_tipo = "repuestos"
+                elif "herramientas" in ruta_lower:
+                    padre_tipo = "herramientas"
+
+        try:
+            nombre_archivo = doc_entry.get("nombre_archivo", "")
+            ruta_archivo = doc_entry.get("ruta_archivo") or str(doc_dir.relative_to(uploads_base) / nombre_archivo)
+
+            doc_registro = DocumentoAdjunto(
+                id=doc_id,
+                nombre_archivo=nombre_archivo,
+                ruta_archivo=ruta_archivo,
+                tipo_archivo=doc_entry.get("tipo_archivo", "application/octet-stream"),
+                tamanio_bytes=doc_entry.get("tamanio_bytes", 0),
+                descripcion=doc_entry.get("descripcion"),
+                categoria=doc_entry.get("categoria"),
+                subido_por=doc_entry.get("subido_por"),
+                orden_trabajo_id=padre_id if padre_tipo == "ordentrabajo" else None,
+                equipo_id=padre_id if padre_tipo == "equipos" else None,
+                repuesto_id=padre_id if padre_tipo == "repuestos" else None,
+                herramienta_id=padre_id if padre_tipo == "herramientas" else None,
+            )
+            session.add(doc_registro)
+            recuperados["documentos"] += 1
+        except Exception as e:
+            errores.append(f"Error recuperando documento ID {doc_id}: {str(e)}")
 
 
 # ──────────────────────────────────────────────────────────

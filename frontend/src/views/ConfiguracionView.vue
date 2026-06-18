@@ -15,6 +15,7 @@ const estadosBD = ref({})
 const escaneoResultado = ref(null)
 const escaneando = ref(false)
 const recuperando = ref(false)
+const recuperacionResultado = ref(null)
 
 // ─── Capa 3: Backup/Restore ───
 const backupData = ref(null)
@@ -116,14 +117,24 @@ async function escanear() {
 }
 
 async function recuperar() {
-  if (!confirm('¿Recuperar registros huérfanos desde los archivos .meta.json?')) return
+  if (!confirm('¿Recuperar registros huérfanos y sincronizar imágenes faltantes desde los archivos .meta.json y .txt de OT?')) return
   recuperando.value = true
   try {
     const res = await apiClient.post('/configuracion/recuperar')
-    const total = res.data.total_recuperados
-    showToast(`Recuperación completada: ${total} registros recuperados`, 'success')
+    recuperacionResultado.value = res.data
+    const r = res.data.recuperados
+    const partes = []
+    if (r.equipos) partes.push(`${r.equipos} equipos`)
+    if (r.repuestos) partes.push(`${r.repuestos} repuestos`)
+    if (r.herramientas) partes.push(`${r.herramientas} herramientas`)
+    if (r.ordenes) partes.push(`${r.ordenes} OTs`)
+    if (r.documentos) partes.push(`${r.documentos} documentos`)
+    if (r.imagenes_sincronizadas) partes.push(`${r.imagenes_sincronizadas} imágenes sincronizadas`)
+    const msg = partes.length ? `Recuperación: ${partes.join(', ')}.` : 'No se encontró nada por recuperar.'
+    showToast(msg, partes.length ? 'success' : 'info')
     await cargarEstadosBD()
-    escaneoResultado.value = null
+    // Volver a escanear para mostrar el estado actualizado
+    await escanear()
   } catch (e) {
     showToast('Error al recuperar: ' + (e.response?.data?.detail || e.message), 'error')
   } finally {
@@ -323,18 +334,24 @@ const dirLabels = {
       <section v-if="tabActiva === 'capa2'" class="config-section">
         <div class="config-card">
           <h3>Capa 2 — Escaneo y Recuperación</h3>
-          <p>Escanea los archivos <code>.meta.json</code> y compara con la BD. Detecta registros huérfanos (existentes en archivos pero no en la BD) y permite recuperarlos.</p>
+          <p>Escanea los archivos <code>.meta.json</code> y los <code>.txt</code> de referencia de OTs, y los compara con la BD. Detecta:</p>
+          <ul class="capa2-features">
+            <li><strong>Huérfanos:</strong> registros en archivos pero no en BD (se pueden recuperar).</li>
+            <li><strong>Imágenes faltantes:</strong> registros en BD cuyo <code>imagen_ruta</code> está vacío pero el <code>.meta.json</code> lo tiene (se sincronizan al recuperar).</li>
+            <li><strong>OTs huérfanas:</strong> Órdenes de Trabajo que existen como <code>.txt</code> en <code>uploads/OT/</code> pero no en la BD.</li>
+            <li><strong>Documentos huérfanos:</strong> Documentos en <code>.meta.json</code> de carpetas <code>DOC/</code> y <code>OT/OTxxxx/</code> que no están en BD.</li>
+          </ul>
           <div class="btn-row">
             <button class="btn btn--primary" @click="escanear" :disabled="escaneando">
               {{ escaneando ? 'Escaneando...' : '🔍 Escanear .meta.json' }}
             </button>
             <button
-              v-if="escaneoResultado && escaneoResultado.resumen.total_huerfanos > 0"
+              v-if="escaneoResultado && (escaneoResultado.resumen.total_huerfanos > 0 || escaneoResultado.resumen.total_imagenes_faltantes > 0)"
               class="btn btn--warning"
               @click="recuperar"
               :disabled="recuperando"
             >
-              {{ recuperando ? 'Recuperando...' : '🔄 Recuperar huérfanos' }}
+              {{ recuperando ? 'Recuperando...' : '🔄 Recuperar / Sincronizar' }}
             </button>
           </div>
         </div>
@@ -359,18 +376,71 @@ const dirLabels = {
               <span class="scan-num">0</span>
               <span class="scan-label">Huérfanos</span>
             </div>
+            <div class="scan-stat scan-stat--warn" v-if="escaneoResultado.resumen.total_imagenes_faltantes > 0">
+              <span class="scan-num">{{ escaneoResultado.resumen.total_imagenes_faltantes }}</span>
+              <span class="scan-label">Imágenes faltantes</span>
+            </div>
           </div>
 
           <!-- Detalle por tipo -->
           <div v-for="(data, tipo) in escaneoResultado.detalle" :key="tipo" class="scan-detail">
             <h4>{{ tipo }}</h4>
-            <span>En BD: {{ data.en_bd }} | En archivos: {{ data.en_archivos.length }} | Huérfanos: {{ data.huerfanos.length }}</span>
+            <span>En BD: {{ data.en_bd }} | En archivos: {{ data.en_archivos.length }} | Huérfanos: {{ data.huerfanos.length }}<span v-if="data.imagenes_faltantes"> | Imágenes faltantes: {{ data.imagenes_faltantes.length }}</span></span>
+
             <ul v-if="data.huerfanos.length > 0" class="huerfanos-list">
               <li v-for="h in data.huerfanos" :key="h.id">
-                ID {{ h.id }} — {{ h.nombre }} ({{ h.carpeta }})
+                <strong>ID {{ h.id }}</strong> — {{ h.nombre || h.titulo }} <code>{{ h.carpeta }}</code>
+              </li>
+            </ul>
+
+            <ul v-if="data.imagenes_faltantes && data.imagenes_faltantes.length > 0" class="imagenes-faltantes-list">
+              <li v-for="img in data.imagenes_faltantes" :key="img.id">
+                <strong>ID {{ img.id }}</strong> — {{ img.nombre }}: el <code>.meta.json</code> tiene <code>{{ img.imagen_ruta_meta }}</code> pero la BD tiene <code>{{ img.imagen_ruta_bd || 'NULL' }}</code>
               </li>
             </ul>
           </div>
+        </div>
+
+        <!-- Resultado de la recuperación -->
+        <div v-if="recuperacionResultado" class="config-card config-card--info">
+          <h3>Resultado de la Recuperación</h3>
+          <div class="recuperacion-grid">
+            <div class="rec-stat" v-if="recuperacionResultado.recuperados.equipos > 0">
+              <span class="rec-num">{{ recuperacionResultado.recuperados.equipos }}</span>
+              <span class="rec-label">Equipos creados</span>
+            </div>
+            <div class="rec-stat" v-if="recuperacionResultado.recuperados.repuestos > 0">
+              <span class="rec-num">{{ recuperacionResultado.recuperados.repuestos }}</span>
+              <span class="rec-label">Repuestos creados</span>
+            </div>
+            <div class="rec-stat" v-if="recuperacionResultado.recuperados.herramientas > 0">
+              <span class="rec-num">{{ recuperacionResultado.recuperados.herramientas }}</span>
+              <span class="rec-label">Herramientas creadas</span>
+            </div>
+            <div class="rec-stat" v-if="recuperacionResultado.recuperados.ordenes > 0">
+              <span class="rec-num">{{ recuperacionResultado.recuperados.ordenes }}</span>
+              <span class="rec-label">OTs creadas</span>
+            </div>
+            <div class="rec-stat" v-if="recuperacionResultado.recuperados.documentos > 0">
+              <span class="rec-num">{{ recuperacionResultado.recuperados.documentos }}</span>
+              <span class="rec-label">Documentos creados</span>
+            </div>
+            <div class="rec-stat rec-stat--sync" v-if="recuperacionResultado.recuperados.imagenes_sincronizadas > 0">
+              <span class="rec-num">{{ recuperacionResultado.recuperados.imagenes_sincronizadas }}</span>
+              <span class="rec-label">Imágenes sincronizadas</span>
+            </div>
+          </div>
+
+          <p v-if="recuperacionResultado.errores.length > 0" class="rec-errores">
+            <strong>Errores ({{ recuperacionResultado.errores.length }}):</strong>
+          </p>
+          <ul v-if="recuperacionResultado.errores.length > 0" class="errores-list">
+            <li v-for="(err, idx) in recuperacionResultado.errores" :key="idx">{{ err }}</li>
+          </ul>
+
+          <p v-if="recuperacionResultado.total_recuperados === 0 && recuperacionResultado.errores.length === 0" class="rec-noop">
+            No se encontraron registros por recuperar ni imágenes por sincronizar.
+          </p>
         </div>
       </section>
 
@@ -659,11 +729,38 @@ const dirLabels = {
 .scan-stat--alert .scan-num { color: #dc2626; }
 .scan-stat--ok { border-color: #86efac; background: #f0fdf4; }
 .scan-stat--ok .scan-num { color: #16a34a; }
+.scan-stat--warn { border-color: #fde047; background: #fefce8; }
+.scan-stat--warn .scan-num { color: #ca8a04; }
 
 .scan-detail { margin-top: 0.75rem; padding: 0.75rem; background: #f8fafc; border-radius: 6px; }
-.scan-detail h4 { margin: 0 0 0.35rem 0; font-size: 0.9rem; color: #1e293b; }
+.scan-detail h4 { margin: 0 0 0.35rem 0; font-size: 0.9rem; color: #1e293b; text-transform: capitalize; }
 .scan-detail span { font-size: 0.82rem; color: #64748b; }
 .huerfanos-list { margin: 0.35rem 0 0 0; padding-left: 1.2rem; font-size: 0.82rem; color: #dc2626; }
+.huerfanos-list li { margin: 0.2rem 0; }
+.huerfanos-list code { background: #fef2f2; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.78rem; color: #991b1b; }
+
+.imagenes-faltantes-list { margin: 0.35rem 0 0 0; padding-left: 1.2rem; font-size: 0.78rem; color: #ca8a04; }
+.imagenes-faltantes-list li { margin: 0.25rem 0; }
+.imagenes-faltantes-list code { background: #fefce8; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.74rem; color: #854d0e; }
+
+/* Features list (capa 2) */
+.capa2-features { margin: 0.5rem 0; padding-left: 1.5rem; font-size: 0.85rem; color: #475569; line-height: 1.7; }
+.capa2-features li { margin: 0.25rem 0; }
+.capa2-features strong { color: #1e293b; }
+.capa2-features code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.78rem; color: #7c3aed; }
+
+/* Resultado de recuperación */
+.recuperacion-grid { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.5rem 0; }
+.rec-stat { text-align: center; padding: 0.65rem 1.1rem; background: #ecfdf5; border: 1px solid #86efac; border-radius: 8px; }
+.rec-stat .rec-num { display: block; font-size: 1.5rem; font-weight: 700; color: #16a34a; }
+.rec-stat .rec-label { display: block; font-size: 0.75rem; color: #15803d; margin-top: 0.15rem; }
+.rec-stat--sync { background: #eff6ff; border-color: #93c5fd; }
+.rec-stat--sync .rec-num { color: #2563eb; }
+.rec-stat--sync .rec-label { color: #1d4ed8; }
+
+.rec-errores { margin-top: 0.75rem; font-size: 0.88rem; color: #dc2626; }
+.errores-list { margin: 0.35rem 0 0 0; padding-left: 1.2rem; font-size: 0.78rem; color: #991b1b; max-height: 200px; overflow-y: auto; }
+.rec-noop { font-size: 0.88rem; color: #64748b; font-style: italic; }
 
 /* === Backup === */
 .backup-totals { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }

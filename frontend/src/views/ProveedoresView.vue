@@ -241,38 +241,23 @@ const deleteContacto = async (contactoId) => {
 }
 
 // --- Importación Excel ---
-const descargarPlantillaExcel = async () => {
-  try {
-    const res = await apiClient.get('/proveedores/plantilla-excel', { responseType: 'blob' })
-    const url = window.URL.createObjectURL(new Blob([res.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `CMMS-BioAI_Plantilla_Proveedores_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.xlsx`)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-  } catch (e) {
-    alert('Error al descargar la plantilla')
-    console.error(e)
-  }
+const descargarPlantillaExcel = () => {
+  // Descarga directa desde archivos estáticos en /public/plantillas/
+  const link = document.createElement('a')
+  link.href = `${import.meta.env.BASE_URL}plantillas/plantilla_proveedores.xlsx`
+  link.download = 'CMMS-BioAI_Plantilla_Proveedores.xlsx'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
-const descargarPlantillaCSV = async () => {
-  try {
-    const res = await apiClient.get('/proveedores/plantilla-csv', { responseType: 'blob' })
-    const url = window.URL.createObjectURL(new Blob([res.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `CMMS-BioAI_Plantilla_Proveedores_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-  } catch (e) {
-    alert('Error al descargar la plantilla CSV')
-    console.error(e)
-  }
+const descargarPlantillaCSV = () => {
+  const link = document.createElement('a')
+  link.href = `${import.meta.env.BASE_URL}plantillas/plantilla_proveedores.csv`
+  link.download = 'CMMS-BioAI_Plantilla_Proveedores.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }
 
 const openImportModal = () => {

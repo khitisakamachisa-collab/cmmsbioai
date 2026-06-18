@@ -308,7 +308,7 @@ const modulos = [
   {
     emoji: '⚙️', nombre: 'Equipos', ruta: '/equipos',
     descripcion: 'Gestion completa de equipos biomedicos con CRUD, imagenes, documentos, Excel y filtros combinados.',
-    funcionalidades: ['CRUD completo', '19 estados predefinidos', 'Imagen principal y documentos adjuntos', 'Importacion masiva Excel/CSV', 'Filtros combinados AND', 'Historial por equipo']
+    funcionalidades: ['CRUD completo', '19 estados predefinidos', 'Imagen principal y documentos adjuntos', 'Importacion masiva Excel/CSV', 'Plantilla Excel/CSV estatica en /plantillas/', 'Filtros combinados AND', 'Historial por equipo']
   },
   {
     emoji: '🔧', nombre: 'Ordenes de Trabajo', ruta: '/ordenes',
@@ -318,7 +318,7 @@ const modulos = [
   {
     emoji: '🔩', nombre: 'Inventario (Repuestos + Herramientas)', ruta: '/inventario',
     descripcion: 'Gestion de inventario dividida en Repuestos y Herramientas. Ambos soportan imagen, documentos e importacion Excel.',
-    funcionalidades: ['Repuestos: CRUD con datos tecnicos y stock', 'Herramientas: CRUD con categorias y estado de uso', 'Alerta de stock bajo', 'Importacion masiva Excel/CSV', 'Imagen y documentos adjuntos']
+    funcionalidades: ['Repuestos: CRUD con datos tecnicos y stock', 'Herramientas: CRUD con categorias y estado de uso', 'Alerta de stock bajo', 'Importacion masiva Excel/CSV', 'Plantillas Excel/CSV estaticas en /plantillas/', 'Imagen y documentos adjuntos']
   },
   {
     emoji: '🛡️', nombre: 'Preventivo', ruta: '/preventivo',
@@ -343,7 +343,7 @@ const modulos = [
   {
     emoji: '🏢', nombre: 'Proveedores', ruta: '/proveedores',
     descripcion: 'Directorio centralizado de empresas proveedoras y sus contactos especificos (RF10).',
-    funcionalidades: ['CRUD de proveedores (RF10) con campo ciudad', 'CRUD de contactos asociados (uno a muchos)', 'Busqueda por empresa, email, telefono o ciudad', 'Filtros por ciudad y pagina web', 'Importacion masiva Excel/CSV (upsert por nombre_empresa)', 'Plantilla Excel/CSV descargable con datos de ejemplo', 'Detalle con contactos embebidos en modal', 'Vinculacion futura con equipos (RF01) y repuestos (RF04)']
+    funcionalidades: ['CRUD de proveedores (RF10) con campo ciudad', 'CRUD de contactos asociados (uno a muchos)', 'Busqueda por empresa, email, telefono o ciudad', 'Filtros por ciudad y pagina web', 'Importacion masiva Excel/CSV (upsert por nombre_empresa)', 'Plantilla Excel/CSV estatica descargable desde /plantillas/ (sin backend)', 'Detalle con contactos embebidos en modal', 'Vinculacion futura con equipos (RF01) y repuestos (RF04)']
   },
   {
     emoji: '⚙️', nombre: 'Configuracion', ruta: '/configuracion',
@@ -522,7 +522,8 @@ const archivosEstructura = [
   { carpeta: 'uploads/EQUIPOS/', descripcion: 'Imagenes y documentos de equipos', patron: 'E0001_Nombre/E0001_Nombre.jpg' },
   { carpeta: 'uploads/REPUESTOS/', descripcion: 'Imagenes y documentos de repuestos', patron: 'R0001_Nombre/R0001_Nombre.png' },
   { carpeta: 'uploads/HERRAMIENTAS/', descripcion: 'Imagenes y documentos de herramientas', patron: 'H0001_Nombre/H0001_Nombre.jpg' },
-  { carpeta: 'uploads/EQUIPOS/E0001_xxx/DOC/', descripcion: 'Documentos adjuntos de un equipo', patron: 'manual_usuario.pdf, foto_dano.jpg' }
+  { carpeta: 'uploads/EQUIPOS/E0001_xxx/DOC/', descripcion: 'Documentos adjuntos de un equipo', patron: 'manual_usuario.pdf, foto_dano.jpg' },
+  { carpeta: 'frontend/public/plantillas/', descripcion: 'Plantillas Excel/CSV descargables desde la UI', patron: 'plantilla_equipos.xlsx, plantilla_proveedores.csv, etc.' }
 ]
 
 const metaJsonEjemplo = `{
@@ -827,8 +828,17 @@ function getEstadoClass(estado) {
           <h3>Capas de Recuperacion</h3>
           <div class="capas-grid">
             <div class="capa-card capa-card--done"><span class="capa-num">1</span><h4>Metadatos en Archivos</h4><p><strong>IMPLEMENTADO</strong></p></div>
-            <div class="capa-card capa-card--done"><span class="capa-num">2</span><h4>Escaneo y Recuperacion</h4><p><strong>IMPLEMENTADO</strong></p></div>
+            <div class="capa-card capa-card--done"><span class="capa-num">2</span><h4>Escaneo y Recuperacion</h4><p><strong>IMPLEMENTADO (v0.8.3)</strong></p></div>
             <div class="capa-card capa-card--done"><span class="capa-num">3</span><h4>Backup y Restore</h4><p><strong>IMPLEMENTADO</strong></p></div>
+          </div>
+          <div class="capa2-detalle">
+            <h4>Capa 2 — Que escanea y recupera (v0.8.3):</h4>
+            <ul>
+              <li><strong>Equipos, Repuestos, Herramientas</strong>: si existen en archivos (<code>.meta.json</code>) pero no en BD, se crean como nuevos registros.</li>
+              <li><strong>Imagenes faltantes</strong>: si el registro existe en BD pero sin <code>imagen_ruta</code> y el <code>.meta.json</code> lo tiene, se sincroniza automaticamente.</li>
+              <li><strong>Ordenes de Trabajo</strong>: si existe el <code>.txt</code> de referencia en <code>uploads/OT/</code> pero la OT no esta en BD, se reconstruye con su titulo, prioridad y equipo asociado.</li>
+              <li><strong>Documentos</strong>: se escanean carpetas <code>DOC/</code> de cada entidad <strong>Y</strong> carpetas <code>OT/OTxxxx/</code> dentro de cada equipo para recuperar documentos huérfanos (incluyendo los de OTs).</li>
+            </ul>
           </div>
         </div>
       </section>
@@ -1024,6 +1034,12 @@ function getEstadoClass(estado) {
 .capa-card { padding: 1rem; border-radius: 8px; border: 1px solid; text-align: center; }
 .capa-card h4 { margin: 0.5rem 0 0.25rem 0; font-size: 0.9rem; color: #1e293b; }
 .capa-card p { font-size: 0.8rem; margin: 0.2rem 0; }
+.capa2-detalle { margin-top: 1rem; padding: 0.85rem; background: #f0f9ff; border-left: 4px solid #0284c7; border-radius: 6px; }
+.capa2-detalle h4 { margin: 0 0 0.5rem 0; font-size: 0.92rem; color: #0c4a6e; }
+.capa2-detalle ul { margin: 0; padding-left: 1.2rem; font-size: 0.82rem; color: #0c4a6e; line-height: 1.7; }
+.capa2-detalle li { margin: 0.3rem 0; }
+.capa2-detalle code { background: #e0f2fe; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.78rem; color: #0369a1; }
+.capa2-detalle strong { color: #0c4a6e; }
 .capa-card--done { background: #f0fdf4; border-color: #86efac; }
 .capa-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #3b82f6; color: white; font-weight: 700; font-size: 0.85rem; }
 

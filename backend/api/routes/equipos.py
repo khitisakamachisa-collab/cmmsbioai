@@ -545,6 +545,11 @@ def _parse_date(val) -> date:
 @router.get("/plantilla-csv")
 def descargar_plantilla_csv(session: Session = Depends(get_session)):
     """
+    [RESPALDO] La fuente principal de esta plantilla ahora es el archivo estatico en:
+        frontend/public/plantillas/plantilla_equipos.csv
+    El frontend descarga directamente desde ahi (sin llamar al backend).
+    Este endpoint se mantiene como respaldo y para documentacion Swagger.
+
     Genera y descarga un archivo CSV plantilla con datos de ejemplo
     de un biolaboratorio, listo para ser importado.
     """
@@ -597,6 +602,11 @@ def descargar_plantilla_csv(session: Session = Depends(get_session)):
 @router.get("/plantilla-excel")
 def descargar_plantilla_excel(session: Session = Depends(get_session)):
     """
+    [RESPALDO] La fuente principal de esta plantilla ahora es el archivo estatico en:
+        frontend/public/plantillas/plantilla_equipos.xlsx
+    El frontend descarga directamente desde ahi (sin llamar al backend).
+    Este endpoint se mantiene como respaldo y para documentacion Swagger.
+
     Genera y descarga un archivo Excel plantilla con datos de ejemplo
     de un biolaboratorio, listo para ser importado.
     """

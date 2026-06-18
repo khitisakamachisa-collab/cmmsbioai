@@ -189,6 +189,7 @@ const entidades = [
     campos: [
       { nombre: 'id', tipo: 'INTEGER', rf: true, impl: true, oblig: true, desc: 'Identificador unico autoincremental' },
       { nombre: 'nombre_empresa', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Nombre legal o comercial de la empresa proveedora. Unico' },
+      { nombre: 'ciudad', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Ciudad principal de la empresa. Campo independiente de direccion. Usado por el filtro de ciudad' },
       { nombre: 'direccion', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Direccion fisica principal de la empresa' },
       { nombre: 'telefono_principal', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Telefono de contacto principal de la empresa' },
       { nombre: 'email_principal', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Email de contacto principal de la empresa' },
@@ -341,8 +342,8 @@ const modulos = [
   },
   {
     emoji: '🏢', nombre: 'Proveedores', ruta: '/proveedores',
-    descripcion: 'Directorio centralizado de empresas proveedoras y sus contactos especificos.',
-    funcionalidades: ['CRUD de proveedores (RF10)', 'CRUD de contactos asociados', 'Busqueda por empresa, email o telefono', 'Filtros por ciudad y pagina web', 'Detalle con contactos embebidos', 'Vinculacion futura con equipos y repuestos']
+    descripcion: 'Directorio centralizado de empresas proveedoras y sus contactos especificos (RF10).',
+    funcionalidades: ['CRUD de proveedores (RF10) con campo ciudad', 'CRUD de contactos asociados (uno a muchos)', 'Busqueda por empresa, email, telefono o ciudad', 'Filtros por ciudad y pagina web', 'Importacion masiva Excel/CSV (upsert por nombre_empresa)', 'Plantilla Excel/CSV descargable con datos de ejemplo', 'Detalle con contactos embebidos en modal', 'Vinculacion futura con equipos (RF01) y repuestos (RF04)']
   },
   {
     emoji: '⚙️', nombre: 'Configuracion', ruta: '/configuracion',
@@ -427,11 +428,11 @@ const requisitosRF = [
   },
   {
     id: 'RF10', nombre: 'Gestion de Proveedores y Contactos', entidad: 'Proveedor + ContactoProveedor',
-    descripcion: 'Directorio centralizado de empresas proveedoras y sus contactos especificos (gerente, vendedor, soporte).',
-    camposRF: 13, implementados: 13, faltantes: 0, extras: 0,
+    descripcion: 'Directorio centralizado de empresas proveedoras y sus contactos especificos (gerente, vendedor, soporte). Incluye CRUD de proveedores con campo ciudad, CRUD de contactos asociados (1:N), importacion masiva Excel/CSV y filtros avanzados.',
+    camposRF: 15, implementados: 15, faltantes: 0, extras: 0,
     detalleFaltantes: [],
     detalleExtras: [],
-    estado: 'Implementado'
+    estado: 'Completo con importacion Excel'
   },
   {
     id: 'RF11', nombre: 'Calendario Preventivo', entidad: 'Preventivo',
@@ -465,10 +466,46 @@ const reportesRF06 = [
   { id: 'REP-07', nombre: 'Repuestos Utilizados (Consumo)', estado: 'No implementado', nota: 'Falta reporte detallado de consumo por equipo/tecnico/periodo' }
 ]
 
+// ─── RF10: Relaciones con otros RF ───
+const rf10Relaciones = [
+  {
+    rf: 'RF01',
+    entidad: 'Equipo',
+    campoActual: 'proveedor_principal (TEXT)',
+    objetivo: 'Convertir equipo.proveedor_principal en FK a Proveedor.id',
+    estado: 'Planificado',
+    detalle: 'Actualmente el campo proveedor_principal es texto libre. La migracion a FK permitira centralizar la informacion del proveedor y reutilizarla en todos los equipos que compra a ese proveedor.'
+  },
+  {
+    rf: 'RF04',
+    entidad: 'Repuesto',
+    campoActual: 'proveedor_ultimo (TEXT)',
+    objetivo: 'Convertir repuesto.proveedor_ultimo en FK a Proveedor.id',
+    estado: 'Planificado',
+    detalle: 'Actualmente el campo proveedor_ultimo es texto libre. La migracion a FK permitira trazabilidad completa del proveedor de cada repuesto.'
+  },
+  {
+    rf: 'RF09',
+    entidad: 'Herramienta',
+    campoActual: 'proveedor_ultimo (TEXT)',
+    objetivo: 'Convertir herramienta.proveedor_ultimo en FK a Proveedor.id',
+    estado: 'Planificado',
+    detalle: 'Las herramientas del taller tambien se compran a proveedores. La FK permitira gestionar de forma unificada el directorio de proveedores.'
+  },
+  {
+    rf: 'RF03 / RF05',
+    entidad: 'TareaPreventiva / EventoHistorial',
+    campoActual: 'Sin vinculo directo',
+    objetivo: 'Asociar contratos de mantenimiento y servicios con proveedores',
+    estado: 'Futuro',
+    detalle: 'Permitira registrar que empresa externa ejecuta cada mantenimiento preventivo o evento de calibracion/verificacion. Mejora la trazabilidad de servicios contratados.'
+  }
+]
+
 const pendientes = [
   { emoji: '🧠', nombre: 'Modulo IA (RF07)', prioridad: 'Alta', descripcion: 'Sugerencias automaticas basadas en descripcion de falla, historial e inventario usando NLP y modelos de clasificacion.', estado: 'No implementado', rf: 'RF07' },
   { emoji: '🔒', nombre: 'Proteccion de rutas por autenticacion', prioridad: 'Alta', descripcion: 'Validar token JWT en endpoints y navigation guards en frontend.', estado: 'No implementado', rf: 'RNF04' },
-  { emoji: '🏢', nombre: 'Gestion de Proveedores (RF10)', prioridad: 'Media', descripcion: 'CRUD de proveedores con contactos asociados.', estado: 'Implementado', rf: 'RF10' },
+  { emoji: '🏢', nombre: 'Gestion de Proveedores (RF10) - Importacion Excel', prioridad: 'Media', descripcion: 'CRUD de proveedores con campo ciudad, contactos asociados (1:N) e importacion masiva Excel/CSV. Pendiente: convertir los campos de texto proveedor_principal (Equipo) y proveedor_ultimo (Repuesto/Herramienta) en FK a Proveedor.id.', estado: 'Implementado', rf: 'RF10' },
   { emoji: '📄', nombre: 'Paginacion en listados', prioridad: 'Media', descripcion: 'Implementar offset/limit en endpoints de listado.', estado: 'No implementado', rf: 'RNF02' },
   { emoji: '🔐', nombre: 'Secret JWT configurable', prioridad: 'Media', descripcion: 'Mover secreto JWT a variable de entorno o config.json.', estado: 'No implementado', rf: 'RNF04' },
   { emoji: '📊', nombre: 'Reporte REP-07: Consumo de Repuestos', prioridad: 'Media', descripcion: 'Reporte detallado de repuestos utilizados por equipo, tecnico o periodo.', estado: 'No implementado', rf: 'RF06' },
@@ -729,6 +766,24 @@ function getEstadoClass(estado) {
           </div>
         </div>
 
+        <!-- RF10: Relaciones con otros RF -->
+        <div class="help-card help-card--rf10">
+          <h3>RF10 - Proveedores: Relaciones con otros RF</h3>
+          <p>El modulo de Proveedores (RF10) es <strong>transversal</strong>: centraliza el directorio de empresas proveedoras y, en futuras versiones, reemplazara los campos de texto libre en otras entidades por FK a <code>Proveedor.id</code>. Esto permite tener informacion consistente y un unico punto de actualizacion.</p>
+          <div class="rf10-relaciones">
+            <div v-for="rel in rf10Relaciones" :key="rel.rf" class="rf10-rel-card">
+              <div class="rf10-rel-header">
+                <span class="rf10-rel-rf">{{ rel.rf }}</span>
+                <span class="rf10-rel-entidad">{{ rel.entidad }}</span>
+                <span class="rf10-rel-estado" :class="rel.estado === 'Planificado' ? 'estado-pendiente' : 'estado-faltante'">{{ rel.estado }}</span>
+              </div>
+              <div class="rf10-rel-campo"><strong>Campo actual:</strong> <code>{{ rel.campoActual }}</code></div>
+              <div class="rf10-rel-objetivo"><strong>Objetivo:</strong> {{ rel.objetivo }}</div>
+              <div class="rf10-rel-detalle">{{ rel.detalle }}</div>
+            </div>
+          </div>
+        </div>
+
         <!-- RNF -->
         <div class="help-card">
           <h3>Requisitos No Funcionales (RNF - Hoja 16)</h3>
@@ -912,6 +967,18 @@ function getEstadoClass(estado) {
 .estado-ok { background: #f0fdf4; color: #16a34a; }
 .estado-faltante { background: #fef2f2; color: #dc2626; }
 .estado-pendiente { background: #fffbeb; color: #d97706; }
+
+/* RF10 relaciones */
+.help-card--rf10 { border-left: 4px solid #0891b2; background: linear-gradient(135deg, #ecfeff 0%, #ffffff 40%); }
+.rf10-relaciones { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+.rf10-rel-card { background: #ffffff; border: 1px solid #cffafe; border-radius: 8px; padding: 0.85rem; }
+.rf10-rel-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px dashed #e0f2fe; }
+.rf10-rel-rf { display: inline-flex; align-items: center; justify-content: center; min-width: 80px; padding: 0.2rem 0.5rem; border-radius: 4px; background: #0891b2; color: white; font-weight: 700; font-size: 0.78rem; }
+.rf10-rel-entidad { font-size: 0.85rem; font-weight: 600; color: #1e293b; flex: 1; }
+.rf10-rel-estado { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px; white-space: nowrap; }
+.rf10-rel-campo, .rf10-rel-objetivo { font-size: 0.82rem; color: #334155; margin: 0.2rem 0; }
+.rf10-rel-campo code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.78rem; color: #7c3aed; }
+.rf10-rel-detalle { font-size: 0.78rem; color: #64748b; line-height: 1.5; margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px dashed #e0f2fe; }
 
 /* Reportes grid */
 .reportes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; }

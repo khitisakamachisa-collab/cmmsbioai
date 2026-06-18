@@ -3,7 +3,7 @@
     "nombre": "CMMS-BioAI"
   },
   "directorios": {
-    "uploads_base": "uploads",
+    "uploads_base": "D:\\uploads",
     "equipos_imagenes": "EQUIPOS",
     "equipos_documentos": "EQUIPOS",
     "ot_documentos": "OT",

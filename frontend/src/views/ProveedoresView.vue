@@ -13,7 +13,7 @@ const currentPage = ref(1)
 
 // --- Filtros de busqueda ---
 const searchQuery = ref('')
-const filterCiudad = ref('')   // derivado de direccion
+const filterCiudad = ref('')   // usa el campo 'ciudad' del modelo (fallback a direccion)
 const filterWeb = ref('')      // tiene web / no tiene web
 
 // --- Modal Crear/Editar Proveedor ---
@@ -31,18 +31,26 @@ const contactoEditing = ref(false)
 const contactoFormData = ref({})
 const contactoPadreId = ref(null)
 
+// --- Importación Excel ---
+const showImportModal = ref(false)
+const importFile = ref(null)
+const importing = ref(false)
+const importResult = ref(null)
+
 // --- Helpers ---
-const getCiudad = (direccion) => {
-  if (!direccion) return ''
-  // Heuristica simple: ultima parte despues de coma
-  const parts = direccion.split(',')
+// Devuelve la ciudad: usa el campo 'ciudad' si existe; si no, intenta derivarla de 'direccion'
+const getCiudad = (prov) => {
+  if (!prov) return ''
+  if (prov.ciudad && String(prov.ciudad).trim()) return String(prov.ciudad).trim()
+  if (!prov.direccion) return ''
+  const parts = String(prov.direccion).split(',')
   return parts[parts.length - 1].trim()
 }
 
 const ciudadesUnicas = computed(() => {
   const vals = new Set()
   proveedores.value.forEach(p => {
-    const c = getCiudad(p.direccion)
+    const c = getCiudad(p)
     if (c) vals.add(c)
   })
   return Array.from(vals).sort()
@@ -67,12 +75,13 @@ const filteredProveedores = computed(() => {
       const nombre = String(p.nombre_empresa ?? '').toLowerCase()
       const email = String(p.email_principal ?? '').toLowerCase()
       const tel = String(p.telefono_principal ?? '').toLowerCase()
-      return nombre.includes(q) || email.includes(q) || tel.includes(q)
+      const ciu = String(p.ciudad ?? '').toLowerCase()
+      return nombre.includes(q) || email.includes(q) || tel.includes(q) || ciu.includes(q)
     })
   }
 
   if (filterCiudad.value) {
-    result = result.filter(p => getCiudad(p.direccion) === filterCiudad.value)
+    result = result.filter(p => getCiudad(p) === filterCiudad.value)
   }
 
   if (filterWeb.value === 'con') {
@@ -119,6 +128,7 @@ const openCreateModal = () => {
   isEditing.value = false
   formData.value = {
     nombre_empresa: '',
+    ciudad: '',
     direccion: '',
     telefono_principal: '',
     email_principal: '',
@@ -230,6 +240,76 @@ const deleteContacto = async (contactoId) => {
   }
 }
 
+// --- Importación Excel ---
+const descargarPlantillaExcel = async () => {
+  try {
+    const res = await apiClient.get('/proveedores/plantilla-excel', { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `CMMS-BioAI_Plantilla_Proveedores_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.xlsx`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    alert('Error al descargar la plantilla')
+    console.error(e)
+  }
+}
+
+const descargarPlantillaCSV = async () => {
+  try {
+    const res = await apiClient.get('/proveedores/plantilla-csv', { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([res.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `CMMS-BioAI_Plantilla_Proveedores_${new Date().toISOString().slice(0,10).replace(/-/g,'')}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    alert('Error al descargar la plantilla CSV')
+    console.error(e)
+  }
+}
+
+const openImportModal = () => {
+  importFile.value = null
+  importResult.value = null
+  showImportModal.value = true
+}
+
+const onFileChange = (e) => {
+  const f = e.target.files[0]
+  importFile.value = f || null
+}
+
+const submitImport = async () => {
+  if (!importFile.value) {
+    alert('Selecciona un archivo .xlsx o .csv')
+    return
+  }
+  importing.value = true
+  importResult.value = null
+  try {
+    const fd = new FormData()
+    fd.append('file', importFile.value)
+    const res = await apiClient.post('/proveedores/import-excel', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    importResult.value = res.data
+    await fetchProveedores()
+  } catch (e) {
+    const msg = e.response?.data?.detail || 'Error al importar'
+    alert(typeof msg === 'string' ? msg : JSON.stringify(msg))
+    console.error(e)
+  } finally {
+    importing.value = false
+  }
+}
+
 onMounted(() => {
   fetchProveedores()
 })
@@ -248,8 +328,14 @@ onMounted(() => {
               <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
             </svg>
             <input v-model="searchQuery" type="search" class="search-input"
-              placeholder="Empresa, email o telefono..." autocomplete="off" />
+              placeholder="Empresa, email, telefono o ciudad..." autocomplete="off" />
           </div>
+          <button class="btn-secondary" @click="descargarPlantillaExcel" title="Descargar plantilla Excel con datos de ejemplo">
+            📥 Plantilla
+          </button>
+          <button class="btn-secondary" @click="openImportModal" title="Importar proveedores desde Excel/CSV">
+            📤 Importar
+          </button>
           <button class="btn-primary" @click="openCreateModal">+ Nuevo Proveedor</button>
         </div>
       </div>
@@ -288,6 +374,7 @@ onMounted(() => {
           <tr>
             <th>ID</th>
             <th>Empresa</th>
+            <th>Ciudad</th>
             <th>Telefono</th>
             <th>Email</th>
             <th>Web</th>
@@ -297,7 +384,7 @@ onMounted(() => {
         </thead>
         <tbody>
           <tr v-if="!filteredProveedores.length">
-            <td class="table-empty-cell" colspan="7">
+            <td class="table-empty-cell" colspan="8">
               {{ tieneFiltrosActivos ? 'No hay proveedores que coincidan.' : 'No hay proveedores registrados.' }}
             </td>
           </tr>
@@ -308,6 +395,7 @@ onMounted(() => {
               <strong>{{ prov.nombre_empresa }}</strong>
               <div v-if="prov.direccion" class="sub-text">{{ prov.direccion }}</div>
             </td>
+            <td>{{ getCiudad(prov) || '—' }}</td>
             <td>{{ prov.telefono_principal || '—' }}</td>
             <td>
               <a v-if="prov.email_principal" :href="'mailto:' + prov.email_principal" class="link-mail">
@@ -349,7 +437,7 @@ onMounted(() => {
       </table>
 
       <div v-if="!loading && !proveedores.length" class="empty-state">
-        No hay proveedores registrados. Haga clic en "Nuevo Proveedor" para comenzar.
+        No hay proveedores registrados. Haga clic en "Nuevo Proveedor" o "Importar" para comenzar.
       </div>
 
       <div v-if="!loading && filteredProveedores.length"
@@ -378,23 +466,29 @@ onMounted(() => {
             <label>Nombre de Empresa *</label>
             <input v-model="formData.nombre_empresa" type="text" required placeholder="TechMed Bolivia SRL">
           </div>
-          <div class="form-group">
-            <label>Direccion</label>
-            <input v-model="formData.direccion" type="text" placeholder="Av. Blanco Galindo, Cochabamba">
-          </div>
           <div class="form-row">
+            <div class="form-group">
+              <label>Ciudad</label>
+              <input v-model="formData.ciudad" type="text" placeholder="Cochabamba, La Paz, Santa Cruz...">
+            </div>
             <div class="form-group">
               <label>Telefono Principal</label>
               <input v-model="formData.telefono_principal" type="text" placeholder="+591 4 4223344">
             </div>
+          </div>
+          <div class="form-group">
+            <label>Direccion</label>
+            <input v-model="formData.direccion" type="text" placeholder="Av. Blanco Galindo km 7.5">
+          </div>
+          <div class="form-row">
             <div class="form-group">
               <label>Email Principal</label>
               <input v-model="formData.email_principal" type="email" placeholder="ventas@empresa.bo">
             </div>
-          </div>
-          <div class="form-group">
-            <label>Pagina Web</label>
-            <input v-model="formData.pagina_web" type="text" placeholder="https://empresa.bo">
+            <div class="form-group">
+              <label>Pagina Web</label>
+              <input v-model="formData.pagina_web" type="text" placeholder="https://empresa.bo">
+            </div>
           </div>
           <div class="form-group">
             <label>Notas Generales</label>
@@ -418,6 +512,7 @@ onMounted(() => {
           <div class="detail-column">
             <h4>Datos de la Empresa</h4>
             <p><strong>ID:</strong> #{{ selectedProveedor.id }}</p>
+            <p v-if="selectedProveedor.ciudad"><strong>Ciudad:</strong> {{ selectedProveedor.ciudad }}</p>
             <p v-if="selectedProveedor.direccion"><strong>Direccion:</strong> {{ selectedProveedor.direccion }}</p>
             <p v-if="selectedProveedor.telefono_principal"><strong>Telefono:</strong> {{ selectedProveedor.telefono_principal }}</p>
             <p v-if="selectedProveedor.email_principal">
@@ -531,6 +626,70 @@ onMounted(() => {
             <button type="submit" class="btn-primary">Guardar</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- ==================== Modal Importar Excel ==================== -->
+    <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
+      <div class="modal" style="width: 600px;">
+        <h3>Importar Proveedores desde Excel/CSV</h3>
+
+        <div v-if="!importResult" class="import-form">
+          <p class="import-hint">
+            Selecciona un archivo <code>.xlsx</code> o <code>.csv</code> con los proveedores.
+            El campo <strong>nombre_empresa</strong> es obligatorio. Si el nombre ya existe,
+            el registro se <strong>actualizará</strong> (upsert).
+          </p>
+          <div class="form-group">
+            <label>Archivo Excel o CSV (máx 5MB)</label>
+            <input type="file" accept=".xlsx,.csv" @change="onFileChange" class="file-input" />
+          </div>
+          <div class="import-actions-hint">
+            <button class="btn-link" @click="descargarPlantillaExcel">Descargar plantilla Excel</button>
+            <span class="hint-sep">·</span>
+            <button class="btn-link" @click="descargarPlantillaCSV">Descargar plantilla CSV</button>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="showImportModal = false">Cancelar</button>
+            <button type="button" class="btn-primary" :disabled="!importFile || importing" @click="submitImport">
+              {{ importing ? 'Importando...' : 'Importar' }}
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="import-result">
+          <div class="resumen-grid">
+            <div class="resumen-card resumen-card--green">
+              <div class="resumen-num">{{ importResult.exitosos }}</div>
+              <div class="resumen-label">Creados</div>
+            </div>
+            <div class="resumen-card resumen-card--blue">
+              <div class="resumen-num">{{ importResult.actualizados }}</div>
+              <div class="resumen-label">Actualizados</div>
+            </div>
+            <div class="resumen-card resumen-card--red">
+              <div class="resumen-num">{{ importResult.fallidos }}</div>
+              <div class="resumen-label">Fallidos</div>
+            </div>
+            <div class="resumen-card resumen-card--gray">
+              <div class="resumen-num">{{ importResult.total_procesados }}</div>
+              <div class="resumen-label">Total filas</div>
+            </div>
+          </div>
+
+          <div v-if="importResult.errores && importResult.errores.length" class="errores-list">
+            <h4>Filas con errores ({{ importResult.errores.length }}):</h4>
+            <div class="error-row" v-for="(err, idx) in importResult.errores" :key="idx">
+              <span class="err-fila">Fila {{ err.fila }}</span>
+              <span class="err-nombre">{{ err.nombre }}</span>
+              <span class="err-msg">{{ err.errores.join('; ') }}</span>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn-primary" @click="showImportModal = false">Cerrar</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -650,6 +809,7 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
 .btn-primary:hover { background-color: #2980b9; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
 .btn-secondary:hover { background-color: #7f8c8d; }
 .btn-edit-detail { background-color: #f59e0b; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
@@ -717,4 +877,39 @@ th { background-color: #f8f9fa; font-weight: bold; }
 }
 .btn-icon-sm:hover { background: #dfe2e6; }
 .btn-danger-icon:hover { background: #fee2e2; color: #c0392b; }
+
+/* Importación */
+.import-hint { font-size: 0.88rem; color: #475569; line-height: 1.6; }
+.import-hint code { background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.82rem; color: #7c3aed; }
+.import-actions-hint { display: flex; gap: 0.5rem; align-items: center; margin: 0.5rem 0 1rem; }
+.hint-sep { color: #cbd5e1; }
+.btn-link { background: none; border: none; color: #2563eb; cursor: pointer; font-size: 0.82rem; font-weight: 600; padding: 0.2rem 0.4rem; text-decoration: underline; }
+.btn-link:hover { color: #1d4ed8; }
+.file-input { padding: 0.4rem; border: 1px dashed #cbd5e1; background: #f8fafc; width: 100%; box-sizing: border-box; }
+
+.import-result .resumen-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin-bottom: 1rem;
+}
+@media (max-width: 540px) { .import-result .resumen-grid { grid-template-columns: repeat(2, 1fr); } }
+.resumen-card {
+  padding: 0.85rem; border-radius: 8px; text-align: center; border: 1px solid;
+}
+.resumen-num { font-size: 1.4rem; font-weight: 800; line-height: 1; }
+.resumen-label { font-size: 0.74rem; margin-top: 0.25rem; font-weight: 500; }
+.resumen-card--green { background: #f0fdf4; border-color: #86efac; color: #16a34a; }
+.resumen-card--blue { background: #eff6ff; border-color: #93c5fd; color: #2563eb; }
+.resumen-card--red { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+.resumen-card--gray { background: #f8fafc; border-color: #cbd5e1; color: #475569; }
+
+.errores-list { margin-top: 1rem; }
+.errores-list h4 { margin: 0 0 0.5rem 0; font-size: 0.88rem; color: #1e293b; }
+.errores-list { max-height: 240px; overflow-y: auto; border: 1px solid #fecaca; border-radius: 6px; background: #fef2f2; }
+.error-row {
+  display: grid; grid-template-columns: 70px 1.5fr 2fr; gap: 0.5rem;
+  padding: 0.4rem 0.6rem; font-size: 0.8rem; border-bottom: 1px solid #fee2e2; color: #475569;
+}
+.error-row:last-child { border-bottom: none; }
+.err-fila { font-weight: 700; color: #dc2626; }
+.err-nombre { font-weight: 600; color: #1e293b; }
+.err-msg { color: #991b1b; }
 </style>

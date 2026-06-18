@@ -44,11 +44,23 @@ def _migrate_documento_herramienta_id():
         conn.commit()
 
 
+def _migrate_proveedor_ciudad():
+    """Agrega columna 'ciudad' a la tabla 'proveedor' si no existe (RF10)."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(proveedor)"))
+        existing = {row[1] for row in result.fetchall()}
+        if "ciudad" not in existing:
+            conn.execute(text("ALTER TABLE proveedor ADD COLUMN ciudad VARCHAR"))
+            print("✅ Migración: columna 'ciudad' agregada a tabla 'proveedor'")
+        conn.commit()
+
+
 def create_db_and_tables():
     """Crea las tablas en la base de datos si no existen, y aplica migraciones."""
     SQLModel.metadata.create_all(engine)
     _migrate_repuesto_columns()
     _migrate_documento_herramienta_id()
+    _migrate_proveedor_ciudad()
 
 def get_session():
     """Dependencia para obtener una sesión de base de datos en los endpoints."""

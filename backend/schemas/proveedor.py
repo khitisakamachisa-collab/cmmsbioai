@@ -40,6 +40,7 @@ class ContactoProveedorRead(BaseModel):
 # ============================================================
 class ProveedorCreate(BaseModel):
     nombre_empresa: str
+    ciudad: Optional[str] = None
     direccion: Optional[str] = None
     telefono_principal: Optional[str] = None
     email_principal: Optional[str] = None
@@ -49,6 +50,7 @@ class ProveedorCreate(BaseModel):
 
 class ProveedorUpdate(BaseModel):
     nombre_empresa: Optional[str] = None
+    ciudad: Optional[str] = None
     direccion: Optional[str] = None
     telefono_principal: Optional[str] = None
     email_principal: Optional[str] = None
@@ -59,6 +61,7 @@ class ProveedorUpdate(BaseModel):
 class ProveedorRead(BaseModel):
     id: int
     nombre_empresa: str
+    ciudad: Optional[str]
     direccion: Optional[str]
     telefono_principal: Optional[str]
     email_principal: Optional[str]

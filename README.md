@@ -1,6 +1,6 @@
 # CMMS-BioAI
 
-[![Version](https://img.shields.io/badge/versi%C3%B3n-v0.8.0-blue.svg)](https://github.com/khitisakamachisa-collab/cmmsbioai)
+[![Version](https://img.shields.io/badge/versi%C3%B3n-v0.8.1-blue.svg)](https://github.com/khitisakamachisa-collab/cmmsbioai)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](https://python.org)
 [![Vue.js](https://img.shields.io/badge/Vue.js-3.5+-4FC08D.svg?logo=vue.js&logoColor=white)](https://vuejs.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
@@ -35,7 +35,7 @@
 
 ## Estado del Proyecto
 
-**Versión actual:** v0.8.0 — Prototipo Funcional en Desarrollo Activo
+**Versión actual:** v0.8.1 — Prototipo Funcional en Desarrollo Activo
 
 ### Módulos Completados
 
@@ -47,6 +47,7 @@
 - [x] **RF06 — Reportes y Estadísticas:** 6 reportes con gráficos interactivos — mantenimiento por equipo, OTs por período, análisis de costos, cumplimiento preventivo, disponibilidad de equipos, inventario.
 - [x] **RF08 — Autenticación de Usuarios:** Login con JWT y contraseñas hasheadas con bcrypt, gestión de usuarios (admin/técnico), seed automático de usuario admin por defecto.
 - [x] **RF09 — Gestión de Inventario de Herramientas y Materiales:** CRUD completo, categorías (Instrumento de Medición / Herramienta Manual / Consumible / Kit), estados de uso, importación/exportación Excel, subida de imágenes, documentos adjuntos, prefijo `H` en carpetas, archivos `.meta.json`.
+- [x] **RF10 — Gestión de Proveedores y Contactos:** CRUD de proveedores con campo `ciudad` (independiente de `direccion`), CRUD de contactos asociados (relación 1:N), búsqueda por empresa/email/teléfono/ciudad, filtros por ciudad y página web, importación masiva Excel/CSV con upsert por `nombre_empresa`, plantilla Excel descargable con datos de ejemplo (20 proveedores biomédicos de Bolivia), modal de resultados de importación con conteo de creados/actualizados/fallidos. Pendiente: convertir los campos de texto `equipo.proveedor_principal` (RF01), `repuesto.proveedor_ultimo` (RF04) y `herramienta.proveedor_ultimo` (RF09) en FK a `Proveedor.id`.
 - [x] **Gestión Documental:** Módulo transversal de documentos adjuntos con drag-and-drop, categorías (manual, fotografía, reporte, garantía, calibración, informe, otro), visualización inline y descarga, asociación a equipos, OTs, repuestos y herramientas, archivos `.meta.json` en carpetas `DOC/`.
 - [x] **Dashboard con Métricas:** Tarjetas con indicadores en tiempo real + gráficos de Equipos por Estado, Órdenes por Prioridad y Órdenes por Estado.
 - [x] **Configuración Centralizada:** Sistema de configuración mediante `config.json` + `config.py` con `get_dir()` para rutas de almacenamiento, nombre de empresa modificable, `uploads_base` editable desde la UI con movimiento automático de archivos y re-montaje de archivos estáticos sin reiniciar.
@@ -57,7 +58,7 @@
 
 - [ ] **RF07 — Módulo de Inteligencia Artificial:** Sugerencias de mantenimiento, detección de patrones, recomendaciones de repuestos.
 - [ ] Roles y permisos de usuario (autorización por roles en frontend y backend).
-- [ ] Página de Ayuda (guía de uso, FAQ).
+- [ ] **RF10 — Migración de campos de texto a FK:** Convertir `equipo.proveedor_principal` (RF01), `repuesto.proveedor_ultimo` (RF04) y `herramienta.proveedor_ultimo` (RF09) en FK a `Proveedor.id`. Esto permitirá tener trazabilidad completa de proveedores en todo el sistema.
 
 ---
 
@@ -708,6 +709,31 @@ El sistema utiliza 12 tablas en SQLite, gestionadas con SQLModel:
 | role | str | admin / tecnico |
 | is_active | bool | Usuario activo |
 
+**`proveedor`** — Empresas proveedoras de equipos, repuestos, herramientas y servicios (RF10)
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | int (PK) | Identificador |
+| nombre_empresa | str (unique) | Nombre legal o comercial del proveedor |
+| ciudad | str? | Ciudad principal (independiente de direccion) |
+| direccion | str? | Dirección física principal |
+| telefono_principal | str? | Teléfono principal de la empresa |
+| email_principal | str? | Email principal de la empresa |
+| pagina_web | str? | Sitio web oficial |
+| notas_generales | str? | Observaciones comerciales |
+
+**`contactoproveedor`** — Contactos asociados a un proveedor (relación 1:N, RF10)
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | int (PK) | Identificador |
+| proveedor_id | int (FK→proveedor) | Proveedor al que pertenece |
+| nombre_contacto | str | Nombre completo del contacto |
+| cargo | str? | Cargo (Gerente, Vendedor, Soporte, etc.) |
+| telefono_contacto | str? | Teléfono directo del contacto |
+| email_contacto | str? | Email directo del contacto |
+| notas_contacto | str? | Notas específicas del contacto |
+
 **`estadoequipo`** — Catálogo de estados de equipo (19 valores seed)
 
 | Campo | Tipo | Descripción |
@@ -862,6 +888,24 @@ La documentación interactiva completa está disponible en `http://127.0.0.1:800
 | GET | `/users/` | Lista usuarios |
 | POST | `/users/` | Crea un nuevo usuario |
 
+### Proveedores (`/proveedores`) — RF10
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/proveedores/` | Lista todos los proveedores (sin contactos) |
+| GET | `/proveedores/con-contactos` | Lista todos los proveedores con sus contactos |
+| POST | `/proveedores/` | Crea un nuevo proveedor |
+| GET | `/proveedores/{id}` | Obtiene un proveedor por ID (con contactos) |
+| PUT | `/proveedores/{id}` | Actualiza un proveedor |
+| DELETE | `/proveedores/{id}` | Elimina un proveedor y sus contactos |
+| GET | `/proveedores/plantilla-csv` | Descarga plantilla CSV con datos de ejemplo |
+| GET | `/proveedores/plantilla-excel` | Descarga plantilla Excel con datos de ejemplo (20 proveedores) |
+| POST | `/proveedores/import-excel` | Importa proveedores desde Excel/CSV (upsert por `nombre_empresa`) |
+| POST | `/proveedores/{id}/contactos` | Agrega un contacto a un proveedor |
+| GET | `/proveedores/{id}/contactos` | Lista los contactos de un proveedor |
+| PUT | `/proveedores/contactos/{id}` | Actualiza un contacto |
+| DELETE | `/proveedores/contactos/{id}` | Elimina un contacto |
+
 ### Estados de Equipo (`/estados-equipo`)
 
 | Método | Ruta | Descripción |
@@ -935,6 +979,7 @@ La documentación interactiva completa está disponible en `http://127.0.0.1:800
 | RF07 | Módulo de Inteligencia Artificial | Pendiente |
 | RF08 | Autenticación de Usuarios | Completado |
 | RF09 | Gestión de Inventario de Herramientas y Materiales de Trabajo | Completado |
+| RF10 | Gestión de Proveedores y Contactos | Completado |
 
 ### RF09 — Gestión de Inventario de Herramientas y Materiales
 
@@ -961,6 +1006,54 @@ Diferencia herramientas del taller (osciloscopios, testers, kits) de los repuest
 | Vinculación | Directa a una OT y un Equipo Médico | Inventario independiente, uso opcional en OTs |
 | Prefijo carpetas | `R` (R0001_...) | `H` (H0001_...) |
 
+### RF10 — Gestión de Proveedores y Contactos
+
+Centraliza el directorio de empresas proveedoras de equipos, repuestos, herramientas y servicios de mantenimiento biomédico. Cada proveedor puede tener **múltiples contactos asociados** (gerente, vendedor, soporte técnico, etc.) con sus propios datos de contacto.
+
+**Campos del Proveedor** (RF10):
+
+| Campo | Obligatorio | Descripción |
+|-------|-------------|-------------|
+| `nombre_empresa` | Sí (unique) | Nombre legal o comercial del proveedor |
+| `ciudad` | No | Ciudad principal (independiente de `direccion`, usado por el filtro de ciudad) |
+| `direccion` | No | Dirección física completa |
+| `telefono_principal` | No | Teléfono de la empresa |
+| `email_principal` | No | Email principal |
+| `pagina_web` | No | Sitio web oficial |
+| `notas_generales` | No | Observaciones comerciales (garantías, condiciones, etc.) |
+
+**Campos del Contacto** (RF10):
+
+| Campo | Obligatorio | Descripción |
+|-------|-------------|-------------|
+| `nombre_contacto` | Sí | Nombre completo del contacto |
+| `cargo` | No | Cargo en la empresa (Gerente, Vendedor, Soporte, etc.) |
+| `telefono_contacto` | No | Teléfono directo |
+| `email_contacto` | No | Email directo |
+| `notas_contacto` | No | Notas específicas (horarios, preferencias, etc.) |
+
+**Funcionalidades implementadas:**
+
+- CRUD completo de proveedores con búsqueda por empresa, email, teléfono o ciudad
+- CRUD de contactos asociados (relación 1:N desde el modal de detalle)
+- Filtros por ciudad (campo directo) y por "tiene/sin página web"
+- Paginación cada 10 registros
+- **Importación masiva Excel/CSV** con `upsert` por `nombre_empresa` (si el nombre ya existe, se actualiza; si no, se crea)
+- **Plantilla Excel/CSV descargable** con 20 proveedores biomédicos de Bolivia de ejemplo
+- Modal de resultados con conteo de creados / actualizados / fallidos y detalle de errores por fila
+- Migración automática: al iniciar el backend, se agrega la columna `ciudad` a la tabla `proveedor` si no existe (SQLite ALTER TABLE)
+
+**Relaciones con otros RF** (planificadas para futuras versiones):
+
+| RF | Entidad | Campo actual (texto libre) | Objetivo |
+|----|---------|----------------------------|----------|
+| RF01 | Equipo | `proveedor_principal` | Convertir en FK a `Proveedor.id` |
+| RF04 | Repuesto | `proveedor_ultimo` | Convertir en FK a `Proveedor.id` |
+| RF09 | Herramienta | `proveedor_ultimo` | Convertir en FK a `Proveedor.id` |
+| RF03/RF05 | TareaPreventiva / EventoHistorial | Sin vínculo directo | Asociar contratos de mantenimiento y servicios con proveedores |
+
+> **Nota:** Los contactos asociados **no se importan** desde el Excel. Una vez importados los proveedores, los contactos se agregan individualmente desde el modal de detalle de cada proveedor (icono de ojo en la tabla).
+
 ---
 
 ## Historial de Versiones
@@ -976,6 +1069,7 @@ Diferencia herramientas del taller (osciloscopios, testers, kits) de los repuest
 | v0.6.x | **Mejoras UI** | Scrollbars en modales, acceso a documentos desde acciones, nombres preservados, categoría "informe", configuración centralizada config.json, imágenes en equipos y repuestos, visualización inline de documentos |
 | v0.7.0 | **Herramientas + Recuperación** | RF09 completo, estrategia de recuperación de datos (3 capas), archivos `.meta.json`, escaneo y recuperación de registros huérfanos, backup/restore completo (BD + config.json), página de configuración |
 | v0.8.0 | **Arquitectura + Configuración** | Rediseño de directorios (sub-carpetas relativas a `uploads_base`), cambio de prefijo `I`→`R` para repuestos, `uploads_base` editable desde UI, movimiento automático de archivos, re-montaje de archivos estáticos sin reiniciar, restore preserva `uploads_base` actual, nombre de empresa modificable |
+| v0.8.1 | **RF10 Proveedores + Ciudad** | Reorden del menú lateral, campo `ciudad` añadido a `Proveedor` (RF10) con migración automática, importación masiva de proveedores desde Excel/CSV con upsert por `nombre_empresa`, plantilla Excel descargable con 20 proveedores biomédicos de Bolivia de ejemplo, modal de resultados de importación con conteo de creados/actualizados/fallidos, página de Ayuda actualizada con relaciones de RF10 con RF01/RF04/RF09/RF03+RF05 |
 
 ---
 
@@ -994,7 +1088,7 @@ Diferencia herramientas del taller (osciloscopios, testers, kits) de los repuest
 - **Seguridad:** El JWT secret está hardcodeado en `utils/security.py`. Para producción, mover a variable de entorno. Los endpoints no tienen protección de autenticación todavía (pendiente de implementar).
 - **CORS:** Configurado con `allow_origins=["*"]` para desarrollo. Restringir para producción.
 - **Proxy Vite:** Las peticiones `/uploads/*` desde el frontend se redirigen automáticamente al backend en puerto 8000 mediante el proxy configurado en `vite.config.js`.
-- **Migraciones:** La función `_migrate_repuesto_columns()` en `database.py` agrega columnas nuevas a la tabla `repuesto` si no existen (SQLite ALTER TABLE), permitiendo evolución del esquema sin pérdida de datos.
+- **Migraciones:** Las funciones `_migrate_repuesto_columns()`, `_migrate_documento_herramienta_id()` y `_migrate_proveedor_ciudad()` en `database.py` agregan columnas nuevas a las tablas existentes si no están presentes (SQLite ALTER TABLE), permitiendo evolución del esquema sin pérdida de datos.
 - **Prefijos de Carpetas:** Equipos usan `E` (E0001), Repuestos usan `R` (R0001), Herramientas usan `H` (H0001), OTs usan `OT` (OT0001). Estos prefijos están definidos en `config.json` → `sistema.prefijo_*`.
 
 ---
@@ -1010,17 +1104,16 @@ Diferencia herramientas del taller (osciloscopios, testers, kits) de los repuest
 ### Prioridad Media
 
 4. **Roles y permisos** — Autorización por roles en frontend (route guards) y backend (dependencias de auth)
-5. **Página de Ayuda** — Guía de uso, FAQ, tour guiado
-6. **Módulo de Proveedores** — CRUD de proveedores, vinculación con equipos y OTs
-7. **Notificaciones** — Alertas de stock bajo, calibraciones próximas, vencimientos
+5. **RF10 — Migración a FK** — Convertir `equipo.proveedor_principal`, `repuesto.proveedor_ultimo` y `herramienta.proveedor_ultimo` en FK a `Proveedor.id`
+6. **Notificaciones** — Alertas de stock bajo, calibraciones próximas, vencimientos
 
 ### Prioridad Baja (Post v1.0)
 
-8. **RF07 — Módulo IA** — Sugerencias de mantenimiento, detección de patrones, recomendaciones
-9. **Despliegue unificado** — Frontend compilado servido desde FastAPI (un solo puerto)
-10. **Empaquetado** — PyInstaller (.exe) + instalador Inno Setup / NSIS
-11. **Reportes PDF** — Exportación de reportes a formato PDF
-12. **Normalización** — Estándares UMDNS / GMDN para registro de equipos
+7. **RF07 — Módulo IA** — Sugerencias de mantenimiento, detección de patrones, recomendaciones
+8. **Despliegue unificado** — Frontend compilado servido desde FastAPI (un solo puerto)
+9. **Empaquetado** — PyInstaller (.exe) + instalador Inno Setup / NSIS
+10. **Reportes PDF** — Exportación de reportes a formato PDF
+11. **Normalización** — Estándares UMDNS / GMDN para registro de equipos
 
 ---
 

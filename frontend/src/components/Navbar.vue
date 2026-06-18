@@ -9,11 +9,11 @@ const sistemaNombre = ref('CMMS-BioAI')
 const navLinks = [
   { path: '/inicio', label: 'Inicio' },
   { path: '/equipos', label: 'Equipos' },
-  { path: '/ordenes', label: 'Ordenes' },
   { path: '/inventario', label: 'Repuestos' },
+  { path: '/proveedores', label: 'Proveedores' },
+  { path: '/ordenes', label: 'Ordenes' },
   { path: '/preventivo', label: 'Preventivo' },
   { path: '/historial', label: 'Historial' },
-  { path: '/proveedores', label: 'Proveedores' },
   { path: '/reportes', label: 'Reportes' },
   { path: '/usuarios', label: 'Usuarios' },
   { path: '/ayuda', label: '?' },

@@ -11,6 +11,7 @@ class Proveedor(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     nombre_empresa: str = Field(index=True, unique=True)
+    ciudad: Optional[str] = None
     direccion: Optional[str] = None
     telefono_principal: Optional[str] = None
     email_principal: Optional[str] = None

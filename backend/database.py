@@ -63,11 +63,6 @@ def _migrate_equipo_v090():
     Migra la tabla 'equipo' al esquema v0.9.0:
     - Agrega columnas nuevas: observaciones, fecha_inicio_garantia, condicion_origen, proveedor_principal_id
     - NO elimina columnas obsoletas (SQLite no soporta DROP COLUMN fácilmente).
-      Las columnas registro_sanitario_bolivia, calibracion_proxima, responsable_tecnico_id,
-      proveedor_principal se quedan en la tabla pero SQLModel las ignora.
-    - Migración de datos: proveedor_principal (texto) → proveedor_principal_id (FK)
-      No se hace aquí automáticamente porque requiere buscar/crear proveedores.
-      Se hace vía endpoint /configuracion/migrar-proveedores (a implementar en Fase 2).
     """
     new_columns = [
         ("observaciones", "VARCHAR"),
@@ -85,6 +80,17 @@ def _migrate_equipo_v090():
         conn.commit()
 
 
+def _migrate_documento_ot_costo_id():
+    """v0.9.1: Agrega columna 'ot_costo_id' a la tabla 'documentoadjunto' para RF11."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(documentoadjunto)"))
+        existing = {row[1] for row in result.fetchall()}
+        if "ot_costo_id" not in existing:
+            conn.execute(text("ALTER TABLE documentoadjunto ADD COLUMN ot_costo_id INTEGER REFERENCES otcostoadicional(id)"))
+            print("✅ Migración v0.9.1: columna 'ot_costo_id' agregada a tabla 'documentoadjunto'")
+        conn.commit()
+
+
 def create_db_and_tables():
     """Crea las tablas en la base de datos si no existen, y aplica migraciones."""
     SQLModel.metadata.create_all(engine)
@@ -92,6 +98,7 @@ def create_db_and_tables():
     _migrate_documento_herramienta_id()
     _migrate_proveedor_ciudad()
     _migrate_equipo_v090()
+    _migrate_documento_ot_costo_id()
 
 
 def get_session():

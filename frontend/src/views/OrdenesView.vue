@@ -95,6 +95,15 @@ const selectedRepuestoId = ref(null)
 const selectedCantidad = ref(1)
 const repuestosSeleccionados = ref([])
 
+// v0.9.1: Variables para Costos Adicionales (RF11)
+const costosAdicionales = ref([])
+const nuevoCosto = ref({ tipo_costo: '', descripcion_costo: '', monto_costo: null })
+const TIPOS_COSTO = [
+  'Transporte', 'Servicio Externo', 'Repuesto No Inventariado',
+  'Herramienta Renta', 'Honorarios / Mano de Obra',
+  'Insumos / Materiales', 'Viáticos', 'Otro'
+]
+
 // Formulario Crear
 const formData = ref({
   equipo_id: '',
@@ -106,16 +115,14 @@ const formData = ref({
   unidad_tiempo: 'horas'
 })
 
-// Formulario Editar
+// Formulario Editar (v0.9.1: sin costo_adicional ni costos_adicionales — ahora se usan OtCostoAdicional)
 const editFormData = ref({
   estado_id: '',
   prioridad: 'Media',
   acciones_realizadas: '',
   tiempo_real_invertido: null,
   unidad_tiempo: 'horas',
-  tecnico_asignado_id: null,
-  costo_adicional: null,
-  costos_adicionales: null
+  tecnico_asignado_id: null
 })
 
 // --- Funciones de Datos ---
@@ -176,17 +183,18 @@ const openEditModal = async (ot) => {
     const resRep = await apiClient.get('/repuestos/')
     listaRepuestos.value = resRep.data
     
-    // 3. Llenar formulario de edición
+    // 3. Llenar formulario de edición (v0.9.1: sin campos de costo obsoletos)
     editFormData.value = {
       estado_id: fullOt.estado_id,
       prioridad: fullOt.prioridad || 'Media',
       acciones_realizadas: fullOt.acciones_realizadas || '',
       tiempo_real_invertido: fullOt.tiempo_real_invertido || null,
       unidad_tiempo: fullOt.unidad_tiempo || 'horas',
-      tecnico_asignado_id: fullOt.tecnico_asignado_id || null,
-      costo_adicional: fullOt.costo_adicional || null,
-      costos_adicionales: fullOt.costos_adicionales || null
+      tecnico_asignado_id: fullOt.tecnico_asignado_id || null
     }
+
+    // v0.9.1: Cargar costos adicionales (RF11)
+    costosAdicionales.value = fullOt.costos_adicionales || []
     
     // 4. Pre-llenar repuestos existentes de la OT
     repuestosSeleccionados.value = []
@@ -281,10 +289,27 @@ const deleteOrden = async (id) => {
 }
 
 // --- Helpers ---
+// v0.9.1: Incluir numero_serie y ubicacion para diferenciar equipos con mismo nombre
 const getEquipoNombre = (id) => {
   const eq = equipos.value.find(e => e.id === id)
-  return eq ? `${eq.nombre_corto || eq.modelo}` : `ID: ${id}`
+  if (!eq) return `ID: ${id}`
+  return `${eq.nombre_corto || eq.modelo}`
 }
+
+// v0.9.1: Versión extendida para dropdowns (nombre + serie + ubicacion)
+const getEquipoLabel = (eq) => {
+  if (!eq) return ''
+  const nombre = eq.nombre_corto || eq.modelo || 'N/A'
+  const serie = eq.numero_serie ? ` (${eq.numero_serie})` : ''
+  const ubic = eq.ubicacion_actual ? ` · ${eq.ubicacion_actual}` : ''
+  return `${nombre}${serie}${ubic}`
+}
+
+// v0.9.1: Información del equipo seleccionado (para mostrar debajo del dropdown)
+const equipoSeleccionadoInfo = computed(() => {
+  if (!formData.value.equipo_id) return null
+  return equipos.value.find(e => e.id === formData.value.equipo_id) || null
+})
 
 const getTecnicoNombre = (id) => {
   if (!id) return 'Sin Asignar'
@@ -308,6 +333,41 @@ const getEstadoColor = (id) => {
 const openDocsModal = (ot) => {
   docsOT.value = ot
   showDocsModal.value = true
+}
+
+// v0.9.1: Funciones para Costos Adicionales (RF11)
+const totalCostosAdicionales = computed(() => {
+  return costosAdicionales.value.reduce((sum, c) => sum + (c.monto_costo || 0), 0)
+})
+
+const agregarCosto = async () => {
+  if (!nuevoCosto.value.tipo_costo || !nuevoCosto.value.descripcion_costo || !nuevoCosto.value.monto_costo) {
+    alert('Complete todos los campos del costo')
+    return
+  }
+  try {
+    const res = await apiClient.post(`/ordenes/${selectedOT.value.id}/costos`, {
+      orden_trabajo_id: selectedOT.value.id,
+      tipo_costo: nuevoCosto.value.tipo_costo,
+      descripcion_costo: nuevoCosto.value.descripcion_costo,
+      monto_costo: parseFloat(nuevoCosto.value.monto_costo),
+      subido_por: localStorage.getItem('username') || 'admin'
+    })
+    costosAdicionales.value.push(res.data)
+    nuevoCosto.value = { tipo_costo: '', descripcion_costo: '', monto_costo: null }
+  } catch (error) {
+    alert('Error al agregar costo: ' + (error.response?.data?.detail || error.message))
+  }
+}
+
+const eliminarCosto = async (costoId) => {
+  if (!confirm('¿Eliminar este costo?')) return
+  try {
+    await apiClient.delete(`/ordenes/costos/${costoId}`)
+    costosAdicionales.value = costosAdicionales.value.filter(c => c.id !== costoId)
+  } catch (error) {
+    alert('Error al eliminar costo')
+  }
 }
 
 onMounted(() => {
@@ -442,7 +502,20 @@ onMounted(() => {
       <div class="modal">
         <h3>Nueva Orden de Trabajo</h3>
         <form @submit.prevent="saveOrden">
-          <div class="form-group"><label>Equipo Afectado *</label><select v-model="formData.equipo_id" required><option value="" disabled>Seleccione...</option><option v-for="eq in equipos" :key="eq.id" :value="eq.id">{{ eq.nombre_corto || eq.modelo }}</option></select></div>
+          <div class="form-group">
+            <label>Equipo Afectado *</label>
+            <select v-model="formData.equipo_id" required>
+              <option value="" disabled>Seleccione...</option>
+              <option v-for="eq in equipos" :key="eq.id" :value="eq.id">{{ getEquipoLabel(eq) }}</option>
+            </select>
+            <!-- v0.9.1: Info del equipo seleccionado -->
+            <div v-if="equipoSeleccionadoInfo" class="equipo-info-box">
+              <strong>{{ equipoSeleccionadoInfo.nombre_corto }}</strong> ·
+              Modelo: {{ equipoSeleccionadoInfo.modelo }} ·
+              Serie: {{ equipoSeleccionadoInfo.numero_serie }} ·
+              Ubicación: {{ equipoSeleccionadoInfo.ubicacion_actual || 'N/A' }}
+            </div>
+          </div>
           <div class="form-row">
             <div class="form-group"><label>Estado *</label><select v-model="formData.estado_id" required><option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option></select></div>
             <div class="form-group"><label>Prioridad</label><select v-model="formData.prioridad"><option>Urgente</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
@@ -480,9 +553,7 @@ onMounted(() => {
             <h4>Asignación y Tiempos</h4>
             <p><strong>Técnico:</strong> {{ getTecnicoNombre(selectedOT.tecnico_asignado_id) }}</p>
             <p><strong>Fecha Creación:</strong> {{ selectedOT.fecha_creacion ? new Date(selectedOT.fecha_creacion).toLocaleDateString('es-BO') : 'N/A' }}</p>
-            <p><strong>Tiempo Invertido:</strong> {{ selectedOT.tiempo_real_invertido || 0 }} {{ selectedOT.unidad_tiempo === 'dias' ? 'días' : 'horas' }}</p>
-            <p><strong>Costo General:</strong> {{ selectedOT.costo_adicional ? 'Bs. ' + Number(selectedOT.costo_adicional).toFixed(2) : '-' }}</p>
-            <p><strong>Costos Adicionales:</strong> {{ selectedOT.costos_adicionales ? 'Bs. ' + Number(selectedOT.costos_adicionales).toFixed(2) : '-' }}</p>
+            <p><strong>Tiempo Invertido:</strong> {{ selectedOT.tiempo_real_investido || 0 }} {{ selectedOT.unidad_tiempo === 'dias' ? 'días' : 'horas' }}</p>
           </div>
         </div>
         <div class="detail-full-view">
@@ -493,6 +564,23 @@ onMounted(() => {
           <h4>Acciones Realizadas</h4>
           <div class="description-box" style="color: #27ae60;">{{ selectedOT.acciones_realizadas }}</div>
         </div>
+
+        <!-- v0.9.1: Sección de Costos Adicionales (RF11) — siempre visible -->
+        <div class="detail-full-view">
+          <h4>💰 Costos Adicionales</h4>
+          <div v-if="selectedOT.costos_adicionales && selectedOT.costos_adicionales.length > 0" class="costos-detail-list">
+            <div v-for="c in selectedOT.costos_adicionales" :key="c.id" class="costo-detail-item">
+              <span class="costo-detail-tipo">{{ c.tipo_costo }}</span>
+              <span class="costo-detail-desc">{{ c.descripcion_costo }}</span>
+              <span class="costo-detail-monto">Bs. {{ Number(c.monto_costo).toFixed(2) }}</span>
+            </div>
+            <div class="costo-detail-total">
+              <strong>Total: Bs. {{ Number(selectedOT.total_costos_adicionales || 0).toFixed(2) }}</strong>
+            </div>
+          </div>
+          <p v-else style="color: #888;"><em>Sin costos adicionales registrados.</em></p>
+        </div>
+
         <div class="detail-full-view">
           <h4>Repuestos Utilizados</h4>
           <ul v-if="selectedOT.repuestos_usados && selectedOT.repuestos_usados.length" class="repuesto-detail-list">
@@ -566,16 +654,28 @@ onMounted(() => {
             <textarea v-model="editFormData.acciones_realizadas" rows="3" placeholder="Describa la reparación..."></textarea>
           </div>
 
-          <!-- Costos lado a lado -->
-          <div class="form-row">
-            <div class="form-group">
-              <label>Costo General (Bs.)</label>
-              <input v-model="editFormData.costo_adicional" type="number" step="0.01" min="0" placeholder="Costos directos de la OT">
+          <!-- v0.9.1: Costos Adicionales (RF11) — reemplaza costo_adicional y costos_adicionales -->
+          <hr>
+          <h4>💰 Costos Adicionales</h4>
+          <div class="costos-list" v-if="costosAdicionales.length > 0">
+            <div v-for="c in costosAdicionales" :key="c.id" class="costo-item">
+              <span class="costo-tipo">{{ c.tipo_costo }}</span>
+              <span class="costo-desc">{{ c.descripcion_costo }}</span>
+              <span class="costo-monto">Bs. {{ Number(c.monto_costo).toFixed(2) }}</span>
+              <button type="button" class="btn-icon-sm btn-danger-icon" @click="eliminarCosto(c.id)" title="Eliminar costo">✕</button>
             </div>
-            <div class="form-group">
-              <label>Costos Adicionales (Bs.)</label>
-              <input v-model="editFormData.costos_adicionales" type="number" step="0.01" min="0" placeholder="Externos, transporte, etc.">
+            <div class="costo-total">
+              <strong>Total: Bs. {{ totalCostosAdicionales.toFixed(2) }}</strong>
             </div>
+          </div>
+          <div class="costo-form">
+            <select v-model="nuevoCosto.tipo_costo" class="costo-select">
+              <option value="">Tipo...</option>
+              <option v-for="t in TIPOS_COSTO" :key="t" :value="t">{{ t }}</option>
+            </select>
+            <input v-model="nuevoCosto.descripcion_costo" type="text" placeholder="Descripción del costo" class="costo-input-desc">
+            <input v-model="nuevoCosto.monto_costo" type="number" step="0.01" min="0" placeholder="Monto (Bs.)" class="costo-input-monto">
+            <button type="button" class="btn-sm btn-add-costo" @click="agregarCosto">+ Agregar</button>
           </div>
 
           <hr>
@@ -727,5 +827,143 @@ th { background-color: #f8f9fa; }
 .btn-pagination:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* v0.9.1: Info del equipo seleccionado (debajo del dropdown) */
+.equipo-info-box {
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #1e40af;
+}
+
+/* v0.9.1: Costos adicionales (RF11) */
+.costos-list {
+  margin: 0.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.costo-item {
+  display: grid;
+  grid-template-columns: 140px 1fr 100px 30px;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+.costo-tipo {
+  font-weight: 600;
+  color: #15803d;
+  font-size: 0.78rem;
+}
+.costo-desc {
+  color: #334155;
+}
+.costo-monto {
+  font-weight: 700;
+  color: #16a34a;
+  text-align: right;
+}
+.costo-total {
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.6rem;
+  background: #dbeafe;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  color: #1e40af;
+  text-align: right;
+}
+.costo-form {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+  flex-wrap: wrap;
+}
+.costo-select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  min-width: 140px;
+}
+.costo-input-desc {
+  flex: 1;
+  min-width: 150px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+.costo-input-monto {
+  width: 100px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+.btn-add-costo {
+  background: #16a34a !important;
+  color: white !important;
+  white-space: nowrap;
+}
+.btn-icon-sm {
+  background: #f0f2f5;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #555;
+  font-size: 0.78rem;
+}
+.btn-danger-icon {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+/* v0.9.1: Costos en modal de vista (👁) */
+.costos-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.costo-detail-item {
+  display: grid;
+  grid-template-columns: 140px 1fr 100px;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.6rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+.costo-detail-tipo {
+  font-weight: 600;
+  color: #15803d;
+  font-size: 0.78rem;
+}
+.costo-detail-desc {
+  color: #334155;
+}
+.costo-detail-monto {
+  font-weight: 700;
+  color: #16a34a;
+  text-align: right;
+}
+.costo-detail-total {
+  margin-top: 0.3rem;
+  padding: 0.4rem 0.6rem;
+  background: #dbeafe;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  color: #1e40af;
+  text-align: right;
 }
 </style>

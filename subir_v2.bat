@@ -2,7 +2,7 @@
 REM === Script mejorado para sincronizar con GitHub ===
 
 REM Cambia al directorio del proyecto
-cd /d "D:\Maestria\Modulo 6\CMMS\cmmsbioai"
+cd /d "D:\cmmsbioai"
 
 echo ==============================
 echo 1. Actualizando desde GitHub...

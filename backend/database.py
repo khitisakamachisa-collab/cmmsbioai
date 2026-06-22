@@ -13,6 +13,10 @@ sqlite_url = f"sqlite:///{sqlite_file_name}"
 engine = create_engine(sqlite_url, echo=True, connect_args={"check_same_thread": False})
 
 
+# ============================================================
+# MIGRACIONES (para bases de datos existentes que se actualizan a v0.9.0)
+# ============================================================
+
 def _migrate_repuesto_columns():
     """Agrega columnas nuevas a la tabla 'repuesto' si no existen (SQLite ALTER TABLE)."""
     new_columns = [
@@ -23,7 +27,6 @@ def _migrate_repuesto_columns():
         ("precio_referencia", "FLOAT"),
     ]
     with engine.connect() as conn:
-        # Obtener columnas existentes
         result = conn.execute(text("PRAGMA table_info(repuesto)"))
         existing = {row[1] for row in result.fetchall()}
         for col_name, col_type in new_columns:
@@ -55,38 +58,87 @@ def _migrate_proveedor_ciudad():
         conn.commit()
 
 
+def _migrate_equipo_v090():
+    """
+    Migra la tabla 'equipo' al esquema v0.9.0:
+    - Agrega columnas nuevas: observaciones, fecha_inicio_garantia, condicion_origen, proveedor_principal_id
+    - NO elimina columnas obsoletas (SQLite no soporta DROP COLUMN fácilmente).
+      Las columnas registro_sanitario_bolivia, calibracion_proxima, responsable_tecnico_id,
+      proveedor_principal se quedan en la tabla pero SQLModel las ignora.
+    - Migración de datos: proveedor_principal (texto) → proveedor_principal_id (FK)
+      No se hace aquí automáticamente porque requiere buscar/crear proveedores.
+      Se hace vía endpoint /configuracion/migrar-proveedores (a implementar en Fase 2).
+    """
+    new_columns = [
+        ("observaciones", "VARCHAR"),
+        ("fecha_inicio_garantia", "DATE"),
+        ("condicion_origen", "VARCHAR"),
+        ("proveedor_principal_id", "INTEGER REFERENCES proveedor(id)"),
+    ]
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(equipo)"))
+        existing = {row[1] for row in result.fetchall()}
+        for col_name, col_type in new_columns:
+            if col_name not in existing:
+                conn.execute(text(f"ALTER TABLE equipo ADD COLUMN {col_name} {col_type}"))
+                print(f"✅ Migración v0.9.0: columna '{col_name}' agregada a tabla 'equipo'")
+        conn.commit()
+
+
 def create_db_and_tables():
     """Crea las tablas en la base de datos si no existen, y aplica migraciones."""
     SQLModel.metadata.create_all(engine)
     _migrate_repuesto_columns()
     _migrate_documento_herramienta_id()
     _migrate_proveedor_ciudad()
+    _migrate_equipo_v090()
+
 
 def get_session():
     """Dependencia para obtener una sesión de base de datos en los endpoints."""
     with Session(engine) as session:
         yield session
 
+
+# ============================================================
+# SEED DE DATOS INICIALES
+# ============================================================
+
 def seed_database():
-    """Poblar tablas con datos iniciales si están vacías."""
+    """
+    Poblar tablas con datos iniciales si están vacías.
+
+    Crea:
+    - 3 usuarios TEST: admin/admin, tech/tech, user/user
+    - 19 estados de equipo (catálogo biomédico)
+    - 5 estados de orden de trabajo
+    """
     with Session(engine) as session:
 
-        # === 1. Seed: Usuario Admin por defecto ===
-        admin_exists = session.exec(
-            select(Usuario).where(Usuario.role == "admin")
-        ).first()
-        if not admin_exists:
-            hashed = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
-            admin = Usuario(
-                username="admin",
-                email="admin@biolab.com",
-                hashed_password=hashed,
-                full_name="Administrador",
-                role="admin",
-                is_active=True
-            )
-            session.add(admin)
-            print("✅ Seed: Usuario admin creado (admin / admin123)")
+        # === 1. Seed: Usuarios por defecto (admin, tech, user) ===
+        # Contraseñas simples intencionalmente para facilitar el TEST.
+        # En producción, el administrador debe cambiarlas.
+        usuarios_seed = [
+            ("admin", "admin", "admin",   "Administrador del Sistema", "admin@biolab.com"),
+            ("tech",  "tech",  "tecnico", "Técnico Biomédico",         "tech@biolab.com"),
+            ("user",  "user",  "tecnico", "Usuario Regular",           "user@biolab.com"),
+        ]
+        for username, password, role, full_name, email in usuarios_seed:
+            existe = session.exec(
+                select(Usuario).where(Usuario.username == username)
+            ).first()
+            if not existe:
+                hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+                usuario = Usuario(
+                    username=username,
+                    email=email,
+                    hashed_password=hashed,
+                    full_name=full_name,
+                    role=role,
+                    is_active=True
+                )
+                session.add(usuario)
+                print(f"✅ Seed: Usuario '{username}' creado ({username} / {password})")
 
         # === 2. Seed: Estados de Equipo (19 estados biomédicos) ===
         equipo_estado_count = session.exec(select(EstadoEquipo)).first()

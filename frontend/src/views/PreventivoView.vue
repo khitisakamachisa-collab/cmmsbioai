@@ -151,7 +151,8 @@ const openCreateModal = async () => {
     responsable_id: null,
     titulo: '',
     frecuencia_dias: 90,
-    ultima_fecha: null
+    ultima_fecha: null,
+    proxima_fecha: ''  // v0.9.0: fecha REAL programada por el usuario (editable)
   }
   repuestosSeleccionados.value = []
   selectedRepuestoId.value = null
@@ -178,6 +179,12 @@ const openEditModal = async (tarea) => {
     formData.value = { ...fullTarea }
     if (fullTarea.ultima_fecha) {
       formData.value.ultima_fecha = fullTarea.ultima_fecha.substring(0, 10)
+    }
+    // v0.9.0: formatear proxima_fecha para el date picker
+    if (fullTarea.proxima_fecha) {
+      formData.value.proxima_fecha = fullTarea.proxima_fecha.substring(0, 10)
+    } else {
+      formData.value.proxima_fecha = ''
     }
     repuestosSeleccionados.value = (fullTarea.repuestos_detalle || []).map((rep) => ({
       repuesto_id: rep.repuesto_id,
@@ -220,6 +227,7 @@ const buildPayload = () => {
     descripcion: formData.value.descripcion || null,
     frecuencia_dias: Number(formData.value.frecuencia_dias),
     ultima_fecha: formData.value.ultima_fecha || null,
+    proxima_fecha: formData.value.proxima_fecha || null,  // v0.9.0: fecha REAL programada
     repuestos: repuestosSeleccionados.value.map((r) => ({
       repuesto_id: r.repuesto_id,
       cantidad_requerida: Number(r.cantidad)
@@ -232,10 +240,22 @@ const buildPayload = () => {
       frecuencia_dias: payload.frecuencia_dias,
       responsable_id: payload.responsable_id,
       ultima_fecha: payload.ultima_fecha,
+      proxima_fecha: payload.proxima_fecha,  // v0.9.0
       repuestos: payload.repuestos
     }
   }
   return payload
+}
+
+// v0.9.0: Sugerir proxima_fecha basada en ultima_fecha + frecuencia_dias
+// (el usuario puede modificarla libremente)
+const sugerirProximaFecha = () => {
+  if (formData.value.ultima_fecha && formData.value.frecuencia_dias) {
+    const ultima = new Date(formData.value.ultima_fecha)
+    const proxima = new Date(ultima)
+    proxima.setDate(proxima.getDate() + Number(formData.value.frecuencia_dias))
+    formData.value.proxima_fecha = proxima.toISOString().substring(0, 10)
+  }
 }
 
 const saveTarea = async () => {
@@ -867,12 +887,26 @@ onMounted(() => {
 
           <div class="form-row">
             <div class="form-group">
-              <label>Frecuencia (dias)</label>
+              <label>Frecuencia (dias) <span class="hint">sugerencia</span></label>
               <input v-model="formData.frecuencia_dias" type="number" min="1" required>
             </div>
             <div class="form-group">
               <label>Ultima Fecha Realizada</label>
-              <input v-model="formData.ultima_fecha" type="date">
+              <input v-model="formData.ultima_fecha" type="date" @change="sugerirProximaFecha">
+            </div>
+          </div>
+
+          <!-- v0.9.0: proxima_fecha editable (fecha REAL programada, no auto-calculada) -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Próxima Fecha Programada <span class="hint">fecha real para el calendario</span></label>
+              <input v-model="formData.proxima_fecha" type="date">
+              <small class="form-help">Esta es la fecha que aparece en el calendario. La frecuencia es solo una sugerencia.</small>
+            </div>
+            <div class="form-group">
+              <button type="button" class="btn-sugerir" @click="sugerirProximaFecha" title="Calcular sugerencia basada en última fecha + frecuencia">
+                📅 Sugerir fecha
+              </button>
             </div>
           </div>
 
@@ -1618,5 +1652,36 @@ th { background-color: #f8f9fa; font-weight: bold; }
     width: 100%;
     justify-content: space-between;
   }
+}
+
+/* v0.9.0: Estilos para proxima_fecha editable */
+.hint {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-weight: 400;
+  font-style: italic;
+}
+.form-help {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+.btn-sugerir {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  padding: 0.5rem 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  transition: all 0.2s;
+  margin-top: 1.5rem;
+}
+.btn-sugerir:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
 }
 </style>

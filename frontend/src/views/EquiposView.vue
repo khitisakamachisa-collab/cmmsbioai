@@ -8,7 +8,7 @@ import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'
 // --- Variables Generales ---
 const equipos = ref([])
 const estados = ref([])
-const tecnicos = ref([])
+const proveedores = ref([])  // v0.9.0: reemplaza tecnicos
 const loading = ref(true)
 const error_msg = ref('')
 
@@ -16,16 +16,20 @@ const PAGE_SIZE = 10
 const currentPage = ref(1)
 const searchQuery = ref('')
 
-// --- Filtros de busqueda ---
-const filterModelo = ref('')
-const filterSerie = ref('')
-const filterMarca = ref('')
-const filterMaterial = ref('')
+// --- Filtros de busqueda v0.9.0 ---
+const filterUbicacion = ref('')
+const filterEstado = ref('')
+const filterCondicion = ref('')
 
 // --- Variables Modal ---
 const showModal = ref(false)
 const isEditing = ref(false)
 const formData = ref({})
+
+// v0.9.0: Variables para crear proveedor al vuelo
+const showNuevoProveedorModal = ref(false)
+const nuevoProveedorNombre = ref('')
+const creandoProveedor = ref(false)
 
 // --- Variables Historial ---
 const showHistoryModal = ref(false)
@@ -52,6 +56,12 @@ const imagenFile = ref(null)
 const imagenPreview = ref('')
 const subiendoImagen = ref(false)
 
+// v0.9.0: Valores válidos para condicion_origen
+const CONDICIONES_ORIGEN = [
+  'Compra', 'Donación', 'Préstamo', 'Demostración', 'Evaluación',
+  'Leasing', 'Renta', 'Comodato', 'Otro'
+]
+
 // Función para abrir el modal de detalles
 const openDetailModal = (equipo) => {
   selectedEquipo.value = equipo
@@ -64,11 +74,23 @@ const openDocsModal = (equipo) => {
   showDocsModal.value = true
 }
 
-// Helper para mostrar el nombre del técnico
-const getTecnicoName = (id) => {
-  if (!id) return 'Sin Asignar'
-  const tec = tecnicos.value.find(t => t.id === id)
-  return tec ? (tec.full_name || tec.username) : 'Desconocido'
+// v0.9.0: Helper para mostrar el nombre del proveedor
+const getProveedorName = (id) => {
+  if (!id) return 'N/A'
+  const prov = proveedores.value.find(p => p.id === id)
+  return prov ? prov.nombre_empresa : 'N/A'
+}
+
+// v0.9.0: Badge de garantía mejorado (usa fecha_inicio y fecha_fin)
+const getGarantiaBadge = (equipo) => {
+  if (!equipo.fecha_fin_garantia) return { text: '', class: '' }
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  const fin = new Date(equipo.fecha_fin_garantia)
+  if (fin < hoy) return { text: 'Garantía vencida', class: 'badge-garantia-vencida' }
+  const diasRestantes = Math.ceil((fin - hoy) / (1000 * 60 * 60 * 24))
+  if (diasRestantes <= 30) return { text: `Garantía por vencer (${diasRestantes}d)`, class: 'badge-garantia-proxima' }
+  return { text: 'En garantía', class: 'badge-garantia' }
 }
 
 // Helper: ¿Equipo en garantía?
@@ -167,81 +189,70 @@ const fetchEstados = async () => {
   }
 }
 
-const fetchTecnicos = async () => {
+// v0.9.0: Cargar proveedores para el dropdown del formulario
+const fetchProveedores = async () => {
   try {
-    const response = await apiClient.get('users')
-    tecnicos.value = response.data
+    const res = await apiClient.get('/equipos/proveedores')
+    proveedores.value = res.data
   } catch (error) {
-    console.error('Error al cargar técnicos', error)
+    console.error("Error al cargar proveedores:", error)
+    // Fallback: intentar con /proveedores/
+    try {
+      const res2 = await apiClient.get('/proveedores/')
+      proveedores.value = res2.data.map(p => ({ id: p.id, nombre_empresa: p.nombre_empresa, ciudad: p.ciudad }))
+    } catch (e) {
+      console.error("Fallback también falló:", e)
+    }
   }
 }
 
-// --- Opciones de filtros (derivadas de datos) ---
-const modelosUnicos = computed(() => {
+// v0.9.0: Opciones de filtros (derivadas de datos)
+const ubicacionesUnicas = computed(() => {
   const vals = new Set()
-  equipos.value.forEach(eq => { if (eq.modelo) vals.add(eq.modelo) })
-  return Array.from(vals).sort()
-})
-const seriesUnicas = computed(() => {
-  const vals = new Set()
-  equipos.value.forEach(eq => { if (eq.numero_serie) vals.add(eq.numero_serie) })
-  return Array.from(vals).sort()
-})
-const marcasUnicas = computed(() => {
-  const vals = new Set()
-  equipos.value.forEach(eq => { if (eq.marca) vals.add(eq.marca) })
-  return Array.from(vals).sort()
-})
-const materialesUnicos = computed(() => {
-  const vals = new Set()
-  equipos.value.forEach(eq => { if (eq.numero_material) vals.add(eq.numero_material) })
+  equipos.value.forEach(eq => { if (eq.ubicacion_actual) vals.add(eq.ubicacion_actual) })
   return Array.from(vals).sort()
 })
 
 const tieneFiltrosActivos = computed(() => {
-  return searchQuery.value.trim() || filterModelo.value || filterSerie.value || filterMarca.value || filterMaterial.value
+  return searchQuery.value.trim() || filterUbicacion.value || filterEstado.value || filterCondicion.value
 })
 
 const limpiarFiltros = () => {
   searchQuery.value = ''
-  filterModelo.value = ''
-  filterSerie.value = ''
-  filterMarca.value = ''
-  filterMaterial.value = ''
+  filterUbicacion.value = ''
+  filterEstado.value = ''
+  filterCondicion.value = ''
 }
 
 const filteredEquipos = computed(() => {
   let result = equipos.value
 
-  // Filtro texto libre
+  // v0.9.0: Búsqueda por nombre/marca/modelo + numero_serie/numero_material
   const q = searchQuery.value.trim().toLowerCase()
   if (q) {
     result = result.filter((eq) => {
       const nombre = String(eq.nombre_corto ?? '').toLowerCase()
       const marca = String(eq.marca ?? '').toLowerCase()
       const modelo = String(eq.modelo ?? '').toLowerCase()
-      return nombre.includes(q) || marca.includes(q) || modelo.includes(q)
+      const serie = String(eq.numero_serie ?? '').toLowerCase()
+      const material = String(eq.numero_material ?? '').toLowerCase()
+      return nombre.includes(q) || marca.includes(q) || modelo.includes(q) || serie.includes(q) || material.includes(q)
     })
   }
 
-  // Filtro modelo
-  if (filterModelo.value) {
-    result = result.filter(eq => eq.modelo === filterModelo.value)
+  // v0.9.0: Filtro por ubicación
+  if (filterUbicacion.value) {
+    result = result.filter(eq => eq.ubicacion_actual === filterUbicacion.value)
   }
 
-  // Filtro numero de serie
-  if (filterSerie.value) {
-    result = result.filter(eq => eq.numero_serie === filterSerie.value)
+  // v0.9.0: Filtro por estado
+  if (filterEstado.value) {
+    result = result.filter(eq => eq.estado_id === parseInt(filterEstado.value))
   }
 
-  // Filtro marca
-  if (filterMarca.value) {
-    result = result.filter(eq => eq.marca === filterMarca.value)
-  }
-
-  // Filtro numero de material
-  if (filterMaterial.value) {
-    result = result.filter(eq => eq.numero_material === filterMaterial.value)
+  // v0.9.0: Filtro por condición de origen
+  if (filterCondicion.value) {
+    result = result.filter(eq => eq.condicion_origen === filterCondicion.value)
   }
 
   return result
@@ -259,7 +270,7 @@ watch(
   }
 )
 
-watch([searchQuery, filterModelo, filterSerie, filterMarca, filterMaterial], () => {
+watch([searchQuery, filterUbicacion, filterEstado, filterCondicion], () => {
   currentPage.value = 1
 })
 
@@ -281,15 +292,15 @@ const openCreateModal = () => {
     numero_material: '',
     marca: '',
     fecha_adquisicion: '',
+    fecha_inicio_garantia: '',   // v0.9.0
     fecha_fin_garantia: '',
     ubicacion_actual: '',
     estado_id: 1,
-    registro_sanitario_bolivia: '',
-    proveedor_principal: '',
+    proveedor_principal_id: null,  // v0.9.0: FK (era texto)
+    condicion_origen: '',          // v0.9.0: nuevo
     descripcion: '',
+    observaciones: '',             // v0.9.0: nuevo
     imagen_ruta: '',
-    calibracion_proxima: '',
-    responsable_tecnico_id: null
   }
   imagenFile.value = null
   imagenPreview.value = ''
@@ -299,21 +310,22 @@ const openCreateModal = () => {
 const openEditModal = (equipo) => {
   isEditing.value = true
   formData.value = { ...equipo }
-  
+
+  // Convertir fechas a formato YYYY-MM-DD para el input type="date"
   if (equipo.fecha_adquisicion) {
     formData.value.fecha_adquisicion = equipo.fecha_adquisicion.substring(0, 10)
   }
-  if (equipo.calibracion_proxima) {
-    formData.value.calibracion_proxima = equipo.calibracion_proxima.substring(0, 10)
+  if (equipo.fecha_inicio_garantia) {
+    formData.value.fecha_inicio_garantia = equipo.fecha_inicio_garantia.substring(0, 10)
   } else {
-    formData.value.calibracion_proxima = ''
+    formData.value.fecha_inicio_garantia = ''
   }
   if (equipo.fecha_fin_garantia) {
     formData.value.fecha_fin_garantia = equipo.fecha_fin_garantia.substring(0, 10)
   } else {
     formData.value.fecha_fin_garantia = ''
   }
-  
+
   imagenFile.value = null
   imagenPreview.value = equipo.imagen_ruta ? `/uploads/${equipo.imagen_ruta}` : ''
   showModal.value = true
@@ -323,10 +335,21 @@ const saveEquipo = async () => {
   try {
     const payload = { ...formData.value };
 
+    // Limpiar campos vacíos a null
     if (payload.fecha_adquisicion === "") payload.fecha_adquisicion = null;
-    if (payload.calibracion_proxima === "") payload.calibracion_proxima = null;
+    if (payload.fecha_inicio_garantia === "") payload.fecha_inicio_garantia = null;
     if (payload.fecha_fin_garantia === "") payload.fecha_fin_garantia = null;
-    if (payload.responsable_tecnico_id === "") payload.responsable_tecnico_id = null;
+    if (payload.proveedor_principal_id === "") payload.proveedor_principal_id = null;
+    if (payload.condicion_origen === "") payload.condicion_origen = null;
+
+    // v0.9.0: NO enviar campos no editables al editar (modelo, marca, numero_serie)
+    // El backend los rechazaría. El schema EquipoUpdate no los incluye, así que
+    // el backend simplemente los ignora, pero por limpieza los removemos del payload.
+    if (isEditing.value) {
+      delete payload.modelo;
+      delete payload.marca;
+      delete payload.numero_serie;
+    }
 
     let equipoId;
     if (isEditing.value) {
@@ -348,7 +371,7 @@ const saveEquipo = async () => {
 
     alert(isEditing.value ? 'Equipo actualizado' : 'Equipo creado')
     showModal.value = false
-    fetchEquipos() 
+    fetchEquipos()
   } catch (error) {
     console.error(error.response)
     if (error.response && error.response.data && error.response.data.detail) {
@@ -371,8 +394,47 @@ const deleteEquipo = async (id) => {
       alert('Equipo eliminado')
       fetchEquipos()
     } catch (error) {
-      alert('Error al eliminar')
+      // v0.9.0: mostrar el mensaje detallado del backend (dependencias)
+      if (error.response && error.response.data && error.response.data.detail) {
+        alert('No se puede eliminar:\n\n' + error.response.data.detail)
+      } else {
+        alert('Error al eliminar el equipo')
+      }
     }
+  }
+}
+
+// v0.9.0: Crear proveedor al vuelo desde el formulario de equipo
+const abrirModalNuevoProveedor = () => {
+  nuevoProveedorNombre.value = ''
+  showNuevoProveedorModal.value = true
+}
+
+const crearProveedorAlVuelo = async () => {
+  const nombre = nuevoProveedorNombre.value.trim()
+  if (!nombre) {
+    alert('El nombre del proveedor es obligatorio')
+    return
+  }
+  creandoProveedor.value = true
+  try {
+    const res = await apiClient.post('/equipos/from-proveedor-nombre', {
+      nombre_empresa: nombre
+    })
+    // Recargar lista de proveedores
+    await fetchProveedores()
+    // Seleccionar el proveedor recién creado
+    formData.value.proveedor_principal_id = res.data.id
+    showNuevoProveedorModal.value = false
+    alert(`Proveedor "${nombre}" creado. Podrás completar sus datos en la página de Proveedores.`)
+  } catch (error) {
+    if (error.response?.data?.detail) {
+      alert('Error: ' + error.response.data.detail)
+    } else {
+      alert('Error al crear el proveedor')
+    }
+  } finally {
+    creandoProveedor.value = false
   }
 }
 
@@ -496,7 +558,7 @@ const getEstadoColor = (id) => {
 onMounted(() => {
   fetchEquipos()
   fetchEstados()
-  fetchTecnicos()
+  fetchProveedores()  // v0.9.0: reemplaza fetchTecnicos
 })
 </script>
 
@@ -532,34 +594,27 @@ onMounted(() => {
         </div>
       </div>
       
-      <!-- Barra de filtros -->
+      <!-- v0.9.0: Barra de filtros (ubicacion, estado, condicion_origen) -->
       <div class="filter-bar">
         <div class="filter-group">
-          <label class="filter-label">Modelo:</label>
-          <select v-model="filterModelo" class="filter-select">
-            <option value="">Todos</option>
-            <option v-for="m in modelosUnicos" :key="m" :value="m">{{ m }}</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label class="filter-label">N. Serie:</label>
-          <select v-model="filterSerie" class="filter-select">
-            <option value="">Todos</option>
-            <option v-for="s in seriesUnicas" :key="s" :value="s">{{ s }}</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label class="filter-label">Marca:</label>
-          <select v-model="filterMarca" class="filter-select">
+          <label class="filter-label">Ubicación:</label>
+          <select v-model="filterUbicacion" class="filter-select">
             <option value="">Todas</option>
-            <option v-for="m in marcasUnicas" :key="m" :value="m">{{ m }}</option>
+            <option v-for="u in ubicacionesUnicas" :key="u" :value="u">{{ u }}</option>
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label filter-label--extra">N. Material:</label>
-          <select v-model="filterMaterial" class="filter-select">
+          <label class="filter-label">Estado:</label>
+          <select v-model="filterEstado" class="filter-select">
             <option value="">Todos</option>
-            <option v-for="m in materialesUnicos" :key="m" :value="m">{{ m }}</option>
+            <option v-for="e in estados" :key="e.id" :value="e.id">{{ e.nombre_estado }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Condición:</label>
+          <select v-model="filterCondicion" class="filter-select">
+            <option value="">Todas</option>
+            <option v-for="c in CONDICIONES_ORIGEN" :key="c" :value="c">{{ c }}</option>
           </select>
         </div>
         <button v-if="tieneFiltrosActivos" class="btn-clear-filters" @click="limpiarFiltros" title="Limpiar todos los filtros">
@@ -583,12 +638,13 @@ onMounted(() => {
             <th>Marca</th>
             <th>Ubicación</th>
             <th>Estado</th>
+            <th>Condición</th>
             <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="!filteredEquipos.length">
-            <td class="table-empty-cell" colspan="7">
+            <td class="table-empty-cell" colspan="8">
               {{ searchQuery.trim() ? 'No hay equipos que coincidan con la búsqueda.' : 'No hay equipos para mostrar.' }}
             </td>
           </tr>
@@ -609,9 +665,13 @@ onMounted(() => {
               <span class="badge" :style="{ backgroundColor: getEstadoColor(equipo.estado_id) }">
                 {{ getNombreEstado(equipo.estado_id) }}
               </span>
-              <span v-if="enGarantia(equipo.fecha_fin_garantia)" class="badge-garantia" title="Garantía vigente hasta {{ equipo.fecha_fin_garantia }}">
-                En Garantía
+              <span v-if="getGarantiaBadge(equipo).text" :class="getGarantiaBadge(equipo).class" :title="`Fin garantía: ${equipo.fecha_fin_garantia}`">
+                {{ getGarantiaBadge(equipo).text }}
               </span>
+            </td>
+            <td>
+              <span v-if="equipo.condicion_origen" class="badge-condicion">{{ equipo.condicion_origen }}</span>
+              <span v-else>—</span>
             </td>
             <td class="actions-cell">
               <button class="btn-icon" title="Ver Detalles" @click="openDetailModal(equipo)">
@@ -794,24 +854,35 @@ onMounted(() => {
       <div class="modal">
         <h3>{{ isEditing ? 'Editar Equipo' : 'Registrar Nuevo Equipo' }}</h3>
         <form @submit.prevent="saveEquipo">
+          <!-- v0.9.0: Advertencia ROJA para campos no editables en modo edición -->
+          <div v-if="isEditing" class="warning-no-editable">
+            ⚠️ <strong>Campos no modificables:</strong> Marca, Modelo y Número de Serie
+            NO se pueden cambiar después de creado el equipo porque afectan la estructura
+            de carpetas y archivos del sistema. Si necesita corregir un error, elimine el
+            equipo y créelo de nuevo.
+          </div>
+
           <div class="form-group">
-            <label>Nombre Corto</label>
-            <input v-model="formData.nombre_corto" type="text" placeholder="Ej: Monitor UCI 02">
+            <label>Nombre Corto *</label>
+            <input v-model="formData.nombre_corto" type="text" required placeholder="Ej: Monitor UCI 02">
           </div>
           <div class="form-row">
             <div class="form-group">
               <label>Marca *</label>
-              <input v-model="formData.marca" type="text" required>
+              <input v-model="formData.marca" type="text" required :disabled="isEditing"
+                :class="{ 'input-locked': isEditing }" :title="isEditing ? 'No modificable después de creado' : ''">
             </div>
             <div class="form-group">
               <label>Modelo *</label>
-              <input v-model="formData.modelo" type="text" required>
+              <input v-model="formData.modelo" type="text" required :disabled="isEditing"
+                :class="{ 'input-locked': isEditing }" :title="isEditing ? 'No modificable después de creado' : ''">
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label>Número de Serie *</label>
-              <input v-model="formData.numero_serie" type="text" required placeholder="Único">
+              <input v-model="formData.numero_serie" type="text" required placeholder="Único" :disabled="isEditing"
+                :class="{ 'input-locked': isEditing }" :title="isEditing ? 'No modificable después de creado' : ''">
             </div>
             <div class="form-group">
               <label>Número de Material</label>
@@ -820,17 +891,26 @@ onMounted(() => {
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Fecha Adquisición *</label>
-              <input v-model="formData.fecha_adquisicion" type="date" required>
+              <label>Fecha Adquisición</label>
+              <input v-model="formData.fecha_adquisicion" type="date">
+            </div>
+            <div class="form-group">
+              <label>Condición de Origen</label>
+              <select v-model="formData.condicion_origen">
+                <option value="">— Seleccionar —</option>
+                <option v-for="c in CONDICIONES_ORIGEN" :key="c" :value="c">{{ c }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Inicio Garantía</label>
+              <input v-model="formData.fecha_inicio_garantia" type="date">
             </div>
             <div class="form-group">
               <label>Fin de Garantía</label>
               <input v-model="formData.fecha_fin_garantia" type="date">
             </div>
-          </div>
-          <div class="form-group">
-            <label>Próxima Calibración</label>
-            <input v-model="formData.calibracion_proxima" type="date">
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -846,27 +926,30 @@ onMounted(() => {
               </select>
             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Registro Sanitario</label>
-              <input v-model="formData.registro_sanitario_bolivia" type="text" placeholder="Código o N/A">
-            </div>
-            <div class="form-group">
-              <label>Proveedor</label>
-              <input v-model="formData.proveedor_principal" type="text" placeholder="Empresa proveedora">
+          <!-- v0.9.0: Proveedor como FK con dropdown + "Crear nuevo" -->
+          <div class="form-group">
+            <label>Proveedor Principal</label>
+            <div class="proveedor-row">
+              <select v-model="formData.proveedor_principal_id" class="proveedor-select">
+                <option :value="null">— Sin proveedor —</option>
+                <option v-for="p in proveedores" :key="p.id" :value="p.id">
+                  {{ p.nombre_empresa }}{{ p.ciudad ? ' (' + p.ciudad + ')' : '' }}
+                </option>
+              </select>
+              <button type="button" class="btn-add-proveedor" @click="abrirModalNuevoProveedor" title="Crear nuevo proveedor">
+                + Nuevo
+              </button>
             </div>
           </div>
           <div class="form-group">
             <label>Imagen del Equipo</label>
             <div class="imagen-upload-container">
-              <!-- Imagen ya existe en BD (solo al editar) -->
               <div v-if="isEditing && formData.imagen_ruta && !imagenFile" class="imagen-existente">
                 <a :href="`/uploads/${formData.imagen_ruta}`" target="_blank" class="imagen-link">
                   {{ getImagenNombre(formData.imagen_ruta) }}
                 </a>
                 <button type="button" class="btn-icon-sm" @click="eliminarImagenEquipo" title="Eliminar imagen">✕</button>
               </div>
-              <!-- Nueva imagen seleccionada -->
               <div v-if="imagenFile" class="imagen-nueva">
                 <span class="imagen-filename">{{ imagenFile.name }}</span>
                 <button type="button" class="btn-icon-sm" @click="imagenFile = null" title="Quitar selección">✕</button>
@@ -874,7 +957,6 @@ onMounted(() => {
                   {{ subiendoImagen ? 'Subiendo...' : 'Subir imagen' }}
                 </button>
               </div>
-              <!-- Botón seleccionar imagen -->
               <div class="imagen-upload-controls">
                 <input type="file" ref="imagenInput" accept="image/*" @change="handleImagenSelect" style="display:none">
                 <button type="button" class="btn-outline" @click="$refs.imagenInput.click()">
@@ -885,22 +967,42 @@ onMounted(() => {
               </div>
             </div>
           </div>
+          <!-- v0.9.0: Descripción técnica -->
           <div class="form-group">
-            <label>Técnico Responsable (Opcional)</label>
-            <select v-model="formData.responsable_tecnico_id">
-              <option :value="null">-- Sin Asignar --</option>
-              <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
-                {{ tec.full_name || tec.username }}
-              </option>
-            </select>
+            <label>Descripción Técnica</label>
+            <textarea v-model="formData.descripcion" rows="2" placeholder="¿Qué es? ¿Qué hace? Ej: Microscopio binocular para microbiología"></textarea>
           </div>
+          <!-- v0.9.0: Observaciones operativas (NUEVO) -->
           <div class="form-group">
-            <label>Descripción / Notas</label>
-            <textarea v-model="formData.descripcion" rows="3" placeholder="Detalles adicionales del equipo..."></textarea>
+            <label>Observaciones</label>
+            <textarea v-model="formData.observaciones" rows="2" placeholder="¿Cómo está? Ej: Funciona correctamente, requiere calibración, le falta cable de alimentación"></textarea>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- v0.9.0: Modal Crear Proveedor al vuelo -->
+    <div v-if="showNuevoProveedorModal" class="modal-overlay" @click.self="showNuevoProveedorModal = false">
+      <div class="modal" style="width: 420px;">
+        <h3>Crear Nuevo Proveedor</h3>
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">
+          Ingrese solo el nombre de la empresa. Los demás datos (ciudad, dirección, contactos)
+          podrá completarlos después desde la página de Proveedores.
+        </p>
+        <form @submit.prevent="crearProveedorAlVuelo">
+          <div class="form-group">
+            <label>Nombre de la Empresa *</label>
+            <input v-model="nuevoProveedorNombre" type="text" required placeholder="Ej: TechMed Bolivia SRL" autofocus>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="showNuevoProveedorModal = false">Cancelar</button>
+            <button type="submit" class="btn-primary" :disabled="creandoProveedor">
+              {{ creandoProveedor ? 'Creando...' : 'Crear Proveedor' }}
+            </button>
           </div>
         </form>
       </div>
@@ -965,31 +1067,34 @@ onMounted(() => {
             <p><strong>Nº Serie:</strong> {{ selectedEquipo.numero_serie }}</p>
             <p v-if="selectedEquipo.numero_material"><strong>Nº Material:</strong> {{ selectedEquipo.numero_material }}</p>
             <p><strong>Ubicación:</strong> {{ selectedEquipo.ubicacion_actual || 'N/A' }}</p>
+            <p v-if="selectedEquipo.condicion_origen"><strong>Condición:</strong> {{ selectedEquipo.condicion_origen }}</p>
           </div>
           <div class="detail-column">
             <h4>Administrativo</h4>
-            <p><strong>Estado:</strong> 
+            <p><strong>Estado:</strong>
               <span class="badge" :style="{ backgroundColor: getEstadoColor(selectedEquipo.estado_id) }">
                 {{ getNombreEstado(selectedEquipo.estado_id) }}
               </span>
-              <span v-if="enGarantia(selectedEquipo.fecha_fin_garantia)" class="badge-garantia">
-                En Garantía
+              <span v-if="getGarantiaBadge(selectedEquipo).text" :class="getGarantiaBadge(selectedEquipo).class">
+                {{ getGarantiaBadge(selectedEquipo).text }}
               </span>
             </p>
-            <p><strong>Fecha Adquisición:</strong> {{ selectedEquipo.fecha_adquisicion || 'N/A' }}</p>
+            <p v-if="selectedEquipo.fecha_adquisicion"><strong>Adquisición:</strong> {{ selectedEquipo.fecha_adquisicion }}</p>
+            <p v-if="selectedEquipo.fecha_inicio_garantia"><strong>Inicio Garantía:</strong> {{ selectedEquipo.fecha_inicio_garantia }}</p>
             <p v-if="selectedEquipo.fecha_fin_garantia"><strong>Fin Garantía:</strong> {{ selectedEquipo.fecha_fin_garantia }}</p>
-            <p><strong>Registro Sanitario:</strong> {{ selectedEquipo.registro_sanitario_bolivia || 'N/A' }}</p>
-            <p><strong>Proveedor:</strong> {{ selectedEquipo.proveedor_principal || 'N/A' }}</p>
-            <p><strong>Próx. Calibración:</strong> {{ selectedEquipo.calibracion_proxima || 'N/A' }}</p>
+            <p><strong>Proveedor:</strong> {{ getProveedorName(selectedEquipo.proveedor_principal_id) }}</p>
           </div>
         </div>
         <div class="detail-full">
-          <h4>Responsable y Notas</h4>
-          <p><strong>Técnico Responsable:</strong> {{ getTecnicoName(selectedEquipo.responsable_tecnico_id) }}</p>
-          <p v-if="selectedEquipo.imagen_ruta"><strong>Imagen del Equipo:</strong> <a :href="`/uploads/${selectedEquipo.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(selectedEquipo.imagen_ruta) }}</a></p>
-          <p><strong>Descripción:</strong></p>
-          <div class="description-box">
-            {{ selectedEquipo.descripcion || 'Sin descripción adicional.' }}
+          <h4>Notas</h4>
+          <p v-if="selectedEquipo.imagen_ruta"><strong>Imagen:</strong> <a :href="`/uploads/${selectedEquipo.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(selectedEquipo.imagen_ruta) }}</a></p>
+          <p v-if="selectedEquipo.descripcion"><strong>Descripción técnica:</strong></p>
+          <div v-if="selectedEquipo.descripcion" class="description-box">
+            {{ selectedEquipo.descripcion }}
+          </div>
+          <p v-if="selectedEquipo.observaciones" style="margin-top: 0.5rem;"><strong>Observaciones:</strong></p>
+          <div v-if="selectedEquipo.observaciones" class="description-box" style="background: #fefce8; border-color: #fde047;">
+            {{ selectedEquipo.observaciones }}
           </div>
         </div>
         <div class="modal-actions">
@@ -1193,6 +1298,71 @@ th { background-color: #f8f9fa; font-weight: bold; }
   margin-left: 6px;
   vertical-align: middle;
 }
+
+/* v0.9.0: Nuevos badges de garantía */
+.badge-garantia-vencida {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  background: #dc2626;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.badge-garantia-proxima {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #1e293b;
+  background: #fbbf24;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.badge-condicion {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #1e3a8a;
+  background: #dbeafe;
+}
+
+/* v0.9.0: Campos no editables (deshabilitados en edición) */
+.warning-no-editable {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.82rem;
+  color: #991b1b;
+  line-height: 1.5;
+}
+.warning-no-editable strong { color: #dc2626; }
+
+.input-locked {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  cursor: not-allowed;
+  border-color: #cbd5e1 !important;
+}
+
+/* v0.9.0: Proveedor dropdown con botón "Crear nuevo" */
+.proveedor-row { display: flex; gap: 0.5rem; align-items: flex-end; }
+.proveedor-select { flex: 1; }
+.btn-add-proveedor {
+  background: #16a34a; color: white; border: none;
+  padding: 0.5rem 0.85rem; border-radius: 6px; cursor: pointer;
+  font-weight: 600; font-size: 0.82rem; white-space: nowrap;
+  transition: background 0.2s;
+}
+.btn-add-proveedor:hover { background: #15803d; }
 
 .imagen-upload-container { display: flex; flex-direction: column; gap: 0.4rem; }
 .imagen-existente { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; }

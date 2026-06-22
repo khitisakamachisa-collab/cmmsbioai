@@ -85,6 +85,27 @@ const preventivoVencido = computed(() => {
   }).length
 })
 
+// v0.9.0: MPs próximos a vencer (7 y 30 días)
+const preventivoProximo7 = computed(() => {
+  const today = new Date().setHours(0, 0, 0, 0)
+  const en7dias = today + (7 * 24 * 60 * 60 * 1000)
+  return tareasPreventivas.value.filter(t => {
+    if (!t.proxima_fecha) return false
+    const fecha = new Date(t.proxima_fecha).setHours(0, 0, 0, 0)
+    return fecha >= today && fecha <= en7dias
+  }).length
+})
+
+const preventivoProximo30 = computed(() => {
+  const today = new Date().setHours(0, 0, 0, 0)
+  const en30dias = today + (30 * 24 * 60 * 60 * 1000)
+  return tareasPreventivas.value.filter(t => {
+    if (!t.proxima_fecha) return false
+    const fecha = new Date(t.proxima_fecha).setHours(0, 0, 0, 0)
+    return fecha >= today && fecha <= en30dias
+  }).length
+})
+
 // --- Datos para gráfico Doughnut: Equipos por Estado ---
 const estadoDistribucion = computed(() => {
   const dist = {}
@@ -433,6 +454,21 @@ onMounted(() => {
             </div>
             <p class="stat-card-value">{{ preventivoVencido }}</p>
           </article>
+
+          <!-- v0.9.0: Widget MPs próximos a vencer -->
+          <article class="stat-card stat-card--orange" @click="$router.push('/preventivo')" style="cursor: pointer;">
+            <div class="stat-card-header">
+              <span class="stat-card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                  <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                  <path d="M8 4a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-.5.5H5a.5.5 0 0 1 0-1h2.5V4.5A.5.5 0 0 1 8 4z"/>
+                </svg>
+              </span>
+              <span class="stat-card-label">MPs Próximos (7 días)</span>
+            </div>
+            <p class="stat-card-value">{{ preventivoProximo7 }}</p>
+            <p class="stat-card-sub" v-if="preventivoProximo30 > 0">+{{ preventivoProximo30 - preventivoProximo7 }} en 30 días</p>
+          </article>
         </section>
 
         <!-- Graficos: 3 columnas -->
@@ -552,6 +588,14 @@ onMounted(() => {
 .stat-card--orange { background: linear-gradient(145deg, #fff8f0 0%, #ffedd5 100%); border-color: rgba(230, 126, 34, 0.25); }
 .stat-card--red { background: linear-gradient(145deg, #fef2f2 0%, #fee2e2 100%); border-color: rgba(231, 76, 60, 0.25); }
 .stat-card--purple { background: linear-gradient(145deg, #f5f3ff 0%, #ede9fe 100%); border-color: rgba(139, 92, 246, 0.25); }
+
+/* v0.9.0: sub-texto para tarjetas con info adicional */
+.stat-card-sub {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin: 0.15rem 0 0 0;
+  font-weight: 500;
+}
 
 .stat-card-header {
   display: flex;

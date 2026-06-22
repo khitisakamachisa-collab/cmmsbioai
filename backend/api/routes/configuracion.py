@@ -755,19 +755,46 @@ def recuperar_desde_meta_json():
                 # ─── Crear registro nuevo (huérfano) ───
                 try:
                     if tipo == "equipos":
+                        # v0.9.0: usar nuevos campos, ignorar campos obsoletos
+                        # Si el .meta.json tiene proveedor_principal (texto viejo),
+                        # intentar resolver a proveedor_principal_id buscando por nombre
+                        prov_id = meta.get("proveedor_principal_id")
+                        if not prov_id and meta.get("proveedor_principal"):
+                            prov_nombre = meta.get("proveedor_principal")
+                            prov_obj = session.exec(
+                                select(Proveedor).where(Proveedor.nombre_empresa == prov_nombre)
+                            ).first()
+                            if prov_obj:
+                                prov_id = prov_obj.id
+                            else:
+                                # Crear proveedor al vuelo (igual que en import-excel)
+                                nuevo_prov = Proveedor(nombre_empresa=prov_nombre)
+                                session.add(nuevo_prov)
+                                session.flush()
+                                prov_id = nuevo_prov.id
+
                         registro = Equipo(
                             id=entidad_id,
-                            nombre_corto=meta.get("nombre_corto"),
+                            nombre_corto=meta.get("nombre_corto") or "Equipo recuperado",
                             modelo=meta.get("modelo", "Sin modelo"),
                             numero_serie=meta.get("numero_serie", f"REC-{entidad_id}"),
                             numero_material=meta.get("numero_material"),
                             marca=meta.get("marca", "Sin marca"),
                             ubicacion_actual=meta.get("ubicacion_actual"),
                             estado_id=meta.get("estado_id", 1),
-                            proveedor_principal=meta.get("proveedor_principal"),
-                            registro_sanitario_bolivia=meta.get("registro_sanitario_bolivia"),
+                            proveedor_principal_id=prov_id,
+                            condicion_origen=meta.get("condicion_origen"),
+                            fecha_inicio_garantia=meta.get("fecha_inicio_garantia"),
+                            fecha_fin_garantia=meta.get("fecha_fin_garantia"),
+                            observaciones=meta.get("observaciones"),
+                            descripcion=meta.get("descripcion"),
                             imagen_ruta=meta.get("imagen_ruta"),
-                            fecha_adquisicion=meta.get("fecha_adquisicion", date(2000, 1, 1)),
+                            fecha_adquisicion=meta.get("fecha_adquisicion"),
+                            # CAMPOS ELIMINADOS en v0.9.0 (no se setean):
+                            # - registro_sanitario_bolivia
+                            # - calibracion_proxima
+                            # - responsable_tecnico_id
+                            # - proveedor_principal (texto, reemplazado por proveedor_principal_id)
                         )
                     elif tipo == "repuestos":
                         registro = Repuesto(
@@ -1180,3 +1207,403 @@ def subir_backup(archivo: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=f"Error al leer el archivo JSON: {str(e)}")
 
     return restaurar_backup(backup_data)
+
+
+# ──────────────────────────────────────────────────────────
+# MODO TEST: Cargar datos de ejemplo y Limpiar BD
+# ──────────────────────────────────────────────────────────
+
+@router.post("/cargar-test")
+def cargar_datos_test():
+    """
+    Carga datos de ejemplo (modo TEST) en la base de datos.
+
+    Crea:
+    - 3 usuarios TEST (admin/tech/user) - si no existen
+    - 5 proveedores con contactos
+    - 8 equipos con todos los estados posibles
+    - 5 repuestos con stock
+    - 5 herramientas con categorías
+    - 5 OTs (correctivas y preventivas)
+    - 5 tareas preventivas
+    - Eventos de historial
+
+    Útil para:
+    - Probar el sistema sin tener que crear datos a mano
+    - Capacitar a usuarios finales
+    - Reproducir escenarios complejos
+
+    NO borra datos existentes. Si ya hay datos, los nuevos se agregan.
+    Para empezar limpio: usar /limpiar-bd primero.
+    """
+    from database import engine
+    from models.users import Usuario
+    from models.proveedores import Proveedor, ContactoProveedor
+    from models.repuestos import Repuesto
+    from models.herramientas import Herramienta
+    from models.ordenes import OrdenTrabajo, EstadoOT
+    from models.preventivo import TareaPreventiva
+    from models.historial import EventoHistorial
+    from models.estados import EstadoEquipo
+    import bcrypt
+
+    resumen = {
+        "usuarios": 0,
+        "proveedores": 0,
+        "contactos": 0,
+        "equipos": 0,
+        "repuestos": 0,
+        "herramientas": 0,
+        "ots": 0,
+        "mps": 0,
+        "historial": 0,
+    }
+
+    with Session(engine) as session:
+        # === 1. Usuarios TEST (si no existen) ===
+        usuarios_test = [
+            ("admin", "admin", "admin",   "Administrador del Sistema", "admin@biolab.com"),
+            ("tech",  "tech",  "tecnico", "Técnico Biomédico",         "tech@biolab.com"),
+            ("user",  "user",  "tecnico", "Usuario Regular",           "user@biolab.com"),
+        ]
+        for username, password, role, full_name, email in usuarios_test:
+            existe = session.exec(select(Usuario).where(Usuario.username == username)).first()
+            if not existe:
+                hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+                session.add(Usuario(
+                    username=username, email=email, hashed_password=hashed,
+                    full_name=full_name, role=role, is_active=True
+                ))
+                resumen["usuarios"] += 1
+
+        # Obtener IDs de usuarios para referencias
+        admin_user = session.exec(select(Usuario).where(Usuario.username == "admin")).first()
+        tech_user = session.exec(select(Usuario).where(Usuario.username == "tech")).first()
+        tech_id = tech_user.id if tech_user else 1
+
+        # === 2. Proveedores ===
+        proveedores_test = [
+            ("TechMed Bolivia SRL", "Cochabamba", "Av. Blanco Galindo km 7.5", "+591 4 4223344", "ventas@techmed.bo", "https://techmed.bo"),
+            ("BioSupply Andina", "La Paz", "Calle Mercado N° 1234", "+591 2 2445566", "info@biosupply.bo", "https://biosupply.bo"),
+            ("MedEquip Bolivia SA", "Santa Cruz", "Tercer Anillo Interno", "+591 3 3467788", "ventas@medequip.bo", ""),
+            ("LabTech SRL", "Cochabamba", "Av. América Esq. Esteban Arze", "+591 4 4521199", "contacto@labtech.bo", "https://labtech.bo"),
+            ("Hospimed Bolivia", "La Paz", "Av. 6 de Agosto N° 2115", "+591 2 2150500", "ventas@hospimed.bo", "https://hospimed.bo"),
+        ]
+        proveedores_ids = {}
+        for nombre, ciudad, dir_, tel, email, web in proveedores_test:
+            existe = session.exec(select(Proveedor).where(Proveedor.nombre_empresa == nombre)).first()
+            if existe:
+                proveedores_ids[nombre] = existe.id
+                continue
+            prov = Proveedor(
+                nombre_empresa=nombre, ciudad=ciudad, direccion=dir_,
+                telefono_principal=tel, email_principal=email, pagina_web=web,
+                notas_generales=f"Proveedor de prueba para modo TEST"
+            )
+            session.add(prov)
+            session.flush()
+            proveedores_ids[nombre] = prov.id
+            resumen["proveedores"] += 1
+
+        # === 3. Contactos de proveedores ===
+        contactos_test = [
+            ("TechMed Bolivia SRL", "Carlos Mendoza", "Gerente de Ventas", "+591 70122334", "carlos.mendoza@techmed.bo"),
+            ("TechMed Bolivia SRL", "Patricia Rocha", "Jefa de Soporte Técnico", "+591 70255667", "soporte@techmed.bo"),
+            ("BioSupply Andina", "Roberto Suarez", "Vendedor Senior", "+591 71234567", "rsuarez@biosupply.bo"),
+            ("LabTech SRL", "Jimena Calderón", "Ejecutiva de Ventas", "+591 73322110", "jimena@labtech.bo"),
+        ]
+        for prov_nombre, contacto_nombre, cargo, tel, email in contactos_test:
+            prov_id = proveedores_ids.get(prov_nombre)
+            if not prov_id:
+                continue
+            existe = session.exec(
+                select(ContactoProveedor).where(
+                    ContactoProveedor.proveedor_id == prov_id,
+                    ContactoProveedor.nombre_contacto == contacto_nombre
+                )
+            ).first()
+            if existe:
+                continue
+            session.add(ContactoProveedor(
+                proveedor_id=prov_id, nombre_contacto=contacto_nombre,
+                cargo=cargo, telefono_contacto=tel, email_contacto=email
+            ))
+            resumen["contactos"] += 1
+
+        # === 4. Equipos (8 con estados variados) ===
+        equipos_test = [
+            # (nombre_corto, modelo, serie, marca, ubicacion, estado_id, proveedor, condicion, fecha_adq, fecha_inicio_gar, fecha_fin_gar, desc, obs)
+            ("Microscopio Olympus CX23", "CX23", "MIC-OLY-001", "Olympus", "Lab. Microbiología", 1, "TechMed Bolivia SRL", "Compra",
+             date(2023, 3, 15), date(2023, 3, 15), date(2025, 3, 15),
+             "Microscopio binocular para microbiología clínica", "Funciona correctamente"),
+            ("Centrífuga Eppendorf 5424", "5424", "CEN-EPP-002", "Eppendorf", "Lab. Hematología", 2, "BioSupply Andina", "Compra",
+             date(2022, 7, 20), date(2022, 7, 20), date(2024, 7, 20),
+             "Centrífuga de mesa 24 tubos", "En mantenimiento preventivo"),
+            ("Autoclave Steris Amsco 3043", "3043", "AUT-STR-003", "Steris", "Central de Esterilización", 1, "MedEquip Bolivia SA", "Compra",
+             date(2021, 1, 10), date(2021, 1, 10), date(2023, 1, 10),
+             "Autoclave hospitalaria vertical, 400L", "Garantía vencida"),
+            ("Monitor Signos Vitales Mindray", "uMEC10", "MON-MIN-005", "Mindray", "UCI Box 3", 8, "Hospimed Bolivia", "Donación",
+             date(2022, 11, 5), date(2022, 11, 5), date(2024, 11, 5),
+             "Monitor multiparámetro con SpO2, ECG, NIBP", "Esperando repuesto: sensor SpO2"),
+            ("Electrocardiógrafo GE MAC 2000", "MAC 2000", "ELE-GEE-006", "GE Healthcare", "Cardiología", 1, "TechMed Bolivia SRL", "Compra",
+             date(2020, 9, 15), date(2020, 9, 15), date(2022, 9, 15),
+             "ECG 12 derivaciones con interpretación", "Garantía vencida, funciona OK"),
+            ("Desfibrilador Zoll R Series", "R Series", "DES-ZOL-009", "Zoll", "Emergencias", 4, "Hospimed Bolivia", "Compra",
+             date(2022, 4, 18), date(2022, 4, 18), date(2024, 4, 18),
+             "Desfibrilador biphasic con monitor y marcapasos", "Fuera de servicio por falla eléctrica"),
+            ("Bomba de Infusión B. Braun", "Infusomat Space", "BOM-BRA-011", "B. Braun", "UCI Box 1", 5, "MedEquip Bolivia SA", "Leasing",
+             date(2022, 12, 10), date(2022, 12, 10), date(2024, 12, 10),
+             "Bomba de infusión volumétrica con modo PCA", "En espera/standby"),
+            ("Balanza Analítica Sartorius", "Quintix 224", "BAL-SAR-008", "Sartorius", "Lab. Control Calidad", 1, "LabTech SRL", "Compra",
+             date(2021, 8, 12), date(2021, 8, 12), date(2023, 8, 12),
+             "Balanza analítica 220g / 0.1mg", "Calibración interna, funciona OK"),
+        ]
+        equipos_ids = {}
+        for eq_data in equipos_test:
+            (nombre, modelo, serie, marca, ubic, est_id, prov_nombre, cond,
+             f_adq, f_ing, f_fin, desc, obs) = eq_data
+            existe = session.exec(select(Equipo).where(Equipo.numero_serie == serie)).first()
+            if existe:
+                equipos_ids[serie] = existe.id
+                continue
+            prov_id = proveedores_ids.get(prov_nombre)
+            nuevo_eq = Equipo(
+                nombre_corto=nombre, modelo=modelo, numero_serie=serie, marca=marca,
+                fecha_adquisicion=f_adq, fecha_inicio_garantia=f_ing, fecha_fin_garantia=f_fin,
+                ubicacion_actual=ubic, estado_id=est_id, proveedor_principal_id=prov_id,
+                condicion_origen=cond, descripcion=desc, observaciones=obs
+            )
+            session.add(nuevo_eq)
+            session.flush()
+            equipos_ids[serie] = nuevo_eq.id
+            resumen["equipos"] += 1
+
+        # === 5. Repuestos ===
+        repuestos_test = [
+            ("Filtro HEPA para cabina de flujo", "FLT-HEP-001", 3, "unidad", "Almacén B - Estante 1", 2, "BioSupply Andina"),
+            ("Lámpara UV para autoclave", "LMP-UV-002", 5, "unidad", "Almacén B - Estante 1", 2, "MedEquip Bolivia SA"),
+            ("Cable ECG 12 derivaciones", "CBL-ECG-007", 3, "unidad", "Almacén C - Gabinete 1", 2, "TechMed Bolivia SRL"),
+            ("Sensor SpO2 dedo adulto", "SNR-SPO-008", 4, "unidad", "UCI - Armario", 2, "Hospimed Bolivia"),
+            ("Batería interna desfibrilador", "BAT-DEF-010", 2, "unidad", "Emergencias - Armario", 1, "Hospimed Bolivia"),
+        ]
+        for nombre, codigo, cant, unidad, ubic, stock_min, prov_nombre in repuestos_test:
+            existe = session.exec(select(Repuesto).where(Repuesto.numero_material == codigo)).first()
+            if existe:
+                continue
+            prov_id = proveedores_ids.get(prov_nombre)
+            session.add(Repuesto(
+                nombre_repuesto=nombre, numero_material=codigo,
+                cantidad_disponible=cant, unidad_medida=unidad,
+                ubicacion_almacen=ubic, nivel_stock_minimo=stock_min,
+                proveedor_ultimo=prov_nombre
+            ))
+            resumen["repuestos"] += 1
+
+        # === 6. Herramientas ===
+        herramientas_test = [
+            ("Osciloscopio digital Rigol DS1054Z", "OSC-001", "Instrumento de Medición", 1, "Taller - Estante A1", "Disponible"),
+            ("Multímetro Fluke 87V", "MUL-002", "Instrumento de Medición", 2, "Taller - Estante A1", "Disponible"),
+            ("Analizador de seguridad eléctrica Fluke ESA620", "ANA-003", "Instrumento de Medición", 1, "Taller - Estante A2", "En Uso"),
+            ("Juego de destornilladores aislados Wiha", "DES-004", "Herramienta Manual", 3, "Taller - Cajón B1", "Disponible"),
+            ("Alcohol isopropílico 99%", "ALC-006", "Consumible", 5, "Taller - Estante C2", "Disponible"),
+        ]
+        for nombre, codigo, cat, cant, ubic, estado_uso in herramientas_test:
+            existe = session.exec(select(Herramienta).where(Herramienta.numero_identificacion == codigo)).first()
+            if existe:
+                continue
+            session.add(Herramienta(
+                nombre_herramienta=nombre, numero_identificacion=codigo,
+                categoria=cat, cantidad_disponible=cant, unidad_medida="unidad",
+                ubicacion_almacen=ubic, estado_uso=estado_uso
+            ))
+            resumen["herramientas"] += 1
+
+        # === 7. Órdenes de Trabajo ===
+        # Solo crear OTs si hay equipos
+        if equipos_ids:
+            estado_ot_abierta = session.get(EstadoOT, 1)  # Abierta
+            estado_ot_proceso = session.get(EstadoOT, 2)  # En Proceso
+            estado_ot_completada = session.get(EstadoOT, 4)  # Completada
+
+            ots_test = [
+                # (titulo, equipo_serie, estado_id, prioridad, descripcion, tecnico_id)
+                ("Correctivo", "MIC-OLY-001", 1, "Media", "Microscopio no enfoca correctamente en objetivo 40x", tech_id),
+                ("Mantenimiento Preventivo", "CEN-EPP-002", 2, "Baja", "Mantenimiento preventivo trimestral", tech_id),
+                ("Correctivo", "MON-MIN-005", 3, "Alta", "Sensor SpO2 no responde, requiere repuesto", tech_id),
+                ("Calibración", "BAL-SAR-008", 4, "Media", "Calibración anual de balanza analítica", tech_id),
+                ("Inspección", "DES-ZOL-009", 1, "Urgente", "Desfibrilador no enciende, revisar fuente de poder", tech_id),
+            ]
+            for titulo, serie, est_id, prioridad, desc, tec_id in ots_test:
+                eq_id = equipos_ids.get(serie)
+                if not eq_id:
+                    continue
+                session.add(OrdenTrabajo(
+                    equipo_id=eq_id, estado_id=est_id, prioridad=prioridad,
+                    tecnico_asignado_id=tec_id, titulo=titulo, descripcion_falla=desc,
+                    fecha_creacion=datetime.now()
+                ))
+                resumen["ots"] += 1
+
+        # === 8. Tareas Preventivas ===
+        if equipos_ids:
+            mps_test = [
+                # (titulo, equipo_serie, frecuencia, proxima_fecha, descripcion)
+                ("Mantenimiento Preventivo Trimestral", "MIC-OLY-001", 90, date.today(), "Limpieza de lentes, revisión mecánica"),
+                ("Calibración Anual", "BAL-SAR-008", 365, date.today(), "Calibración con pesas patrón"),
+                ("Mantenimiento Preventivo Semestral", "CEN-EPP-002", 180, date.today(), "Lubricación de rotor, limpieza"),
+                ("Inspección de Seguridad Eléctrica", "MON-MIN-005", 365, date.today(), "Prueba de seguridad según IEC 62353"),
+                ("Mantenimiento Preventivo Anual", "AUT-STR-003", 365, date.today(), "Limpieza profunda, cambio de filtros"),
+            ]
+            for titulo, serie, freq, prox_fecha, desc in mps_test:
+                eq_id = equipos_ids.get(serie)
+                if not eq_id:
+                    continue
+                existe = session.exec(
+                    select(TareaPreventiva).where(
+                        TareaPreventiva.equipo_id == eq_id,
+                        TareaPreventiva.titulo == titulo
+                    )
+                ).first()
+                if existe:
+                    continue
+                session.add(TareaPreventiva(
+                    equipo_id=eq_id, titulo=titulo, descripcion=desc,
+                    frecuencia_dias=freq, proxima_fecha=prox_fecha,
+                    responsable_id=tech_id, activa=True
+                ))
+                resumen["mps"] += 1
+
+        # === 9. Historial (algunos eventos) ===
+        if equipos_ids:
+            eq1 = equipos_ids.get("MIC-OLY-001")
+            eq3 = equipos_ids.get("AUT-STR-003")
+            eq6 = equipos_ids.get("BAL-SAR-008")
+            historial_test = [
+                (eq1, "correctivo", "Cambio de lámpara halógena", tech_id),
+                (eq3, "preventivo", "Limpieza de filtros y válvulas", tech_id),
+                (eq6, "calibracion", "Calibración con pesas patrón certificadas", tech_id),
+            ]
+            for eq_id, tipo, desc, tec_id in historial_test:
+                if not eq_id:
+                    continue
+                session.add(EventoHistorial(
+                    equipo_id=eq_id, tipo_evento=tipo, descripcion=desc,
+                    tecnico_id=tec_id, fecha_evento=datetime.now(),
+                    acciones_realizadas=desc
+                ))
+                resumen["historial"] += 1
+
+        session.commit()
+
+    return {
+        "mensaje": "Datos TEST cargados correctamente",
+        "resumen": resumen,
+        "total_creados": sum(resumen.values()),
+        "nota": (
+            "Los datos TEST se agregaron a los existentes. "
+            "Si querías empezar limpio, ejecuta /configuracion/limpiar-bd primero."
+        )
+    }
+
+
+@router.post("/limpiar-bd")
+def limpiar_base_de_datos():
+    """
+    Limpia TODA la base de datos excepto:
+    - Usuarios admin/tech/user (los 3 usuarios TEST)
+    - Estados de equipo (catálogo de 19 estados)
+    - Estados de OT (catálogo de 5 estados)
+    - Configuración del sistema (config.json)
+
+    Borra:
+    - Equipos, Repuestos, Herramientas, Proveedores, Contactos
+    - Órdenes de Trabajo, Tareas Preventivas, Eventos de Historial
+    - Documentos Adjuntos
+    - Carpetas físicas en uploads/ (excepto la carpeta en sí)
+
+    Útil para:
+    - Empezar limpio antes de cargar datos TEST
+    - Eliminar datos de prueba antes de usar el sistema en producción
+    """
+    from database import engine
+    from models.users import Usuario
+    from models.proveedores import Proveedor, ContactoProveedor
+    from models.repuestos import Repuesto, OtRepuestoUtilizado
+    from models.herramientas import Herramienta
+    from models.ordenes import OrdenTrabajo
+    from models.preventivo import TareaPreventiva, TareaRepuesto
+    from models.historial import EventoHistorial
+    from models.documentos import DocumentoAdjunto
+    import shutil
+
+    resumen = {}
+
+    with Session(engine) as session:
+        # Contar antes de borrar
+        resumen["documentos_eliminados"] = len(session.exec(select(DocumentoAdjunto)).all())
+        resumen["historial_eliminado"] = len(session.exec(select(EventoHistorial)).all())
+        resumen["tarea_repuesto_eliminado"] = len(session.exec(select(TareaRepuesto)).all())
+        resumen["ot_repuesto_utilizado_eliminado"] = len(session.exec(select(OtRepuestoUtilizado)).all())
+        resumen["mps_eliminadas"] = len(session.exec(select(TareaPreventiva)).all())
+        resumen["ots_eliminadas"] = len(session.exec(select(OrdenTrabajo)).all())
+        resumen["herramientas_eliminadas"] = len(session.exec(select(Herramienta)).all())
+        resumen["repuestos_eliminados"] = len(session.exec(select(Repuesto)).all())
+        resumen["contactos_eliminados"] = len(session.exec(select(ContactoProveedor)).all())
+        resumen["proveedores_eliminados"] = len(session.exec(select(Proveedor)).all())
+        resumen["equipos_eliminados"] = len(session.exec(select(Equipo)).all())
+
+        # Borrar en orden (respetando FKs)
+        # 1. Documentos (pueden referenciar OT, Equipo, Repuesto, Herramienta)
+        for d in session.exec(select(DocumentoAdjunto)).all():
+            session.delete(d)
+        # 2. Historial (referencia Equipo, OT, Usuario)
+        for h in session.exec(select(EventoHistorial)).all():
+            session.delete(h)
+        # 3. TareaRepuesto (referencia TareaPreventiva, Repuesto)
+        for tr in session.exec(select(TareaRepuesto)).all():
+            session.delete(tr)
+        # 4. OtRepuestoUtilizado (referencia OT, Repuesto)
+        for oru in session.exec(select(OtRepuestoUtilizado)).all():
+            session.delete(oru)
+        # 5. Tareas Preventivas (referencia Equipo, Usuario)
+        for mp in session.exec(select(TareaPreventiva)).all():
+            session.delete(mp)
+        # 6. Órdenes de Trabajo (referencia Equipo, EstadoOT, Usuario)
+        for ot in session.exec(select(OrdenTrabajo)).all():
+            session.delete(ot)
+        # 7. Herramientas
+        for her in session.exec(select(Herramienta)).all():
+            session.delete(her)
+        # 8. Repuestos
+        for rep in session.exec(select(Repuesto)).all():
+            session.delete(rep)
+        # 9. Contactos de proveedores (referencian Proveedor)
+        for c in session.exec(select(ContactoProveedor)).all():
+            session.delete(c)
+        # 10. Proveedores
+        for p in session.exec(select(Proveedor)).all():
+            session.delete(p)
+        # 11. Equipos (al final, después de borrar sus dependencias)
+        for eq in session.exec(select(Equipo)).all():
+            session.delete(eq)
+
+        session.commit()
+
+    # Borrar archivos físicos en uploads/ (excepto la carpeta base)
+    uploads_base = UPLOADS_DIR
+    if uploads_base.exists():
+        for item in uploads_base.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+            elif item.is_file() and item.name != ".gitkeep":
+                item.unlink()
+
+    return {
+        "mensaje": "Base de datos limpiada correctamente",
+        "resumen": resumen,
+        "nota": (
+            "Se conservaron: usuarios (admin/tech/user), estados de equipo, "
+            "estados de OT y configuración del sistema. "
+            "Las carpetas físicas en uploads/ también fueron borradas."
+        )
+    }

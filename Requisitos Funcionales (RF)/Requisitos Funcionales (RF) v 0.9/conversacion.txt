@@ -1,0 +1,272 @@
+¡Excelente que todo funciona! Vamos a revisar el estado completo del proyecto y los pendientes.
+
+## ✅ Completado en v0.9.0 (Fases 1, 2, 3a, 3b)
+
+### Backend
+- ✅ Modelo `Equipo` v0.9.0 (sin campos obsoletos, con nuevos campos)
+- ✅ Modelo `TareaPreventiva` con `proxima_fecha` editable
+- ✅ Schemas con validaciones (condicion_origen enum, fechas garantía)
+- ✅ 3 usuarios TEST (admin/admin, tech/tech, user/user)
+- ✅ CRUD de equipos con DELETE restrictivo (verifica dependencias)
+- ✅ PUT rechaza cambios en modelo/marca/numero_serie
+- ✅ Import-excel con nuevos campos + creación automática de proveedores
+- ✅ Endpoint `/equipos/from-proveedor-nombre` (crear proveedor al vuelo)
+- ✅ Endpoints `/configuracion/cargar-test` y `/configuracion/limpiar-bd`
+- ✅ `proxima_fecha` no se auto-calcula en el backend
+- ✅ Recuperación Capa 2 actualizada con nuevos campos
+
+### Frontend
+- ✅ `EquiposView.vue` — formulario completo con nuevos campos, dropdown proveedor con "Crear nuevo", advertencia ROJA, filtros (ubicación/estado/condición), badges de garantía
+- ✅ `PreventivoView.vue` — `proxima_fecha` editable con date picker + botón "Sugerir fecha"
+- ✅ `HomeDashboard.vue` — widget "MPs Próximos (7 días)"
+- ✅ `ConfiguracionView.vue` — pestaña "Datos TEST" con Cargar/Limpiar
+- ✅ `Navbar.vue` — badge "🧪 MODO TEST"
+- ✅ `AyudaView.vue` — RF01 actualizado
+- ✅ Plantilla Excel/CSV regenerada con nuevos campos
+- ✅ Modo TEST funcional (40 registros coherentes)
+
+---
+
+## 📋 Pendientes según el Roadmap v0.9.0 → v1.0.0
+
+### 🔶 v0.9.0 — Lo que FALTA por pulir (bugs menores detectados durante pruebas)
+
+| # | Pendiente | Prioridad | Notas |
+|---|-----------|-----------|-------|
+| 1 | **Probar a fondo el formulario de Equipos** | Alta | Crear, editar, eliminar con dependencias, crear proveedor al vuelo, importar Excel con nueva plantilla |
+| 2 | **Probar a fondo el formulario de Preventivo** | Alta | Crear MP con `proxima_fecha` editable, generar OT desde MP, verificar que aparece en calendario de Preventivo |
+| 3 | **Actualizar README.md a v0.9.0** | Media | Versión, modelo de datos, endpoints, historial de versiones |
+| 4 | **Subir a GitHub** | Alta | Respaldar todo lo avanzado |
+
+### 🔶 v0.9.1 — RF11 (Costos en OT) + Mejoras OT
+
+| # | Pendiente | Detalle |
+|---|-----------|---------|
+| 5 | **Crear modelo `OtCostoAdicional`** | Tabla nueva con FK a OrdenTrabajo |
+| 6 | **Agregar `ot_costo_id` a `DocumentoAdjunto`** | Para justificativos de costos |
+| 7 | **Endpoints CRUD para `/ots/{id}/costos`** | Crear, listar, editar, eliminar costos |
+| 8 | **Eliminar campos `costo_adicional` y `costos_adicionales` de `OrdenTrabajo`** | Reemplazados por OtCostoAdicional |
+| 9 | **Actualizar `OrdenesView.vue`** | Tab "Costos adicionales" en modal detalle |
+| 10 | **Dropdown de equipo en OT** | Mostrar `nombre_corto + numero_serie + ubicacion_actual` |
+| 11 | **Formulario OT consistente crear/editar** | Mismos campos en ambos modos |
+| 12 | **Dropdown `contrato_id` en OT** | Preparar para RF12 (vacío por ahora) |
+| 13 | **Actualizar reportes RF06** | Desglose de costos por tipo |
+
+### 🔶 v0.9.2 — RF12 (Contratos) + Página "Planificación" (calendario)
+
+| # | Pendiente | Detalle |
+|---|-----------|---------|
+| 14 | **Crear modelos `Contrato` y `ContratoEquipo`** | Tablas nuevas |
+| 15 | **Agregar `contrato_id` a `OrdenTrabajo`** | FK opcional |
+| 16 | **Endpoints CRUD para `/contratos`** | Crear, listar, editar, eliminar |
+| 17 | **Crear `ContratosView.vue`** | Página nueva de contratos |
+| 18 | **Agregar "Contratos" al menú y router** | Después de "Proveedores" |
+| 19 | **Tab "Contratos" en `EquiposView`** | Modal de detalle del equipo |
+| 20 | **Tab "Contratos" en `ProveedoresView`** | Modal de detalle del proveedor |
+| 21 | **Dropdown `contrato_id` en `OrdenesView`** | OTs cubiertas por contrato |
+| 22 | **Crear `PlanificacionView.vue`** | Calendario unificado OT + MP |
+| 23 | **Instalar librería de calendario** | FullCalendar o similar |
+| 24 | **Implementar filtros del calendario** | Equipo, Ubicación, Responsable, Estado, Tipo |
+| 25 | **Export parcial** | Botones "Exportar Excel/CSV" en Equipos, OTs, MPs |
+| 26 | **Actualizar reportes RF06** | Costos por contrato vs fuera de contrato |
+
+### 🔶 v0.9.3 — RF13 (Exportación completa) + UX
+
+| # | Pendiente | Detalle |
+|---|-----------|---------|
+| 27 | **RF13: Exportación completa** | Todas las entidades, todos los formatos (Excel/CSV/PDF) |
+| 28 | **Export PDF con `reportlab`** | Historial de equipo, detalle de OT, etc. |
+| 29 | **Export individual** | Detalle de una entidad en PDF |
+| 30 | **Export seleccionados** | Checkbox en listados |
+| 31 | **Bug fixes** | Lo que se detecte en v0.9.0-v0.9.2 |
+| 32 | **Mejoras de rendimiento** | Si es necesario |
+| 33 | **Refinamiento visual** | Pulir UI/UX |
+
+### 🔶 v1.0.0 — Estados multi-dimensión + versión final
+
+| # | Pendiente | Detalle |
+|---|-----------|---------|
+| 34 | **Rediseño del sistema de estados** | Dimensiones independientes: operativo, ubicación, garantía (derivado), calibración (derivado), crítico (bool) |
+| 35 | **Documentación completa** | README final, manual de usuario |
+| 36 | **Empaquetado para distribución** | PyInstaller (.exe) + instalador |
+| 37 | **Versión final para defensa universitaria** | — |
+
+---
+
+## 🎯 Pendientes adicionales (no en roadmap pero detectados)
+
+| # | Pendiente | Prioridad | Notas |
+|---|-----------|-----------|-------|
+| 38 | **El calendario de Preventivo actual** sigue usando la vista vieja. En v0.9.2 se reemplaza por "Planificación" | Media | Por ahora funciona con `proxima_fecha` |
+| 39 | **Las OTs no aparecen en ningún calendario** | Alta | Se resuelve en v0.9.2 con "Planificación" |
+| 40 | **No hay manera de asignar OTs a técnicos desde un calendario** | Media | Se resuelve en v0.9.2 (drag & drop en v1.0) |
+| 41 | **La página de Usuarios no muestra los 3 usuarios TEST correctamente** | Baja | Verificar que `admin`, `tech`, `user` aparecen |
+| 42 | **El login aún dice `admin/admin123` en algunos lugares** | Baja | Actualizar referencias a `admin/admin` |
+| 43 | **Las plantillas de Repuestos, Herramientas y Proveedores NO se han actualizado a v0.9.0** | Media | Siguen con los campos viejos (no afecta funcionalidad pero es inconsistencia) |
+| 44 | **El endpoint `/equipos/tecnicos` fue eliminado pero puede haber referencias en el frontend** | Baja | Verificar que no haya llamadas rotas |
+
+---
+
+## 🤔 Mi recomendación de orden de ataque
+
+### Inmediato (hoy o mañana)
+1. **Subir a GitHub** — respaldar v0.9.0 completo
+2. **Probar a fondo** en tu PC (especialmente formularios de Equipos y Preventivo)
+3. **Actualizar README.md** a v0.9.0
+
+### Próxima sesión
+4. **v0.9.1 — RF11 (Costos en OT)** + mejoras de OT (dropdown de equipo, formularios consistentes)
+
+### Después
+5. **v0.9.2 — RF12 (Contratos) + Planificación** (calendario unificado)
+6. **v0.9.3 — RF13 (Exportación) + UX**
+7. **v1.0.0 — Estados multi-dimensión + versión final**
+
+### Sobre el porcentaje
+Con v0.9.0 completa, yo estimaría que estamos en **~55-60%** hacia v1.0. Los grandes bloques que faltan son:
+- RF11 (Costos) — ~5%
+- RF12 (Contratos + Planificación) — ~15%
+- RF13 (Exportación) — ~5%
+- Estados multi-dimensión — ~10%
+- Pulido + empaquetado — ~10%
+
+¿Por dónde quieres seguir?
+
+
+
+tengo observaciones sobre mantenimiento preventivo, es posible que en esta ingeniería de requerimientos tengamos que cambiar 
+elementos de la tabla o justificarlos, me explico:
+
+el usuario administrador va a programar los mantenimientos preventivos en la aplicación
+para esto requerirá, elegir el equipo a travez de un Dropdown / Select, eso significa traer los datos del equipo ya creado.
+pero, en esta selección no solo puede mostrarse el nombre corto del equipo, debe estar el modelo y numero de serie.
+el motivo, los valores de nombre_corto los pone el usuario aleatoriamente, pero podrian ser los mismos en algunos equipos
+por ende debemos mostrar datos fijos no repetibles de alguna manera, el modelo y el numero de serie.
+opciones: 
+1.- en el DROPDOWN SELECT, al nombre_equipo, modelo, numero de serie. (parece complejo)
+2.- o una vez seleccionado el equipo nombre_equipo, en un label podríamos mostrar el modelo y numero de serie de la selección.
+(parece mas simple)
+
+una vez seleccionado el equipo se le da un "Titulo de la Tarea"
+sirve como notas de la accion MANTENIMIENTO PREVENTIVO.
+
+ahora seleccionaremos al responsable, uno de los usuarios ya registrados.
+podemos seleccionar un repuesto o herramienta. para la realización del mantenimiento, que puede ser un kit del almacen.
+
+
+luego, se debe seleccionar la fecha de mantenimiento la cual se esta programando.
+esta fecha aparecerá en el calendario en color verde (ya programado), en el fondo es una programación OT simple (mismas funciones), pero de mantenimiento preventivo exclusivamente pero con un tiempo de periodicidad (ej. 90 dias) se creara en el calendario un recordatorio para el próximo mantenimiento de ese equipo.
+ese recordatorio (color amarillo) puede ser editato a un nuevo ot, lo cual generaría un nuevo recordatorio dependiente de la periodicidad (ej 90 dias) y asi sucesivamente.
+luego cuando esa sugerencia (amarillo) pase de fecha y no se haga el mantenimiento se pone en rojo es una alerta es un recordatorio, aun sigue pendiente entendiendo que tiene que ser periodico el mantenimiento.
+
+con esta logica el Rf03 debe funcionar
+
+Campo
+`id`
+`equipo_tipo_id`
+`titulo`
+`descripcion_detalle`
+`periodicidad_tipo`
+`periodicidad_valor`
+`condiciones_activacion`
+`logica_periodicidad`
+`ultimo_mantenimiento_fecha`
+`contador_acumulado`
+`proxima_fecha_vencimiento_manual`
+`activo`
+`tecnico_asignado_predeterminado_id`
+
+
+los filtros 
+hubicacion, responsable, estado.
+estados por defecto
+Hoy, Vencidos, Realizados, Alertas.
+
+
+
+
+Perfecto, entiendo claramente tu análisis sobre el **Mantenimiento Preventivo (RF03)** y las propuestas de mejora para la UI/UX y la lógica de negocio, especialmente en la creación y gestión de tareas preventivas.
+
+Vamos por partes con tus puntos y mis sugerencias:
+
+### 1. Selección del Equipo en el Dropdown
+
+**Tu Observación:** `nombre_corto` puede ser ambiguo.
+
+**Tu Propuesta:** Mostrar `nombre_corto (modelo - numero_serie)` en el dropdown o mostrar modelo y serie en un label tras la selección.
+
+**Opinión:** **Totalmente de acuerdo.** La opción 1 (mostrar `nombre_corto (modelo - numero_serie)`) es preferible en términos de **eficiencia**. El usuario ve toda la información necesaria para identificar el equipo *antes* de seleccionarlo. Es el estándar en sistemas de gestión de inventario.
+
+**Ejemplo:** "Microscopio Olympus CX23 (MIC-OLY-001)".
+
+### 2. Título de la Tarea
+
+**Tu Observación:** Sirve como nota descriptiva.
+
+**Opinión:** Correcto. `titulo` es útil para identificar rápidamente la *naturaleza* de la tarea (por ejemplo, "Mantenimiento Preventivo Anual", "Calibración Anual", "Limpieza Profunda").
+
+### 3. Responsable
+
+**Tu Observación:** Seleccionar de usuarios registrados.
+
+**Opinión:** Correcto. Esto ya está en el diseño actual (`responsable_id` en `tareapreventiva` apunta a `usuario.id`).
+
+### 4. Repuestos/Herramientas
+
+**Tu Observación:** Seleccionar un kit o elementos específicos del almacén.
+
+**Opinión:** Correcto. Esto ya está implementado en el diseño actual mediante la tabla intermedia `tarea_repuesto`, que asocia una `tareapreventiva` con uno o más `repuesto_id` y una `cantidad_requerida`. La funcionalidad de "kit" está cubierta implícitamente por esta relación.
+
+### 5. Fecha de Mantenimiento y Lógica de Periodicidad/Recordatorio
+
+**Tu Observación:** Es clave. Describe el flujo: Fecha programada (verde) -> Recordatorio periódico (amarillo) -> Alerta vencida (rojo). Relacionas esto con la generación de OTs.
+
+**Opinión:** **Muy acertado.** Esta es la lógica central del mantenimiento preventivo. Tu descripción del flujo visual (colores) y funcional (recordatorio -> OT -> nuevo recordatorio) es clara y representa bien la realidad del ciclo de vida de una tarea preventiva. La generación de una OT a partir de un recordatorio (evento amarillo que se edita) es correcta.
+
+### 6. Análisis de la Propuesta de Tabla `Tareas_MP` (Nueva Propuesta)
+
+Comparando tu propuesta de campos para `Tareas_MP` con la tabla actual `tareapreventiva` y los RFs discutidos:
+
+| Campo Propuesto (`Tareas_MP`) | Campo Actual (`tareapreventiva`) | Estado | Análisis / Sugerencia |
+| :--- | :--- | :--- | :--- |
+| `id` | `id` | ✅ | OK. |
+| `equipo_tipo_id` | `equipo_id` | ⚠️ **Cambio** | `equipo_id` (FK a `equipo.id`) es más directo y funcional que `equipo_tipo_id`. A menos que `equipo_tipo_id` signifique "asociar la tarea a *todos los equipos* de un modelo específico", lo cual es una funcionalidad más compleja. La propuesta actual `equipo_id` es correcta para tareas específicas por equipo. |
+| `titulo` | `titulo` | ✅ | OK. |
+| `descripcion_detalle` | `descripcion` | ✅ | OK. `descripcion_detalle` es más descriptivo. |
+| `periodicidad_tipo` | `frecuencia_dias` | ⚠️ **Ampliación** | `frecuencia_dias` es simple (solo por días). `periodicidad_tipo` (ej. "días", "semanas", "meses", "años", "por uso (horas, ciclos)") es más flexible. **Buena mejora.** |
+| `periodicidad_valor` | `frecuencia_dias` | ⚠️ **Ampliación** | `frecuencia_dias` es simple. `periodicidad_valor` (el número, junto con `periodicidad_tipo`) es más flexible. **Buena mejora.** |
+| `condiciones_activacion` | - | ✨ **Nuevo** | Campo útil para lógica más compleja (ej. "después de X horas de uso", "si temperatura > Y"). **Buena idea.** |
+| `logica_periodicidad` | - | ✨ **Nuevo** | Campo para describir la lógica de recálculo (ej. "desde última fecha", "desde fecha fija"). **Muy útil.** |
+| `ultimo_mantenimiento_fecha` | `ultima_fecha` | ✅ | OK. `ultimo_mantenimiento_fecha` es más descriptivo. |
+| `contador_acumulado` | - | ✨ **Nuevo** | Muy útil si se implementa periodicidad basada en uso (horas, ciclos). **Buena idea.** |
+| `proxima_fecha_vencimiento_manual` | `proxima_fecha` | ⚠️ **Clarificación** | `proxima_fecha` actual es calculada. `proxima_fecha_vencimiento_manual` implica que el usuario *puede* sobrescribir la fecha calculada. Esto puede ser útil en ciertos casos. **Buena idea como opción adicional.** |
+| `activo` | `activa` | ✅ | OK. |
+| `tecnico_asignado_predeterminado_id` | `responsable_id` | ⚠️ **Renombrado** | `responsable_id` actualmente apunta a un usuario. `tecnico_asignado_predeterminado_id` es más específico. **Renombrar o aclarar propósito.** ¿Es el técnico que *se asigna por defecto* cuando se genera la OT? ¿O es el responsable de la *tarea* (planificación)? (`responsable_id` actual). |
+
+**Conclusión sobre la Nueva Propuesta de Tabla:**
+
+Tu propuesta es **muy buena** y **representa un avance** significativo sobre la tabla `tareapreventiva` actual, especialmente en términos de **flexibilidad** (`periodicidad_tipo/valor`, `condiciones_activacion`, `contador_acumulado`) y **explicación de la lógica** (`logica_periodicidad`). Incorpora ideas que enriquecerían el RF03.
+
+### 7. Filtros y Estados (en el Calendario/Lista de Tareas)
+
+**Tu Propuesta:** Filtros por `ubicacion`, `responsable`, `estado`. Estados: Hoy, Vencidos, Realizados, Alertas.
+
+**Opinión:** **Excelente.** Los filtros propuestos son muy útiles. Los "estados" mencionados (`Hoy`, `Vencidos`, `Realizados`, `Alertas`) **no son estados de la tarea en la base de datos**, sino **resultados de cálculos temporales** basados en `proxima_fecha`, `ultima_fecha`, `activo`, y la fecha actual. Son vistas/etiquetas temporales para la UI.
+
+*   `Hoy`: `proxima_fecha` == hoy.
+*   `Vencidos`: `proxima_fecha` < hoy AND `activo` = true.
+*   `Realizados`: `ultima_fecha` es reciente o coincide con `proxima_fecha` resuelta.
+*   `Alertas`: Similar a `Vencidos` o `proxima_fecha` muy próxima (p. ej. <= 3 días).
+
+### 8. Elementos Actuales No Usados o a Revisar
+
+*   **`frecuencia_dias` (actual):** Sería reemplazado por `periodicidad_tipo` + `periodicidad_valor`.
+*   **`proxima_fecha` (actual):** Sigue siendo útil como el campo que almacena *la próxima fecha calculada*. `proxima_fecha_vencimiento_manual` sería una extensión.
+*   **`ultima_fecha` (actual):** Sigue siendo útil para el cálculo de la próxima fecha.
+*   **`activa` (actual):** Sigue siendo útil para saber si la tarea está vigente.
+
+### Conclusión Final
+
+Tu análisis del RF03 es profundo y muy constructivo. La propuesta de **nueva estructura de tabla** (`Tareas_MP`) es **superior** a la actual (`tareapreventiva`) en términos de **flexibilidad y escalabilidad**. Incorpora conceptos que permitirían gestionar tareas preventivas más complejas (basadas en uso, con lógica de activación específica). La idea de **estados temporales para la UI** (Hoy, Vencidos, etc.) también es acertada.
+
+**Sugerencia:** Considera **actualizar el RF03** con esta nueva propuesta de tabla `Tareas_MP` y su lógica de periodicidad más avanzada. Esto elevaría el nivel del módulo de mantenimiento preventivo del CMMS-BioAI.

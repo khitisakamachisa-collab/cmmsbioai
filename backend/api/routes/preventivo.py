@@ -30,21 +30,22 @@ def listar_tareas(session: Session = Depends(get_session)):
 # --- Endpoint para CREAR tarea ---
 @router.post("/", response_model=TareaPreventivaRead)
 def crear_tarea(tarea: TareaPreventivaCreate, session: Session = Depends(get_session)):
-    # 1. Calcular próxima fecha
-    proxima_fecha = None
-    if tarea.ultima_fecha:
-        proxima_fecha = tarea.ultima_fecha + timedelta(days=tarea.frecuencia_dias)
-    
-    # 2. Crear Tarea
+    """
+    v0.9.0: `proxima_fecha` es la fecha REAL programada por el usuario.
+    NO se calcula automáticamente. El frontend puede sugerir
+    `ultima_fecha + frecuencia_dias`, pero el usuario puede modificarla.
+
+    `frecuencia_dias` es solo una sugerencia/recordatorio, no afecta la fecha del calendario.
+    """
+    # Crear Tarea con los datos del usuario (incluyendo proxima_fecha si viene)
     nueva_tarea = TareaPreventiva(
-        **tarea.model_dump(exclude={"repuestos"}),
-        proxima_fecha=proxima_fecha
+        **tarea.model_dump(exclude={"repuestos"})
     )
     session.add(nueva_tarea)
     session.commit()
     session.refresh(nueva_tarea)
-    
-    # 3. Guardar Repuestos
+
+    # Guardar Repuestos
     if tarea.repuestos:
         for rep in tarea.repuestos:
             nuevo_rep = TareaRepuesto(
@@ -55,10 +56,8 @@ def crear_tarea(tarea: TareaPreventivaCreate, session: Session = Depends(get_ses
             session.add(nuevo_rep)
         session.commit()
 
-    # Refrescar la tarea DESPUÉS de todos los commits
     session.refresh(nueva_tarea)
 
-    # Preparar respuesta - convertir TODO a diccionarios
     res = nueva_tarea.model_dump()
     repuestos_db = get_repuestos_detalle(session, nueva_tarea.id)
     res["repuestos_detalle"] = [r.model_dump() for r in repuestos_db]
@@ -164,30 +163,31 @@ def generar_ot_desde_preventivo(tarea_id: int, req: GenerarOTRequest, session: S
 # --- Endpoint para ACTUALIZAR tarea ---
 @router.put("/{tarea_id}", response_model=TareaPreventivaRead)
 def actualizar_tarea(tarea_id: int, tarea_data: TareaPreventivaUpdate, session: Session = Depends(get_session)):
+    """
+    v0.9.0: NO se recalcula `proxima_fecha` automáticamente.
+    El usuario setea `proxima_fecha` directamente con el date picker.
+    `frecuencia_dias` es solo recordatorio, no afecta la fecha del calendario.
+    """
     db_tarea = session.get(TareaPreventiva, tarea_id)
     if not db_tarea:
         raise HTTPException(status_code=404, detail="Tarea no encontrada")
-    
+
     tarea_dict = tarea_data.model_dump(exclude_unset=True)
-    
-    # Actualizar campos simples
+
+    # Actualizar campos simples (incluyendo proxima_fecha si viene)
     for key, value in tarea_dict.items():
         if key != "repuestos":
             setattr(db_tarea, key, value)
-    
-    # Recalcular fecha
-    if db_tarea.ultima_fecha:
-        db_tarea.proxima_fecha = db_tarea.ultima_fecha + timedelta(days=db_tarea.frecuencia_dias)
-    
+
+    # NO recalculamos proxima_fecha: el usuario es quien decide la fecha real
+
     session.add(db_tarea)
-    
+
     # Actualizar Repuestos
     if "repuestos" in tarea_dict:
-        # Borrar anteriores
         session.exec(
             TareaRepuesto.__table__.delete().where(TareaRepuesto.tarea_preventiva_id == tarea_id)
         )
-        # Agregar nuevos (model_dump ya convirtió a diccionarios)
         for rep in tarea_dict["repuestos"]:
             nuevo = TareaRepuesto(
                 tarea_preventiva_id=tarea_id,
@@ -195,10 +195,10 @@ def actualizar_tarea(tarea_id: int, tarea_data: TareaPreventivaUpdate, session: 
                 cantidad_requerida=rep["cantidad_requerida"]
             )
             session.add(nuevo)
-            
+
     session.commit()
     session.refresh(db_tarea)
-    
+
     res = db_tarea.model_dump()
     res["repuestos_detalle"] = get_repuestos_detalle(session, tarea_id)
     return res

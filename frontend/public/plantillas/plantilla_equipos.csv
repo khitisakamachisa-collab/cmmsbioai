@@ -1,16 +1,3 @@
-nombre_corto,modelo,numero_serie,numero_material,marca,fecha_adquisicion,fecha_fin_garantia,ubicacion_actual,estado,proveedor_principal,registro_sanitario_bolivia,descripcion,calibracion_proxima,responsable_username
-Microscopio Olympus CX23,CX23,MIC-OLY-001,MAT-CX23-A,Olympus,2023-03-15,2025-03-15,Lab. Microbiología,Operativo,Olympus Bolivia,RS-BOL-2023-001,Microscopio binocular para microbiología clínica,2025-03-15,
-Centrífuga Eppendorf 5424,5424,CEN-EPP-002,MAT-5424-B,Eppendorf,2022-07-20,2024-07-20,Lab. Hematología,Operativo,Eppendorf Latam,RS-BOL-2022-045,"Centrífuga de mesa 24 tubos, rotor FA-45-24-11",2024-07-20,
-Autoclave Steris Amsco 3043,3043,AUT-STR-003,,Steris,2021-01-10,2023-01-10,Central de Esterilización,Operativo,Steris Corporation,,"Autoclave hospitalaria vertical, 400L capacidad",2025-01-10,
-Analizador Bioquímico Cobas c311,c311,ANA-ROC-004,MAT-C311-V2,Roche,2023-06-01,2025-06-01,Lab. Bioquímica,Operativo,Roche Diagnostics Bolivia,RS-BOL-2023-089,"Analizador bioquímico automatizado, 120 pruebas/h",2025-06-01,
-Monitor de Signos Vitales Mindray,uMEC10,MON-MIN-005,,Mindray,2022-11-05,2024-11-05,UCI Box 3,En Mantenimiento,Mindray Bolivia,RS-BOL-2022-112,"Monitor multiparámetro con SpO2, ECG, NIBP, Temp",2024-11-05,
-Electrocardiógrafo GE MAC 2000,MAC 2000,ELE-GEE-006,,GE Healthcare,2020-09-15,2022-09-15,Cardiología,Operativo,GE Healthcare Latam,RS-BOL-2020-034,ECG 12 derivaciones con interpretación,2024-09-15,
-Espectrofotómetro Thermo Genesys 30,Genesys 30,ESP-THM-007,MAT-GEN30,Thermo Fisher,2023-02-28,2025-02-28,Lab. Investigación,Operativo,Thermo Fisher Scientific,,"Espectrofotómetro visible, rango 325-1100nm",2025-02-28,
-Balanza Analítica Sartorius,Quintix 224,BAL-SAR-008,,Sartorius,2021-08-12,2023-08-12,Lab. Control Calidad,Operativo,Sartorius Bolivia,,"Balanza analítica 220g / 0.1mg, calibración interna",2024-08-12,
-Desfibrilador Zoll R Series,R Series,DES-ZOL-009,MAT-RS-PRO,Zoll,2022-04-18,2024-04-18,Emergencias,Operativo,Zoll Medical,RS-BOL-2022-078,Desfibrilador biphasic con monitor y marcapasos,2025-04-18,
-Incubadora CO2 Thermo Heracell,Heracell VIOS 160i,INC-THM-010,,Thermo Fisher,2023-09-01,2025-09-01,Lab. Cultivo Celular,Fuera de Servicio,Thermo Fisher Scientific,,"Incubadora CO2 con control de O2, 170L",2025-09-01,
-Bomba de Infusión B. Braun,Infusomat Space,BOM-BRA-011,MAT-INF-SP2,B. Braun,2022-12-10,2024-12-10,UCI Box 1,Operativo,B. Braun Bolivia,RS-BOL-2022-156,Bomba de infusión volumétrica con modo PCA,2024-12-10,
-Termociclador Bio-Rad T100,T100,TER-BIO-012,,Bio-Rad,2021-05-22,2023-05-22,Lab. Biología Molecular,Operativo,Bio-Rad Latam,,"Termociclador PCR 96 pocillos, gradiente",2025-05-22,
-Respirador Dräger Evita V500,Evita V500,RES-DRA-013,,Dräger,2023-01-15,2025-01-15,UCI Box 5,En Mantenimiento,Dräger Bolivia,RS-BOL-2023-003,Ventilador de UCI con modos avanzados,2025-01-15,
-Pipeta Automática Hamilton,Microlab STARlet,PIP-HAM-014,MAT-STAR-V3,Hamilton,2022-03-08,2024-03-08,Lab. Automatización,Operativo,Hamilton Company,,"Pipeta automatizada 8 canales, 1-1000uL",2025-03-08,
-Cámara de Flujo Laminar Esco,A2 Class,CAM-ESC-015,,Esco,2020-06-25,2022-06-25,Lab. Microbiología,Operativo,Esco Technologies,,Cabina de seguridad biológica Clase II Tipo A2,2024-06-25,
+nombre_corto,modelo,numero_serie,numero_material,marca,fecha_adquisicion,fecha_inicio_garantia,fecha_fin_garantia,ubicacion_actual,estado,proveedor_principal,condicion_origen,descripcion,observaciones
+Microscopio Olympus CX23,CX23,MIC-OLY-001,MAT-CX23-A,Olympus,2023-03-15,2023-03-15,2025-03-15,Lab. Microbiología,Operativo,Olympus Bolivia,Compra,Microscopio binocular para microbiología clínica,Funciona correctamente
+Monitor Signos Vitales Mindray,uMEC10,MON-MIN-002,,Mindray,2022-11-05,2022-11-05,2024-11-05,UCI Box 3,En Mantenimiento,Mindray Bolivia,Donación,"Monitor multiparámetro con SpO2, ECG, NIBP, Temp",Requiere calibración de SpO2

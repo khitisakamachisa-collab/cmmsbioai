@@ -35,11 +35,19 @@ const moviendoArchivos = ref(false)
 const movimientoResultado = ref(null)
 const uploadsBaseAnterior = ref('')
 
+// ─── Modo TEST ───
+const cargandoTest = ref(false)
+const limpiandoBD = ref(false)
+const testResultado = ref(null)
+const limpiezaResultado = ref(null)
+const navbarRef = ref(null)
+
 // ─── Tabs ───
 const tabs = [
   { id: 'capa1', label: 'Capa 1 — BD', icon: '💾' },
   { id: 'capa2', label: 'Capa 2 — Escaneo', icon: '🔍' },
   { id: 'capa3', label: 'Capa 3 — Backup', icon: '📦' },
+  { id: 'test', label: 'Datos TEST', icon: '🧪' },
   { id: 'config', label: 'Configuración', icon: '🛠️' }
 ]
 
@@ -272,6 +280,93 @@ function resetConfig() {
   showToast('Configuración revertida al último guardado', 'info')
 }
 
+// ─── Modo TEST: cargar datos de ejemplo y limpiar BD ───
+async function cargarDatosTest() {
+  if (!confirm(
+    '¿Cargar datos de ejemplo (modo TEST) en la base de datos?\n\n' +
+    'Se crearán:\n' +
+    '• 3 usuarios TEST (admin/tech/user) - si no existen\n' +
+    '• 5 proveedores con contactos\n' +
+    '• 8 equipos con estados variados\n' +
+    '• 5 repuestos con stock\n' +
+    '• 5 herramientas con categorías\n' +
+    '• 5 órdenes de trabajo\n' +
+    '• 5 tareas preventivas\n' +
+    '• Eventos de historial\n\n' +
+    'Los datos TEST se agregan a los existentes. Si quieres empezar limpio, usa "Limpiar BD" primero.'
+  )) return
+  cargandoTest.value = true
+  testResultado.value = null
+  try {
+    const res = await apiClient.post('/configuracion/cargar-test')
+    testResultado.value = res.data
+    const r = res.data.resumen
+    const partes = []
+    if (r.usuarios) partes.push(`${r.usuarios} usuarios`)
+    if (r.proveedores) partes.push(`${r.proveedores} proveedores`)
+    if (r.contactos) partes.push(`${r.contactos} contactos`)
+    if (r.equipos) partes.push(`${r.equipos} equipos`)
+    if (r.repuestos) partes.push(`${r.repuestos} repuestos`)
+    if (r.herramientas) partes.push(`${r.herramientas} herramientas`)
+    if (r.ots) partes.push(`${r.ots} OTs`)
+    if (r.mps) partes.push(`${r.mps} MPs`)
+    if (r.historial) partes.push(`${r.historial} eventos`)
+    showToast(`Datos TEST cargados: ${partes.join(', ')}`, 'success')
+    await cargarEstadosBD()
+    // Actualizar badge MODO TEST en el navbar
+    if (navbarRef.value?.verificarModoTest) {
+      await navbarRef.value.verificarModoTest()
+    }
+  } catch (e) {
+    showToast('Error al cargar datos TEST: ' + (e.response?.data?.detail || e.message), 'error')
+    console.error(e)
+  } finally {
+    cargandoTest.value = false
+  }
+}
+
+async function limpiarBD() {
+  const confirmacion = prompt(
+    '¿ESTÁ SEGURO de limpiar TODA la base de datos?\n\n' +
+    'Se BORRARÁN permanentemente:\n' +
+    '• Todos los equipos, repuestos, herramientas\n' +
+    '• Todos los proveedores y contactos\n' +
+    '• Todas las órdenes de trabajo y tareas preventivas\n' +
+    '• Todos los eventos de historial y documentos\n' +
+    '• Todas las carpetas físicas en uploads/\n\n' +
+    'Se CONSERVARÁN:\n' +
+    '• Usuarios (admin/tech/user)\n' +
+    '• Estados de equipo y de OT (catálogos)\n' +
+    '• Configuración del sistema\n\n' +
+    'Esta acción NO se puede deshacer.\n\n' +
+    'Para confirmar, escriba "LIMPIAR" en mayúsculas:'
+  )
+  if (confirmacion !== 'LIMPIAR') {
+    if (confirmacion !== null) showToast('Limpieza cancelada: texto de confirmación incorrecto', 'info')
+    return
+  }
+  limpiandoBD.value = true
+  limpiezaResultado.value = null
+  try {
+    const res = await apiClient.post('/configuracion/limpiar-bd')
+    limpiezaResultado.value = res.data
+    showToast('Base de datos limpiada correctamente', 'success')
+    await cargarEstadosBD()
+    // Limpiar también el resultado del escaneo si estaba visible
+    escaneoResultado.value = null
+    recuperacionResultado.value = null
+    // Actualizar badge MODO TEST en el navbar (debería ocultarse)
+    if (navbarRef.value?.verificarModoTest) {
+      await navbarRef.value.verificarModoTest()
+    }
+  } catch (e) {
+    showToast('Error al limpiar BD: ' + (e.response?.data?.detail || e.message), 'error')
+    console.error(e)
+  } finally {
+    limpiandoBD.value = false
+  }
+}
+
 // ─── Labels para directorios ───
 const dirLabels = {
   uploads_base: 'Carpeta base (uploads)',
@@ -287,7 +382,7 @@ const dirLabels = {
 
 <template>
   <div class="dashboard-container">
-    <Navbar @logout="$router.push('/')" />
+    <Navbar ref="navbarRef" @logout="$router.push('/')" />
 
     <main class="content">
       <h2>Configuración del Sistema</h2>
@@ -497,6 +592,146 @@ const dirLabels = {
               {{ restaurando ? 'Restaurando...' : '📤 Subir y Restaurar' }}
             </button>
           </div>
+        </div>
+      </section>
+
+      <!-- ═══════════ DATOS TEST ═══════════ -->
+      <section v-if="tabActiva === 'test'" class="config-section">
+        <div class="config-card">
+          <h3>🧪 Datos TEST — Cargar datos de ejemplo</h3>
+          <p>Carga datos de ejemplo en la base de datos para probar el sistema sin tener que crear todo a mano. Útil para:</p>
+          <ul class="test-features">
+            <li><strong>Testing:</strong> verificar que todas las funcionalidades funcionan correctamente</li>
+            <li><strong>Capacitación:</strong> entrenar a usuarios finales con datos realistas</li>
+            <li><strong>Demostraciones:</strong> mostrar el sistema a stakeholders</li>
+            <li><strong>Desarrollo:</strong> reproducir escenarios complejos rápidamente</li>
+          </ul>
+
+          <div class="test-info-box">
+            <h4>📋 ¿Qué se crea?</h4>
+            <ul>
+              <li><strong>3 usuarios TEST</strong> (si no existen): <code>admin/admin</code>, <code>tech/tech</code>, <code>user/user</code></li>
+              <li><strong>5 proveedores</strong> con 4 contactos asociados</li>
+              <li><strong>8 equipos</strong> con estados variados (Operativo, En Mantenimiento, Fuera de Servicio, etc.)</li>
+              <li><strong>5 repuestos</strong> con stock y proveedores</li>
+              <li><strong>5 herramientas</strong> con categorías (Instrumento, Herramienta Manual, Consumible)</li>
+              <li><strong>5 órdenes de trabajo</strong> asignadas al técnico <code>tech</code></li>
+              <li><strong>5 tareas preventivas</strong> con <code>proxima_fecha</code> = hoy</li>
+              <li><strong>3 eventos de historial</strong> de mantenimiento</li>
+            </ul>
+            <p class="test-note">
+              ⚠️ <strong>Nota:</strong> Los datos TEST se <strong>agregan</strong> a los existentes.
+              Si quieres empezar limpio, usa primero el botón "Limpiar BD".
+            </p>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn btn--primary" @click="cargarDatosTest" :disabled="cargandoTest">
+              {{ cargandoTest ? '⏳ Cargando...' : '🧪 Cargar datos TEST' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Resultado de cargar TEST -->
+        <div v-if="testResultado" class="config-card config-card--info">
+          <h3>✅ Datos TEST cargados</h3>
+          <div class="test-resumen-grid">
+            <div class="test-stat" v-if="testResultado.resumen.usuarios > 0">
+              <span class="test-num">{{ testResultado.resumen.usuarios }}</span>
+              <span class="test-label">Usuarios creados</span>
+            </div>
+            <div class="test-stat" v-if="testResultado.resumen.proveedores > 0">
+              <span class="test-num">{{ testResultado.resumen.proveedores }}</span>
+              <span class="test-label">Proveedores</span>
+            </div>
+            <div class="test-stat" v-if="testResultado.resumen.contactos > 0">
+              <span class="test-num">{{ testResultado.resumen.contactos }}</span>
+              <span class="test-label">Contactos</span>
+            </div>
+            <div class="test-stat" v-if="testResultado.resumen.equipos > 0">
+              <span class="test-num">{{ testResultado.resumen.equipos }}</span>
+              <span class="test-label">Equipos</span>
+            </div>
+            <div class="test-stat" v-if="testResultado.resumen.repuestos > 0">
+              <span class="test-num">{{ testResultado.resumen.repuestos }}</span>
+              <span class="test-label">Repuestos</span>
+            </div>
+            <div class="test-stat" v-if="testResultado.resumen.herramientas > 0">
+              <span class="test-num">{{ testResultado.resumen.herramientas }}</span>
+              <span class="test-label">Herramientas</span>
+            </div>
+            <div class="test-stat" v-if="testResultado.resumen.ots > 0">
+              <span class="test-num">{{ testResultado.resumen.ots }}</span>
+              <span class="test-label">Órdenes de Trabajo</span>
+            </div>
+            <div class="test-stat" v-if="testResultado.resumen.mps > 0">
+              <span class="test-num">{{ testResultado.resumen.mps }}</span>
+              <span class="test-label">Tareas Preventivas</span>
+            </div>
+            <div class="test-stat" v-if="testResultado.resumen.historial > 0">
+              <span class="test-num">{{ testResultado.resumen.historial }}</span>
+              <span class="test-label">Eventos de Historial</span>
+            </div>
+          </div>
+          <p class="test-total"><strong>Total creados: {{ testResultado.total_creados }} registros</strong></p>
+          <p class="test-note">{{ testResultado.nota }}</p>
+        </div>
+
+        <!-- Limpiar BD -->
+        <div class="config-card config-card--danger">
+          <h3>🔴 Limpiar Base de Datos</h3>
+          <p>Borra <strong>TODOS</strong> los datos del sistema excepto los usuarios TEST y los catálogos. Las carpetas físicas en <code>uploads/</code> también se borran.</p>
+
+          <div class="test-warning-box">
+            <h4>⚠️ Lo que se BORRA permanentemente:</h4>
+            <ul>
+              <li>Todos los equipos, repuestos, herramientas</li>
+              <li>Todos los proveedores y contactos</li>
+              <li>Todas las órdenes de trabajo y tareas preventivas</li>
+              <li>Todos los eventos de historial y documentos adjuntos</li>
+              <li>Todas las carpetas físicas en <code>uploads/</code></li>
+            </ul>
+            <h4>✅ Lo que se CONSERVA:</h4>
+            <ul>
+              <li>Usuarios (admin/tech/user)</li>
+              <li>Estados de equipo (19 estados) y de OT (5 estados)</li>
+              <li>Configuración del sistema (config.json)</li>
+            </ul>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn btn--danger" @click="limpiarBD" :disabled="limpiandoBD">
+              {{ limpiandoBD ? '⏳ Limpiando...' : '🔴 Limpiar BD (escribir LIMPIAR para confirmar)' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Resultado de limpiar -->
+        <div v-if="limpiezaResultado" class="config-card config-card--info">
+          <h3>✅ Base de datos limpiada</h3>
+          <div class="test-resumen-grid">
+            <div class="test-stat test-stat--deleted" v-if="limpiezaResultado.resumen.equipos_eliminados > 0">
+              <span class="test-num">{{ limpiezaResultado.resumen.equipos_eliminados }}</span>
+              <span class="test-label">Equipos eliminados</span>
+            </div>
+            <div class="test-stat test-stat--deleted" v-if="limpiezaResultado.resumen.proveedores_eliminados > 0">
+              <span class="test-num">{{ limpiezaResultado.resumen.proveedores_eliminados }}</span>
+              <span class="test-label">Proveedores eliminados</span>
+            </div>
+            <div class="test-stat test-stat--deleted" v-if="limpiezaResultado.resumen.ots_eliminadas > 0">
+              <span class="test-num">{{ limpiezaResultado.resumen.ots_eliminadas }}</span>
+              <span class="test-label">OTs eliminadas</span>
+            </div>
+            <div class="test-stat test-stat--deleted" v-if="limpiezaResultado.resumen.mps_eliminadas > 0">
+              <span class="test-num">{{ limpiezaResultado.resumen.mps_eliminadas }}</span>
+              <span class="test-label">MPs eliminadas</span>
+            </div>
+            <div class="test-stat test-stat--deleted" v-if="limpiezaResultado.resumen.documentos_eliminados > 0">
+              <span class="test-num">{{ limpiezaResultado.resumen.documentos_eliminados }}</span>
+              <span class="test-label">Documentos eliminados</span>
+            </div>
+          </div>
+          <p class="test-note">{{ limpiezaResultado.nota }}</p>
         </div>
       </section>
 
@@ -761,6 +996,46 @@ const dirLabels = {
 .rec-errores { margin-top: 0.75rem; font-size: 0.88rem; color: #dc2626; }
 .errores-list { margin: 0.35rem 0 0 0; padding-left: 1.2rem; font-size: 0.78rem; color: #991b1b; max-height: 200px; overflow-y: auto; }
 .rec-noop { font-size: 0.88rem; color: #64748b; font-style: italic; }
+
+/* === Modo TEST === */
+.test-features { margin: 0.5rem 0; padding-left: 1.5rem; font-size: 0.85rem; color: #475569; line-height: 1.7; }
+.test-features li { margin: 0.25rem 0; }
+.test-features strong { color: #1e293b; }
+
+.test-info-box {
+  margin: 1rem 0; padding: 1rem; background: #eff6ff; border-left: 4px solid #3b82f6;
+  border-radius: 6px;
+}
+.test-info-box h4 { margin: 0 0 0.5rem 0; font-size: 0.92rem; color: #1e3a8a; }
+.test-info-box ul { margin: 0 0 0.5rem 0; padding-left: 1.2rem; font-size: 0.82rem; color: #1e40af; line-height: 1.7; }
+.test-info-box code { background: #dbeafe; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.78rem; color: #1e3a8a; }
+.test-note { font-size: 0.82rem; color: #64748b; font-style: italic; margin-top: 0.5rem; }
+
+.test-warning-box {
+  margin: 1rem 0; padding: 1rem; background: #fef2f2; border-left: 4px solid #ef4444;
+  border-radius: 6px;
+}
+.test-warning-box h4 { margin: 0 0 0.4rem 0; font-size: 0.92rem; color: #991b1b; }
+.test-warning-box h4:last-of-type { margin-top: 0.75rem; }
+.test-warning-box ul { margin: 0; padding-left: 1.2rem; font-size: 0.82rem; color: #991b1b; line-height: 1.6; }
+.test-warning-box code { background: #fee2e2; padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.78rem; color: #991b1b; }
+
+.test-resumen-grid { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.5rem 0; }
+.test-stat {
+  text-align: center; padding: 0.65rem 1.1rem; background: #ecfdf5; border: 1px solid #86efac; border-radius: 8px;
+  min-width: 110px;
+}
+.test-stat .test-num { display: block; font-size: 1.5rem; font-weight: 700; color: #16a34a; }
+.test-stat .test-label { display: block; font-size: 0.75rem; color: #15803d; margin-top: 0.15rem; }
+.test-stat--deleted { background: #fef2f2; border-color: #fca5a5; }
+.test-stat--deleted .test-num { color: #dc2626; }
+.test-stat--deleted .test-label { color: #991b1b; }
+
+.test-total { font-size: 0.95rem; color: #1e293b; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #e2e8f0; }
+
+.config-card--danger { border-left: 4px solid #ef4444; }
+.btn--danger { background: #ef4444; color: white; }
+.btn--danger:hover:not(:disabled) { background: #dc2626; }
 
 /* === Backup === */
 .backup-totals { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }

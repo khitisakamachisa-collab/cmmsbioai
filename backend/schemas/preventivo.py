@@ -20,8 +20,9 @@ class TareaPreventivaCreate(BaseModel):
     titulo: str
     descripcion: Optional[str] = None
     frecuencia_dias: int
-    ultima_fecha: Optional[date] = None # Si ya se hizo alguna vez
-    repuestos: Optional[List[TareaRepuestoCreate]] = None # Lista de repuestos necesarios
+    ultima_fecha: Optional[date] = None  # Última ejecución real
+    proxima_fecha: Optional[date] = None  # v0.9.0: fecha REAL programada por el usuario (no auto-calculada)
+    repuestos: Optional[List[TareaRepuestoCreate]] = None  # Lista de repuestos necesarios
 
 # Esquema para LEER/RESPONDER una Tarea Preventiva
 class TareaPreventivaRead(BaseModel):
@@ -48,4 +49,5 @@ class TareaPreventivaUpdate(BaseModel):
     responsable_id: Optional[int] = None
     activa: Optional[bool] = None
     ultima_fecha: Optional[date] = None
+    proxima_fecha: Optional[date] = None  # v0.9.0: editable directamente por el usuario
     repuestos: Optional[List[TareaRepuestoCreate]] = None

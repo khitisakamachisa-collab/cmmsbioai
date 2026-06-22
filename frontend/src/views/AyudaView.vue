@@ -23,25 +23,30 @@ const entidades = [
     nombre: 'Equipo',
     tabla: 'equipo',
     prefijo: 'E',
-    rf: 'RF01',
-    descripcion: 'Equipo biomedico. ID: E0001, E0002, etc.',
+    rf: 'RF01 v0.9.0',
+    descripcion: 'Equipo biomedico (universal, sin contexto Bolivia). ID: E0001, E0002, etc.',
     campos: [
       { nombre: 'id', tipo: 'INTEGER', rf: true, impl: true, oblig: true, desc: 'Identificador unico autoincremental' },
-      { nombre: 'nombre_corto', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Nombre descriptivo abreviado del equipo' },
-      { nombre: 'modelo', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Modelo especifico del fabricante' },
-      { nombre: 'numero_serie', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Numero de serie unico del fabricante' },
-      { nombre: 'marca', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Nombre del fabricante del equipo' },
-      { nombre: 'fecha_adquisicion', tipo: 'DATE', rf: true, impl: true, oblig: true, desc: 'Fecha de adquisicion o puesta en servicio' },
-      { nombre: 'registro_sanitario_bolivia', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Numero de registro sanitario DIMTES (si aplica)' },
+      { nombre: 'nombre_corto', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Nombre descriptivo abreviado del equipo. NOT NULL en v0.9.0' },
+      { nombre: 'modelo', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Modelo especifico del fabricante. NO editable despues de creado' },
+      { nombre: 'numero_serie', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Numero de serie unico. NO editable despues de creado' },
+      { nombre: 'marca', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Nombre del fabricante. NO editable despues de creado' },
+      { nombre: 'numero_material', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Numero de material del fabricante (variante del modelo)' },
+      { nombre: 'fecha_adquisicion', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'Fecha de adquisicion (opcional en v0.9.0)' },
+      { nombre: 'fecha_inicio_garantia', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'v0.9.0: Fecha de inicio de garantia' },
+      { nombre: 'fecha_fin_garantia', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'Fecha de fin de garantia' },
       { nombre: 'ubicacion_actual', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Ubicacion fisica actual (sala, piso, hospital)' },
-      { nombre: 'responsable_tecnico_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: false, desc: 'FK a Usuarios.id - Tecnico biomedico responsable' },
-      { nombre: 'proveedor_principal', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Empresa o entidad desde la que se adquirio' },
-      { nombre: 'descripcion', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Descripcion adicional o notas sobre el equipo' },
+      { nombre: 'estado_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Estados_Equipo.id' },
+      { nombre: 'proveedor_principal_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: false, desc: 'v0.9.0: FK a Proveedor.id. Dropdown con opcion "Crear nuevo"' },
+      { nombre: 'condicion_origen', tipo: 'TEXT (enum)', rf: true, impl: true, oblig: false, desc: 'v0.9.0: Compra, Donacion, Prestamo, Demostracion, Evaluacion, Leasing, Renta, Comodato, Otro' },
+      { nombre: 'descripcion', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Descripcion TECNICA del equipo (que es, que hace)' },
+      { nombre: 'observaciones', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'v0.9.0: Notas operativas (como esta, accesorios, advertencias)' },
       { nombre: 'imagen_ruta', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Ruta local de la imagen del equipo' },
-      { nombre: 'estado_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Estados_Equipo.id - Estado actual del equipo' },
-      { nombre: 'calibracion_proxima', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'Fecha programada para proxima calibracion' },
-      { nombre: 'numero_material', tipo: 'TEXT', rf: false, impl: true, oblig: false, desc: 'EXTRA: Numero de material del fabricante. No esta en RF01' },
-      { nombre: 'fecha_fin_garantia', tipo: 'DATE', rf: false, impl: true, oblig: false, desc: 'EXTRA: Fecha de fin de garantia. No esta en RF01' }
+      // CAMPOS ELIMINADOS en v0.9.0 (no se muestran):
+      // - registro_sanitario_bolivia (universalidad)
+      // - calibracion_proxima (gestionado via MP/OT)
+      // - responsable_tecnico_id (asignacion flexible en OT/MP)
+      // - proveedor_principal (texto, reemplazado por FK)
     ]
   },
   {
@@ -355,12 +360,12 @@ const modulos = [
 // ─── Requisitos Funcionales (desde xlsx) ───
 const requisitosRF = [
   {
-    id: 'RF01', nombre: 'Gestion de Activos', entidad: 'Equipo',
-    descripcion: 'Registro y gestion de equipos biomedicos con toda su informacion tecnica, ubicacion, responsable y estado.',
-    camposRF: 14, implementados: 14, faltantes: 0, extras: 2,
+    id: 'RF01', nombre: 'Gestion de Activos v0.9.0 (Universal)', entidad: 'Equipo',
+    descripcion: 'Registro y gestion de equipos biomedicos (universal, sin contexto Bolivia). Campos obsoletos eliminados (registro_sanitario, calibracion, responsable). Nuevos: observaciones, fecha_inicio_garantia, condicion_origen, proveedor_principal_id (FK).',
+    camposRF: 16, implementados: 16, faltantes: 0, extras: 0,
     detalleFaltantes: [],
-    detalleExtras: ['numero_material', 'fecha_fin_garantia'],
-    estado: 'Completo con extras'
+    detalleExtras: [],
+    estado: 'Completo v0.9.0'
   },
   {
     id: 'RF02', nombre: 'Gestion de OT', entidad: 'OrdenTrabajo',

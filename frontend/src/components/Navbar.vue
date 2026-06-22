@@ -5,6 +5,7 @@ import apiClient from '../services/api.js'
 
 const route = useRoute()
 const sistemaNombre = ref('CMMS-BioAI')
+const modoTest = ref(false)
 
 const navLinks = [
   { path: '/inicio', label: 'Inicio' },
@@ -27,6 +28,23 @@ const logout = () => {
   emit('logout')
 }
 
+// Verificar si el sistema está en modo TEST
+// Criterio: si existe un proveedor con nombre "TechMed Bolivia SRL" (creado por seed_test_data)
+async function verificarModoTest() {
+  try {
+    const res = await apiClient.get('/proveedores/')
+    if (Array.isArray(res.data)) {
+      modoTest.value = res.data.some(p => p.nombre_empresa === 'TechMed Bolivia SRL')
+    }
+  } catch (e) {
+    // Si falla, asumir que no está en modo TEST
+    modoTest.value = false
+  }
+}
+
+// Exponer la función para que otras vistas puedan llamarla después de cargar/limpiar TEST
+defineExpose({ verificarModoTest })
+
 onMounted(async () => {
   try {
     const res = await apiClient.get('/configuracion/')
@@ -36,12 +54,19 @@ onMounted(async () => {
   } catch (e) {
     // Usar nombre por defecto si no se puede cargar
   }
+  // Verificar modo TEST después de cargar la configuración
+  await verificarModoTest()
 })
 </script>
 
 <template>
   <header class="header">
-    <h1 class="header-title">{{ sistemaNombre }}</h1>
+    <div class="header-left">
+      <h1 class="header-title">{{ sistemaNombre }}</h1>
+      <span v-if="modoTest" class="test-badge" title="El sistema tiene datos de ejemplo cargados. Ve a Configuración → Datos TEST para limpiar.">
+        🧪 MODO TEST
+      </span>
+    </div>
     <nav class="header-nav">
       <router-link
         v-for="link in navLinks"
@@ -69,11 +94,38 @@ onMounted(async () => {
   gap: 0.5rem;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .header-title {
   margin: 0;
   font-size: 1.3rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.test-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #1e293b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
+  letter-spacing: 0.03em;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  animation: pulse-test 2s ease-in-out infinite;
+}
+
+@keyframes pulse-test {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
 }
 
 .header-nav {

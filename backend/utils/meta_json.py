@@ -34,7 +34,13 @@ def write_meta_json(carpeta: Path, data: dict):
 
 
 def build_equipo_meta(equipo, imagen_ruta: Optional[str] = None) -> dict:
-    """Construye el diccionario de metadatos para un equipo."""
+    """
+    Construye el diccionario de metadatos para un equipo - RF01 v0.9.0.
+
+    Incluye los nuevos campos (observaciones, fecha_inicio_garantia, condicion_origen,
+    proveedor_principal_id) y excluye los campos obsoletos (registro_sanitario_bolivia,
+    calibracion_proxima, responsable_tecnico_id, proveedor_principal texto).
+    """
     data = {
         "entidad_tipo": "equipo",
         "id": equipo.id,
@@ -46,11 +52,25 @@ def build_equipo_meta(equipo, imagen_ruta: Optional[str] = None) -> dict:
         "numero_material": equipo.numero_material,
         "ubicacion_actual": equipo.ubicacion_actual,
         "estado_id": equipo.estado_id,
-        "proveedor_principal": equipo.proveedor_principal,
-        "registro_sanitario_bolivia": equipo.registro_sanitario_bolivia,
+        # NUEVO v0.9.0: FK a Proveedor (en vez de texto libre)
+        "proveedor_principal_id": equipo.proveedor_principal_id,
+        # NUEVO v0.9.0: origen del equipo
+        "condicion_origen": equipo.condicion_origen,
+        # NUEVO v0.9.0: fecha de inicio de garantía
+        "fecha_inicio_garantia": equipo.fecha_inicio_garantia.isoformat() if equipo.fecha_inicio_garantia else None,
+        "fecha_fin_garantia": equipo.fecha_fin_garantia.isoformat() if equipo.fecha_fin_garantia else None,
+        # NUEVO v0.9.0: observaciones operativas
+        "observaciones": equipo.observaciones,
+        # CAMPOS ELIMINADOS en v0.9.0 (no se incluyen):
+        # - registro_sanitario_bolivia (universalidad)
+        # - calibracion_proxima (gestionado vía MP/OT)
+        # - responsable_tecnico_id (asignación en OT/MP)
+        # - proveedor_principal (texto, reemplazado por proveedor_principal_id FK)
     }
     if imagen_ruta:
         data["imagen_ruta"] = imagen_ruta
+    elif hasattr(equipo, 'imagen_ruta') and equipo.imagen_ruta:
+        data["imagen_ruta"] = equipo.imagen_ruta
     return data
 
 

@@ -5,7 +5,13 @@ from database import get_session
 from models.equipos import Equipo
 from models.estados import EstadoEquipo
 from models.users import Usuario
+from models.ordenes import OrdenTrabajo
+from models.documentos import DocumentoAdjunto
+from models.preventivo import TareaPreventiva
+from models.historial import EventoHistorial
+from models.proveedores import Proveedor
 from schemas.equipo import EquipoCreate, EquipoRead, EquipoUpdate
+from schemas.proveedor import ProveedorCreate, ProveedorRead
 from datetime import date, datetime
 from io import BytesIO, StringIO
 import openpyxl
@@ -18,24 +24,87 @@ from utils.meta_json import write_meta_json, build_equipo_meta
 
 router = APIRouter(prefix="/equipos", tags=["Equipos"])
 
-# NUEVO: Endpoint para listar técnicos (usuarios)
-@router.get("/tecnicos")
-def listar_tecnicos(session: Session = Depends(get_session)):
-    tecnicos = session.exec(select(Usuario)).all()
-    # Devolvemos solo lo necesario para el selector
-    return [{"id": t.id, "username": t.username} for t in tecnicos]
+
+# ============================================================
+# RUTAS ESTÁTICAS (deben ir ANTES de /{equipo_id})
+# ============================================================
+
+# --- Endpoint para listar estados de equipo (catálogo) ---
+@router.get("/estados")
+def listar_estados(session: Session = Depends(get_session)):
+    estados = session.exec(select(EstadoEquipo)).all()
+    return estados
+
+
+# --- Endpoint para crear estado (solo administración) ---
+@router.post("/estados")
+def crear_estado(nombre_estado: str, session: Session = Depends(get_session)):
+    existe = session.exec(select(EstadoEquipo).where(EstadoEquipo.nombre_estado == nombre_estado)).first()
+    if existe:
+        raise HTTPException(status_code=400, detail="El estado ya existe")
+    nuevo_estado = EstadoEquipo(nombre_estado=nombre_estado)
+    session.add(nuevo_estado)
+    session.commit()
+    session.refresh(nuevo_estado)
+    return nuevo_estado
+
+
+# --- Endpoint para listar proveedores (para dropdown en frontend) ---
+@router.get("/proveedores")
+def listar_proveedores_para_dropdown(session: Session = Depends(get_session)):
+    """Lista proveedores para llenar el dropdown de proveedor_principal_id en el formulario de equipo."""
+    proveedores = session.exec(select(Proveedor).order_by(Proveedor.nombre_empresa)).all()
+    return [{"id": p.id, "nombre_empresa": p.nombre_empresa, "ciudad": p.ciudad} for p in proveedores]
+
+
+# --- Endpoint para crear proveedor al vuelo desde el formulario de equipo ---
+@router.post("/from-proveedor-nombre", response_model=ProveedorRead, status_code=201)
+def crear_proveedor_desde_nombre(payload: dict, session: Session = Depends(get_session)):
+    """
+    Crea un proveedor con solo el nombre_empresa (los demás datos se completan después
+    desde la página de Proveedores). Útil cuando el usuario registra un equipo de un
+    proveedor que aún no está en el directorio.
+
+    Payload esperado: {"nombre_empresa": "TechMed Bolivia SRL"}
+    """
+    nombre = payload.get("nombre_empresa", "").strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="nombre_empresa es obligatorio")
+
+    existe = session.exec(
+        select(Proveedor).where(Proveedor.nombre_empresa == nombre)
+    ).first()
+    if existe:
+        raise HTTPException(status_code=400, detail=f"Ya existe un proveedor con el nombre '{nombre}'")
+
+    nuevo = Proveedor(nombre_empresa=nombre)
+    session.add(nuevo)
+    session.commit()
+    session.refresh(nuevo)
+    return nuevo
+
+
+# ============================================================
+# CRUD PRINCIPAL DE EQUIPOS
+# ============================================================
 
 @router.post("/", response_model=EquipoRead)
 def crear_equipo(equipo: EquipoCreate, session: Session = Depends(get_session)):
     existe = session.exec(select(Equipo).where(Equipo.numero_serie == equipo.numero_serie)).first()
     if existe:
         raise HTTPException(status_code=400, detail="El número de serie ya está registrado")
-    
+
+    # Validar que proveedor_principal_id (si viene) exista
+    if equipo.proveedor_principal_id:
+        prov = session.get(Proveedor, equipo.proveedor_principal_id)
+        if not prov:
+            raise HTTPException(status_code=400, detail=f"Proveedor ID {equipo.proveedor_principal_id} no existe")
+
     db_equipo = Equipo(**equipo.model_dump())
     session.add(db_equipo)
     session.commit()
     session.refresh(db_equipo)
-    
+
     # Crear carpeta del equipo y escribir .meta.json
     try:
         equipo_code = f"E{db_equipo.id:04d}"
@@ -48,28 +117,66 @@ def crear_equipo(equipo: EquipoCreate, session: Session = Depends(get_session)):
         write_meta_json(equipo_dir, meta_data)
     except Exception as e:
         print(f"[equipos.py] WARNING: No se pudo crear .meta.json: {e}")
-    
+
     return db_equipo
+
 
 @router.get("/", response_model=list[EquipoRead])
 def listar_equipos(session: Session = Depends(get_session)):
     equipos = session.exec(select(Equipo)).all()
     return equipos
 
+
 @router.put("/{equipo_id}", response_model=EquipoRead)
 def actualizar_equipo(equipo_id: int, equipo_data: EquipoUpdate, session: Session = Depends(get_session)):
+    """
+    Actualiza un equipo. Campos NO editables después de creado:
+    - modelo, marca, numero_serie (afectan carpetas y .meta.json)
+
+    Si el frontend intenta cambiar estos campos, se rechaza con error 400.
+    """
     db_equipo = session.get(Equipo, equipo_id)
     if not db_equipo:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
-    
+
     equipo_data_dict = equipo_data.model_dump(exclude_unset=True)
+
+    # Verificar que no se estén intentando cambiar campos no editables
+    campos_bloqueados = []
+    if "modelo" in equipo_data_dict and equipo_data_dict["modelo"] != db_equipo.modelo:
+        campos_bloqueados.append("modelo")
+    if "marca" in equipo_data_dict and equipo_data_dict["marca"] != db_equipo.marca:
+        campos_bloqueados.append("marca")
+    if "numero_serie" in equipo_data_dict and equipo_data_dict["numero_serie"] != db_equipo.numero_serie:
+        campos_bloqueados.append("numero_serie")
+
+    if campos_bloqueados:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Los siguientes campos no son modificables después de creado el equipo: "
+                f"{', '.join(campos_bloqueados)}. Esto es porque afectan la estructura de "
+                f"carpetas y archivos del sistema. Si necesita corregir un error, "
+                f"elimine el equipo y créelo de nuevo."
+            )
+        )
+
+    # Validar proveedor_principal_id si viene
+    if "proveedor_principal_id" in equipo_data_dict and equipo_data_dict["proveedor_principal_id"]:
+        prov = session.get(Proveedor, equipo_data_dict["proveedor_principal_id"])
+        if not prov:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Proveedor ID {equipo_data_dict['proveedor_principal_id']} no existe"
+            )
+
     for key, value in equipo_data_dict.items():
         setattr(db_equipo, key, value)
-    
+
     session.add(db_equipo)
     session.commit()
     session.refresh(db_equipo)
-    
+
     # Actualizar .meta.json
     try:
         equipo_code = f"E{db_equipo.id:04d}"
@@ -82,18 +189,79 @@ def actualizar_equipo(equipo_id: int, equipo_data: EquipoUpdate, session: Sessio
             write_meta_json(equipo_dir, meta_data)
     except Exception as e:
         print(f"[equipos.py] WARNING: No se pudo actualizar .meta.json: {e}")
-    
+
     return db_equipo
+
 
 @router.delete("/{equipo_id}")
 def eliminar_equipo(equipo_id: int, session: Session = Depends(get_session)):
+    """
+    Elimina un equipo SOLO si no tiene dependencias.
+
+    Dependencias que bloquean la eliminación:
+    - Órdenes de Trabajo (OrdenTrabajo.equipo_id)
+    - Documentos adjuntos (DocumentoAdjunto.equipo_id)
+    - Tareas preventivas (TareaPreventiva.equipo_id)
+    - Eventos de historial (EventoHistorial.equipo_id)
+
+    Si el usuario quiere "retirar" el equipo sin eliminarlo, debe cambiar
+    el estado_id a "Retirado/Baja" (id=12 en el catálogo).
+    """
     db_equipo = session.get(Equipo, equipo_id)
     if not db_equipo:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
-    
+
+    # Verificar dependencias
+    ots = session.exec(
+        select(OrdenTrabajo).where(OrdenTrabajo.equipo_id == equipo_id)
+    ).all()
+    documentos = session.exec(
+        select(DocumentoAdjunto).where(DocumentoAdjunto.equipo_id == equipo_id)
+    ).all()
+    mps = session.exec(
+        select(TareaPreventiva).where(TareaPreventiva.equipo_id == equipo_id)
+    ).all()
+    historial = session.exec(
+        select(EventoHistorial).where(EventoHistorial.equipo_id == equipo_id)
+    ).all()
+
+    dependencias = []
+    if ots:
+        dependencias.append(f"{len(ots)} orden(s) de trabajo")
+    if documentos:
+        dependencias.append(f"{len(documentos)} documento(s)")
+    if mps:
+        dependencias.append(f"{len(mps)} tarea(s) preventiva(s)")
+    if historial:
+        dependencias.append(f"{len(historial)} evento(s) de historial")
+
+    if dependencias:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"No se puede eliminar el equipo porque tiene dependencias asociadas: "
+                f"{', '.join(dependencias)}. "
+                f"Si desea retirar el equipo del servicio sin eliminarlo, cambie su estado "
+                f"a 'Retirado/Baja' desde la página de Equipos."
+            )
+        )
+
+    # Sin dependencias: eliminar carpeta física + registro BD
+    try:
+        equipo_code = f"E{db_equipo.id:04d}"
+        modelo_safe = sanitize_filename(db_equipo.modelo, "SM")
+        serie_safe = sanitize_filename(db_equipo.numero_serie, "SN")
+        folder_name = f"{equipo_code}_{modelo_safe}_{serie_safe}"
+        equipo_dir = get_dir("equipos_imagenes") / folder_name
+        if equipo_dir.exists():
+            import shutil
+            shutil.rmtree(equipo_dir)
+    except Exception as e:
+        print(f"[equipos.py] WARNING: No se pudo eliminar carpeta del equipo: {e}")
+
     session.delete(db_equipo)
     session.commit()
-    return {"ok": True, "message": "Equipo eliminado"}
+    return {"ok": True, "message": "Equipo eliminado correctamente"}
 
 # ---------------------------------------------------------
 # ENDPOINT: SUBIR IMAGEN PRINCIPAL DE EQUIPO
@@ -201,112 +369,89 @@ def eliminar_imagen_equipo(equipo_id: int, session: Session = Depends(get_sessio
     return {"ok": True, "message": "Imagen eliminada"}
 
 # ---------------------------------------------------------
-# ENDPOINT CORREGIDO: LEE DE LA BASE DE DATOS
-# ---------------------------------------------------------
-@router.get("/estados")
-def listar_estados(session: Session = Depends(get_session)):
-    # Usa EstadoEquipo aquí
-    estados = session.exec(select(EstadoEquipo)).all()
-    return estados
-
-# ... imports existentes ...
-
-# Endpoint para CREAR un nuevo estado (Solo para administración inicial)
-@router.post("/estados")
-def crear_estado(nombre_estado: str, session: Session = Depends(get_session)):
-    # Verificar si ya existe
-    existe = session.exec(select(EstadoEquipo).where(EstadoEquipo.nombre_estado == nombre_estado)).first()
-    if existe:
-        raise HTTPException(status_code=400, detail="El estado ya existe")
-    # Usar el modelo correcto: EstadoEquipo (no Estado que no existe)
-    nuevo_estado = EstadoEquipo(nombre_estado=nombre_estado)
-    session.add(nuevo_estado)
-    session.commit()
-    session.refresh(nuevo_estado)
-    return nuevo_estado
-
-
-# ---------------------------------------------------------
 # ENDPOINT: IMPORTAR EQUIPOS DESDE EXCEL
 # ---------------------------------------------------------
 @router.post("/import-excel")
 async def importar_equipos_excel(file: UploadFile = File(...), session: Session = Depends(get_session)):
     """
-    Importa equipos desde un archivo Excel (.xlsx).
+    Importa equipos desde un archivo Excel (.xlsx) o CSV - v0.9.0.
+
     Columnas esperadas (encabezado en fila 1):
-      nombre_corto, modelo, numero_serie, marca, fecha_adquisicion,
-      ubicacion_actual, estado, proveedor_principal, registro_sanitario_bolivia,
-      descripcion, calibracion_proxima, responsable_username
-    
-    - Los campos marcados con * son obligatorios: modelo, numero_serie, marca, fecha_adquisicion
+      nombre_corto*, modelo*, numero_serie*, numero_material, marca*,
+      fecha_adquisicion, fecha_inicio_garantia, fecha_fin_garantia,
+      ubicacion_actual, estado, proveedor_principal, condicion_origen,
+      descripcion, observaciones
+
+    Cambios v0.9.0:
+    - OBLIGATORIAS: nombre_corto, modelo, numero_serie, marca (fecha_adquisicion ahora es opcional)
+    - ELIMINADAS: registro_sanitario_bolivia, calibracion_proxima, responsable_username
+    - NUEVAS: fecha_inicio_garantia, condicion_origen, observaciones
+    - proveedor_principal (texto): si no existe el proveedor en BD, se CREA automáticamente
+    - estado: se resuelve por nombre (debe existir en EstadoEquipo, default=1 Operativo)
     - Si numero_serie ya existe, se ACTUALIZA el registro (upsert)
-    - El campo 'estado' se resuelve por nombre (debe existir en EstadoEquipo)
-    - 'responsable_username' se resuelve por username del usuario
     """
     # Validar extensión
     ext = Path(file.filename).suffix.lower() if file.filename else ''
     if ext not in ('.xlsx', '.csv'):
         raise HTTPException(status_code=400, detail="Solo se aceptan archivos .xlsx o .csv")
-    
+
     # Leer el archivo
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:  # 5MB límite
         raise HTTPException(status_code=400, detail="El archivo no debe superar 5MB")
-    
+
     # Determinar si es Excel o CSV
     is_csv = ext == '.csv'
-    
+
     if is_csv:
-        # Parsear CSV como lista de listas
         try:
-            text = contents.decode('utf-8-sig')  # utf-8-sig maneja BOM de Windows
+            text = contents.decode('utf-8-sig')
         except UnicodeDecodeError:
             try:
-                text = contents.decode('latin-1')  # Fallback para archivos con acentos
+                text = contents.decode('latin-1')
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Error al decodificar el archivo CSV: {str(e)}")
-        
+
         try:
-            # Detectar delimitador (coma, punto y coma, tab)
             sniffer_sample = text[:2048]
             try:
                 dialect = csv.Sniffer().sniff(sniffer_sample, delimiters=',;\t')
             except csv.Error:
-                dialect = csv.excel  # Default: coma
-            
+                dialect = csv.excel
             reader = csv.reader(StringIO(text), dialect)
             filas = list(reader)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Error al leer el archivo CSV: {str(e)}")
-        
+
         if len(filas) < 2:
             raise HTTPException(status_code=400, detail="El archivo CSV está vacío o solo tiene encabezados")
-        
-        # Para CSV, las fechas vienen como texto, no como datetime
-        # La función _parse_date ya maneja strings
-        ws = None  # No hay hoja de Excel
+        ws = None
     else:
         try:
             wb = openpyxl.load_workbook(BytesIO(contents), read_only=True, data_only=True)
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Error al leer el archivo Excel: {str(e)}")
-    
-    # Obtener estados y usuarios para resolver nombres
+
+    # Obtener estados para resolver nombres
     estados_db = session.exec(select(EstadoEquipo)).all()
     estado_map = {e.nombre_estado.strip().lower(): e for e in estados_db}
-    
-    usuarios_db = session.exec(select(Usuario)).all()
-    usuario_map = {u.username.strip().lower(): u for u in usuarios_db}
-    
-    # Columnas esperadas (en orden)
+
+    # Columnas esperadas v0.9.0 (sin campos obsoletos, con campos nuevos)
     COLUMNAS = [
-        'nombre_corto', 'modelo', 'numero_serie', 'numero_material', 'marca', 'fecha_adquisicion',
-        'fecha_fin_garantia', 'ubicacion_actual', 'estado', 'proveedor_principal', 'registro_sanitario_bolivia',
-        'descripcion', 'calibracion_proxima', 'responsable_username'
+        'nombre_corto', 'modelo', 'numero_serie', 'numero_material', 'marca',
+        'fecha_adquisicion', 'fecha_inicio_garantia', 'fecha_fin_garantia',
+        'ubicacion_actual', 'estado', 'proveedor_principal', 'condicion_origen',
+        'descripcion', 'observaciones'
     ]
-    OBLIGATORIAS = {'modelo', 'numero_serie', 'marca', 'fecha_adquisicion'}
-    
-    # Buscar la hoja que contiene los encabezados esperados (solo para Excel)
+    OBLIGATORIAS = {'nombre_corto', 'modelo', 'numero_serie', 'marca'}
+
+    # Valores válidos para condicion_origen
+    CONDICIONES_VALIDAS = {
+        'Compra', 'Donación', 'Préstamo', 'Demostración', 'Evaluación',
+        'Leasing', 'Renta', 'Comodato', 'Otro'
+    }
+
+    # Buscar la hoja con encabezados (solo Excel)
     if not is_csv:
         ws = None
         for sheet in wb.worksheets:
@@ -316,65 +461,50 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
                 if OBLIGATORIAS.issubset(set(enc_tmp)):
                     ws = sheet
                     break
-        
         if ws is None:
-            # Fallback: usar la primera hoja
             ws = wb.worksheets[0]
-        
-        # Leer encabezados (fila 1)
         filas = list(ws.iter_rows(values_only=True))
         if len(filas) < 2:
             raise HTTPException(status_code=400, detail="El archivo está vacío o solo tiene encabezados")
-    
+
     encabezados_leidos = [str(c).strip().lower() if c else '' for c in filas[0]]
-    
-    # Mapear columnas leídas a nuestras columnas esperadas
     col_index = {}
     for i, h in enumerate(encabezados_leidos):
         if h in COLUMNAS:
             col_index[h] = i
-    
-    # Verificar que las obligatorias estén presentes
+
     faltantes = OBLIGATORIAS - set(col_index.keys())
     if faltantes:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"Faltan columnas obligatorias: {', '.join(faltantes)}. Encabezados encontrados: {', '.join(encabezados_leidos)}"
         )
-    
-    # Procesar filas
+
     exitosos = 0
     actualizados = 0
     fallidos = []
-    
-    for fila_num, fila in enumerate(filas[1:], start=2):  # fila 2 en adelante
+    proveedores_creados = 0  # contador de proveedores creados al vuelo
+
+    for fila_num, fila in enumerate(filas[1:], start=2):
         try:
-            # Extraer valores de la fila
-            # NOTA: No convertir a string aquí porque perdemos el tipo original
-            # (openpyxl devuelve datetime para fechas, int para números)
-            # La conversión a string se hace donde sea necesario
             def get_val(col_name):
                 idx = col_index.get(col_name)
                 if idx is None or idx >= len(fila):
                     return None
-                val = fila[idx]
-                return val  # Devolver valor original (datetime, int, str, etc.)
+                return fila[idx]
 
             def get_str(col_name):
-                """Devuelve el valor como string stripado, o None."""
                 val = get_val(col_name)
                 if val is None:
                     return None
                 return str(val).strip()
-            
-            # Validar obligatorios (solo modelo, numero_serie, marca)
-            # fecha_adquisicion se maneja con valor por defecto si está vacía
+
+            # Validar obligatorios
             errores_fila = []
-            for col in OBLIGATORIAS - {'fecha_adquisicion'}:
+            for col in OBLIGATORIAS:
                 val = get_str(col)
                 if not val:
                     errores_fila.append(f"'{col}' es obligatorio")
-            
             if errores_fila:
                 fallidos.append({
                     "fila": fila_num,
@@ -382,84 +512,102 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
                     "errores": errores_fila
                 })
                 continue
-            
-            # Parsear fecha_adquisicion (acepta datetime de Excel directamente)
-            fecha_adq_raw = get_val('fecha_adquisicion')
-            if fecha_adq_raw is not None and str(fecha_adq_raw).strip() not in ('', 'None'):
+
+            # Parsear fechas (todas opcionales en v0.9.0)
+            fecha_adq = None
+            adq_raw = get_val('fecha_adquisicion')
+            if adq_raw and str(adq_raw).strip() not in ('', 'None'):
                 try:
-                    fecha_adq = _parse_date(fecha_adq_raw)
+                    fecha_adq = _parse_date(adq_raw)
                 except ValueError:
                     fallidos.append({
                         "fila": fila_num,
                         "numero_serie": get_str('numero_serie') or 'N/A',
-                        "errores": [f"fecha_adquisicion inválida: '{fecha_adq_raw}'. Use formato YYYY-MM-DD"]
+                        "errores": [f"fecha_adquisicion inválida: '{adq_raw}'. Use YYYY-MM-DD"]
                     })
                     continue
-            else:
-                # Si no tiene fecha de adquisición, usar fecha por defecto (1900-01-01)
-                # Esto permite importar datos históricos incompletos
-                fecha_adq = date(1900, 1, 1)
-            
-            # Parsear calibracion_proxima (opcional)
-            fecha_cal = None
-            cal_raw = get_val('calibracion_proxima')
-            if cal_raw:
+
+            fecha_inicio_gar = None
+            fig_raw = get_val('fecha_inicio_garantia')
+            if fig_raw:
                 try:
-                    fecha_cal = _parse_date(cal_raw)
+                    fecha_inicio_gar = _parse_date(fig_raw)
                 except ValueError:
                     pass
-            
-            # Parsear fecha_fin_garantia (opcional)
-            fecha_garantia = None
-            garantia_raw = get_val('fecha_fin_garantia')
-            if garantia_raw:
+
+            fecha_fin_gar = None
+            ffg_raw = get_val('fecha_fin_garantia')
+            if ffg_raw:
                 try:
-                    fecha_garantia = _parse_date(garantia_raw)
+                    fecha_fin_gar = _parse_date(ffg_raw)
                 except ValueError:
                     pass
-            
+
+            # Validar que fecha_inicio_garantia <= fecha_fin_garantia
+            if fecha_inicio_gar and fecha_fin_gar and fecha_inicio_gar > fecha_fin_gar:
+                fallidos.append({
+                    "fila": fila_num,
+                    "numero_serie": get_str('numero_serie') or 'N/A',
+                    "errores": ["fecha_inicio_garantia debe ser <= fecha_fin_garantia"]
+                })
+                continue
+
             # Resolver estado_id
-            estado_id = 1  # Default
+            estado_id = 1  # Default: Operativo
             estado_str = get_str('estado')
             if estado_str:
                 estado_key = estado_str.strip().lower()
                 if estado_key in estado_map:
                     estado_id = estado_map[estado_key].id
                 else:
-                    # No crear automáticamente, usar default y advertir
-                    errores_fila.append(f"Estado '{estado_str}' no encontrado, se usará el estado por defecto")
-            
-            # Resolver responsable_tecnico_id
-            responsable_id = None
-            resp_str = get_str('responsable_username')
-            if resp_str:
-                resp_key = resp_str.strip().lower()
-                if resp_key in usuario_map:
-                    responsable_id = usuario_map[resp_key].id
+                    errores_fila.append(f"Estado '{estado_str}' no encontrado, se usará el default (Operativo)")
+
+            # Validar condicion_origen
+            cond_origen = get_str('condicion_origen')
+            if cond_origen and cond_origen not in CONDICIONES_VALIDAS:
+                fallidos.append({
+                    "fila": fila_num,
+                    "numero_serie": get_str('numero_serie') or 'N/A',
+                    "errores": [f"condicion_origen '{cond_origen}' inválido. Valores válidos: {', '.join(sorted(CONDICIONES_VALIDAS))}"]
+                })
+                continue
+
+            # Resolver proveedor_principal (texto → FK, crear si no existe)
+            proveedor_id = None
+            prov_str = get_str('proveedor_principal')
+            if prov_str:
+                prov_existente = session.exec(
+                    select(Proveedor).where(Proveedor.nombre_empresa == prov_str)
+                ).first()
+                if prov_existente:
+                    proveedor_id = prov_existente.id
                 else:
-                    errores_fila.append(f"Usuario '{resp_str}' no encontrado, se asignará sin responsable")
-            
-            # Verificar si ya existe (por numero_serie)
+                    # Crear proveedor al vuelo (solo con nombre_empresa)
+                    nuevo_prov = Proveedor(nombre_empresa=prov_str)
+                    session.add(nuevo_prov)
+                    session.flush()  # para obtener el ID sin commit
+                    proveedor_id = nuevo_prov.id
+                    proveedores_creados += 1
+
+            # Verificar si ya existe (por numero_serie) - upsert
             num_serie = get_str('numero_serie')
             equipo_existente = session.exec(
                 select(Equipo).where(Equipo.numero_serie == num_serie)
             ).first()
-            
+
             if equipo_existente:
-                # ACTUALIZAR (upsert)
+                # ACTUALIZAR (no tocar modelo/marca/numero_serie que son no editables)
                 equipo_existente.nombre_corto = get_str('nombre_corto') or equipo_existente.nombre_corto
-                equipo_existente.modelo = get_str('modelo') or equipo_existente.modelo
                 equipo_existente.numero_material = get_str('numero_material') or equipo_existente.numero_material
-                equipo_existente.marca = get_str('marca') or equipo_existente.marca
-                equipo_existente.fecha_adquisicion = fecha_adq
-                equipo_existente.fecha_fin_garantia = fecha_garantia or equipo_existente.fecha_fin_garantia
+                equipo_existente.fecha_adquisicion = fecha_adq or equipo_existente.fecha_adquisicion
+                equipo_existente.fecha_inicio_garantia = fecha_inicio_gar or equipo_existente.fecha_inicio_garantia
+                equipo_existente.fecha_fin_garantia = fecha_fin_gar or equipo_existente.fecha_fin_garantia
                 equipo_existente.ubicacion_actual = get_str('ubicacion_actual') or equipo_existente.ubicacion_actual
                 equipo_existente.estado_id = estado_id
-                equipo_existente.proveedor_principal = get_str('proveedor_principal') or equipo_existente.proveedor_principal
-                equipo_existente.registro_sanitario_bolivia = get_str('registro_sanitario_bolivia') or equipo_existente.registro_sanitario_bolivia
+                equipo_existente.proveedor_principal_id = proveedor_id or equipo_existente.proveedor_principal_id
+                equipo_existente.condicion_origen = cond_origen or equipo_existente.condicion_origen
                 equipo_existente.descripcion = get_str('descripcion') or equipo_existente.descripcion
-                equipo_existente.calibracion_proxima = fecha_cal or equipo_existente.calibracion_proxima
-                equipo_existente.responsable_tecnico_id = responsable_id or equipo_existente.responsable_tecnico_id
+                equipo_existente.observaciones = get_str('observaciones') or equipo_existente.observaciones
                 session.add(equipo_existente)
                 actualizados += 1
             else:
@@ -471,39 +619,35 @@ async def importar_equipos_excel(file: UploadFile = File(...), session: Session 
                     numero_material=get_str('numero_material'),
                     marca=get_str('marca'),
                     fecha_adquisicion=fecha_adq,
-                    fecha_fin_garantia=fecha_garantia,
+                    fecha_inicio_garantia=fecha_inicio_gar,
+                    fecha_fin_garantia=fecha_fin_gar,
                     ubicacion_actual=get_str('ubicacion_actual'),
                     estado_id=estado_id,
-                    proveedor_principal=get_str('proveedor_principal'),
-                    registro_sanitario_bolivia=get_str('registro_sanitario_bolivia'),
+                    proveedor_principal_id=proveedor_id,
+                    condicion_origen=cond_origen,
                     descripcion=get_str('descripcion'),
-                    calibracion_proxima=fecha_cal,
-                    responsable_tecnico_id=responsable_id
+                    observaciones=get_str('observaciones'),
                 )
                 session.add(nuevo)
                 exitosos += 1
-            
-            # Si hubo advertencias pero se procesó, las reportamos
-            if errores_fila and not equipo_existente:
-                # Para registros nuevos con advertencias, igual se contaron como exitosos
-                pass
-                
+
         except Exception as e:
             fallidos.append({
                 "fila": fila_num,
                 "numero_serie": get_str('numero_serie') if col_index.get('numero_serie') is not None else 'N/A',
                 "errores": [str(e)]
             })
-    
+
     session.commit()
     if not is_csv:
         wb.close()
-    
+
     return {
         "exitosos": exitosos,
         "actualizados": actualizados,
         "fallidos": len(fallidos),
         "total_procesados": exitosos + actualizados + len(fallidos),
+        "proveedores_creados": proveedores_creados,
         "errores": fallidos
     }
 
@@ -550,42 +694,39 @@ def descargar_plantilla_csv(session: Session = Depends(get_session)):
     El frontend descarga directamente desde ahi (sin llamar al backend).
     Este endpoint se mantiene como respaldo y para documentacion Swagger.
 
-    Genera y descarga un archivo CSV plantilla con datos de ejemplo
-    de un biolaboratorio, listo para ser importado.
+    v0.9.0: Plantilla actualizada con nuevos campos (sin campos obsoletos).
     """
     output = StringIO()
     encabezados = [
-        'nombre_corto', 'modelo', 'numero_serie', 'numero_material', 'marca', 'fecha_adquisicion',
-        'fecha_fin_garantia', 'ubicacion_actual', 'estado', 'proveedor_principal', 'registro_sanitario_bolivia',
-        'descripcion', 'calibracion_proxima', 'responsable_username'
+        'nombre_corto', 'modelo', 'numero_serie', 'numero_material', 'marca',
+        'fecha_adquisicion', 'fecha_inicio_garantia', 'fecha_fin_garantia',
+        'ubicacion_actual', 'estado', 'proveedor_principal', 'condicion_origen',
+        'descripcion', 'observaciones'
     ]
-    
+
     writer = csv.writer(output)
     writer.writerow(encabezados)
-    
-    # Datos de ejemplo
+
+    # 2 filas de ejemplo (plantilla vacía según filosofía v0.9.0)
     datos_demo = [
-        ["Microscopio Olympus CX23", "CX23", "MIC-OLY-001", "MAT-CX23-A", "Olympus", "2023-03-15",
-         "2025-03-15", "Lab. Microbiologia", "Operativo", "Olympus Bolivia", "RS-BOL-2023-001",
-         "Microscopio binocular para microbiologia clinica", "2025-03-15", ""],
-        
-        ["Centrifuga Eppendorf 5424", "5424", "CEN-EPP-002", "MAT-5424-B", "Eppendorf", "2022-07-20",
-         "2024-07-20", "Lab. Hematologia", "Operativo", "Eppendorf Latam", "RS-BOL-2022-045",
-         "Centrifuga de mesa 24 tubos, rotor FA-45-24-11", "2024-07-20", ""],
-        
-        ["Autoclave Steris Amsco 3043", "3043", "AUT-STR-003", "", "Steris", "2021-01-10",
-         "2023-01-10", "Central de Esterilizacion", "Operativo", "Steris Corporation", "",
-         "Autoclave hospitalaria vertical, 400L capacidad", "2025-01-10", ""],
+        ["Microscopio Olympus CX23", "CX23", "MIC-OLY-001", "MAT-CX23-A", "Olympus",
+         "2023-03-15", "2023-03-15", "2025-03-15", "Lab. Microbiología", "Operativo",
+         "Olympus Bolivia", "Compra",
+         "Microscopio binocular para microbiología clínica", "Funciona correctamente"],
+
+        ["Monitor Signos Vitales Mindray", "uMEC10", "MON-MIN-002", "", "Mindray",
+         "2022-11-05", "2022-11-05", "2024-11-05", "UCI Box 3", "En Mantenimiento",
+         "Mindray Bolivia", "Donación",
+         "Monitor multiparámetro con SpO2, ECG, NIBP, Temp", "Requiere calibración de SpO2"],
     ]
-    
+
     for fila in datos_demo:
         writer.writerow(fila)
-    
+
     output.seek(0)
-    
     from datetime import datetime as dt
     filename = f"CMMS-BioAI_Plantilla_Equipos_{dt.now().strftime('%Y%m%d')}.csv"
-    
+
     return StreamingResponse(
         output,
         media_type="text/csv; charset=utf-8",
@@ -607,22 +748,21 @@ def descargar_plantilla_excel(session: Session = Depends(get_session)):
     El frontend descarga directamente desde ahi (sin llamar al backend).
     Este endpoint se mantiene como respaldo y para documentacion Swagger.
 
-    Genera y descarga un archivo Excel plantilla con datos de ejemplo
-    de un biolaboratorio, listo para ser importado.
+    v0.9.0: Plantilla actualizada con nuevos campos (sin campos obsoletos).
     """
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Equipos CMMS-BioAI"
-    
-    # Encabezados
+
+    # Encabezados v0.9.0
     encabezados = [
-        'nombre_corto', 'modelo', 'numero_serie', 'numero_material', 'marca', 'fecha_adquisicion',
-        'fecha_fin_garantia', 'ubicacion_actual', 'estado', 'proveedor_principal', 'registro_sanitario_bolivia',
-        'descripcion', 'calibracion_proxima', 'responsable_username'
+        'nombre_corto', 'modelo', 'numero_serie', 'numero_material', 'marca',
+        'fecha_adquisicion', 'fecha_inicio_garantia', 'fecha_fin_garantia',
+        'ubicacion_actual', 'estado', 'proveedor_principal', 'condicion_origen',
+        'descripcion', 'observaciones'
     ]
     ws.append(encabezados)
-    
-    # Estilo para encabezados
+
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     header_font = Font(bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid")
@@ -631,135 +771,94 @@ def descargar_plantilla_excel(session: Session = Depends(get_session)):
         left=Side(style='thin'), right=Side(style='thin'),
         top=Side(style='thin'), bottom=Side(style='thin')
     )
-    
+
     for col_num, _ in enumerate(encabezados, 1):
         cell = ws.cell(row=1, column=col_num)
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = header_align
         cell.border = thin_border
-    
-    # Datos de ejemplo - Equipos de biolaboratorio
+
+    # 2 filas de ejemplo (plantilla vacía según filosofía v0.9.0)
     datos_demo = [
-        ["Microscopio Olympus CX23", "CX23", "MIC-OLY-001", "MAT-CX23-A", "Olympus", "2023-03-15",
-         "2025-03-15", "Lab. Microbiología", "Operativo", "Olympus Bolivia", "RS-BOL-2023-001",
-         "Microscopio binocular para microbiología clínica", "2025-03-15", ""],
-        
-        ["Centrífuga Eppendorf 5424", "5424", "CEN-EPP-002", "MAT-5424-B", "Eppendorf", "2022-07-20",
-         "2024-07-20", "Lab. Hematología", "Operativo", "Eppendorf Latam", "RS-BOL-2022-045",
-         "Centrífuga de mesa 24 tubos, rotor FA-45-24-11", "2024-07-20", ""],
-        
-        ["Autoclave Steris Amsco 3043", "3043", "AUT-STR-003", "", "Steris", "2021-01-10",
-         "2023-01-10", "Central de Esterilización", "Operativo", "Steris Corporation", "",
-         "Autoclave hospitalaria vertical, 400L capacidad", "2025-01-10", ""],
-        
-        ["Analizador Bioquímico Cobas c311", "c311", "ANA-ROC-004", "MAT-C311-V2", "Roche", "2023-06-01",
-         "2025-06-01", "Lab. Bioquímica", "Operativo", "Roche Diagnostics Bolivia", "RS-BOL-2023-089",
-         "Analizador bioquímico automatizado, 120 pruebas/h", "2025-06-01", ""],
-        
-        ["Monitor de Signos Vitales Mindray", "uMEC10", "MON-MIN-005", "", "Mindray", "2022-11-05",
-         "2024-11-05", "UCI Box 3", "En Mantenimiento", "Mindray Bolivia", "RS-BOL-2022-112",
-         "Monitor multiparámetro con SpO2, ECG, NIBP, Temp", "2024-11-05", ""],
-        
-        ["Electrocardiógrafo GE MAC 2000", "MAC 2000", "ELE-GEE-006", "", "GE Healthcare", "2020-09-15",
-         "2022-09-15", "Cardiología", "Operativo", "GE Healthcare Latam", "RS-BOL-2020-034",
-         "ECG 12 derivaciones con interpretación", "2024-09-15", ""],
-        
-        ["Espectrofotómetro Thermo Genesys 30", "Genesys 30", "ESP-THM-007", "MAT-GEN30", "Thermo Fisher", "2023-02-28",
-         "2025-02-28", "Lab. Investigación", "Operativo", "Thermo Fisher Scientific", "",
-         "Espectrofotómetro visible, rango 325-1100nm", "2025-02-28", ""],
-        
-        ["Balanza Analítica Sartorius", "Quintix 224", "BAL-SAR-008", "", "Sartorius", "2021-08-12",
-         "2023-08-12", "Lab. Control Calidad", "Operativo", "Sartorius Bolivia", "",
-         "Balanza analítica 220g / 0.1mg, calibración interna", "2024-08-12", ""],
-        
-        ["Desfibrilador Zoll R Series", "R Series", "DES-ZOL-009", "MAT-RS-PRO", "Zoll", "2022-04-18",
-         "2024-04-18", "Emergencias", "Operativo", "Zoll Medical", "RS-BOL-2022-078",
-         "Desfibrilador biphasic con monitor y marcapasos", "2025-04-18", ""],
-        
-        ["Incubadora CO2 Thermo Heracell", "Heracell VIOS 160i", "INC-THM-010", "", "Thermo Fisher", "2023-09-01",
-         "2025-09-01", "Lab. Cultivo Celular", "Fuera de Servicio", "Thermo Fisher Scientific", "",
-         "Incubadora CO2 con control de O2, 170L", "2025-09-01", ""],
-        
-        ["Bomba de Infusión B. Braun", "Infusomat Space", "BOM-BRA-011", "MAT-INF-SP2", "B. Braun", "2022-12-10",
-         "2024-12-10", "UCI Box 1", "Operativo", "B. Braun Bolivia", "RS-BOL-2022-156",
-         "Bomba de infusión volumétrica con modo PCA", "2024-12-10", ""],
-        
-        ["Termociclador Bio-Rad T100", "T100", "TER-BIO-012", "", "Bio-Rad", "2021-05-22",
-         "2023-05-22", "Lab. Biología Molecular", "Operativo", "Bio-Rad Latam", "",
-         "Termociclador PCR 96 pocillos, gradiente", "2025-05-22", ""],
-        
-        ["Respirador Dräger Evita V500", "Evita V500", "RES-DRA-013", "", "Dräger", "2023-01-15",
-         "2025-01-15", "UCI Box 5", "En Mantenimiento", "Dräger Bolivia", "RS-BOL-2023-003",
-         "Ventilador de UCI con modos avanzados", "2025-01-15", ""],
-        
-        ["Pipeta Automática Hamilton", "Microlab STARlet", "PIP-HAM-014", "MAT-STAR-V3", "Hamilton", "2022-03-08",
-         "2024-03-08", "Lab. Automatización", "Operativo", "Hamilton Company", "",
-         "Pipeta automatizada 8 canales, 1-1000uL", "2025-03-08", ""],
-        
-        ["Cámara de Flujo Laminar Esco", "A2 Class", "CAM-ESC-015", "", "Esco", "2020-06-25",
-         "2022-06-25", "Lab. Microbiología", "Operativo", "Esco Technologies", "",
-         "Cabina de seguridad biológica Clase II Tipo A2", "2024-06-25", ""],
+        ["Microscopio Olympus CX23", "CX23", "MIC-OLY-001", "MAT-CX23-A", "Olympus",
+         "2023-03-15", "2023-03-15", "2025-03-15", "Lab. Microbiología", "Operativo",
+         "Olympus Bolivia", "Compra",
+         "Microscopio binocular para microbiología clínica", "Funciona correctamente"],
+
+        ["Monitor Signos Vitales Mindray", "uMEC10", "MON-MIN-002", "", "Mindray",
+         "2022-11-05", "2022-11-05", "2024-11-05", "UCI Box 3", "En Mantenimiento",
+         "Mindray Bolivia", "Donación",
+         "Monitor multiparámetro con SpO2, ECG, NIBP, Temp", "Requiere calibración de SpO2"],
     ]
-    
-    # Estilo para datos
+
     data_align = Alignment(vertical="center", wrap_text=True)
-    
     for fila_data in datos_demo:
         ws.append(fila_data)
-    
-    # Aplicar bordes y alineación a datos
+
     for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=len(encabezados)):
         for cell in row:
             cell.border = thin_border
             cell.alignment = data_align
-    
-    # Ajustar anchos de columna
-    anchos = [28, 18, 18, 16, 18, 18, 18, 24, 18, 24, 24, 40, 18, 22]
+
+    anchos = [28, 18, 18, 16, 18, 18, 18, 18, 24, 18, 24, 18, 40, 35]
     for i, ancho in enumerate(anchos, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = ancho
-    
-    # Crear segunda hoja con instrucciones
+
+    # Hoja de instrucciones v0.9.0
     ws2 = wb.create_sheet("Instrucciones")
     instrucciones = [
-        ["INSTRUCCIONES PARA IMPORTAR EQUIPOS"],
+        ["INSTRUCCIONES PARA IMPORTAR EQUIPOS v0.9.0"],
         [""],
-        ["1. Los campos marcados como obligatorios (*) no pueden estar vacíos:"],
-        ["   - modelo *", "modelo del equipo"],
-        ["   - numero_serie *", "debe ser único, si ya existe se ACTUALIZARÁ el registro"],
-        ["   - marca *", "fabricante del equipo"],
-        ["   - fecha_adquisicion *", "formato: YYYY-MM-DD o DD/MM/YYYY"],
+        ["1. Campos obligatorios (*) no pueden estar vacíos:"],
+        ["   - nombre_corto *", "nombre descriptivo del equipo (alias)"],
+        ["   - modelo *", "modelo del equipo (NO editable después de creado)"],
+        ["   - numero_serie *", "único, si ya existe se ACTUALIZA el registro (upsert)"],
+        ["   - marca *", "fabricante (NO editable después de creado)"],
         [""],
         ["2. Campo 'estado': debe coincidir con un estado existente en el sistema."],
-        ["   Estados típicos: Operativo, En Mantenimiento, Fuera de Servicio"],
-        ["   Si no coincide, se usará el estado por defecto."],
+        ["   Estados típicos: Operativo, En Mantenimiento, Fuera de Servicio, etc."],
+        ["   Si no coincide, se usará el estado por defecto (Operativo)."],
         [""],
-        ["3. Campo 'responsable_username': username del usuario registrado en el sistema."],
-        ["   Si no coincide, se asignará sin responsable."],
+        ["3. Campo 'proveedor_principal': nombre del proveedor."],
+        ["   - Si el proveedor NO existe en la BD, se CREA automáticamente"],
+        ["   - Luego podrás completar sus datos (ciudad, contacto, etc.) en la página Proveedores"],
         [""],
-        ["4. Campo 'calibracion_proxima': fecha en formato YYYY-MM-DD (opcional)."],
+        ["4. Campo 'condicion_origen' (valores permitidos):"],
+        ["   Compra, Donación, Préstamo, Demostración, Evaluación, Leasing, Renta, Comodato, Otro"],
         [""],
-        ["5. Límite de archivo: 5MB (~1000 equipos). Solo archivos .xlsx."],
+        ["5. Fechas: formato YYYY-MM-DD o DD/MM/YYYY."],
+        ["   - fecha_adquisicion: opcional"],
+        ["   - fecha_inicio_garantia: opcional (debe ser <= fecha_fin_garantia)"],
+        ["   - fecha_fin_garantia: opcional"],
         [""],
-        ["6. Si un 'numero_serie' ya existe, el equipo se ACTUALIZARÁ con los nuevos datos."],
+        ["6. Campos 'descripcion' y 'observaciones':"],
+        ["   - descripcion: descripción TÉCNICA del equipo (¿qué es? ¿qué hace?)"],
+        ["   - observaciones: notas OPERATIVAS (¿cómo está? accesorios, advertencias)"],
         [""],
-        ["7. Puede eliminar los datos de ejemplo y usar sus propios datos."],
+        ["7. Límite de archivo: 5MB. Solo archivos .xlsx o .csv."],
+        [""],
+        ["8. CAMPOS ELIMINADOS en v0.9.0 (no incluirlos):"],
+        ["   - registro_sanitario_bolivia (universalidad)"],
+        ["   - calibracion_proxima (gestionado vía MP/OT)"],
+        ["   - responsable_username (asignación flexible en OT/MP)"],
+        [""],
+        ["9. Puede eliminar las filas de ejemplo y usar sus propios datos."],
         ["   Mantenga los encabezados de columna en la fila 1."],
     ]
     for row in instrucciones:
         ws2.append(row)
     ws2.column_dimensions['A'].width = 55
-    ws2.column_dimensions['B'].width = 45
-    
-    # Guardar en memoria y retornar
+    ws2.column_dimensions['B'].width = 60
+
     buffer = BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     wb.close()
-    
+
     from datetime import datetime as dt
     filename = f"CMMS-BioAI_Plantilla_Equipos_{dt.now().strftime('%Y%m%d')}.xlsx"
-    
+
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

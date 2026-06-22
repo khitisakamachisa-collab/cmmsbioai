@@ -36,5 +36,8 @@ class OrdenTrabajo(SQLModel, table=True):
     acciones_realizadas: Optional[str] = None
     tiempo_real_invertido: Optional[float] = None
     unidad_tiempo: Optional[str] = Field(default="horas")  # "horas" o "dias"
-    costo_adicional: Optional[float] = None  # Costo general de la OT
-    costos_adicionales: Optional[float] = None  # Costos adicionales (externos, transporte, etc.)
+    costo_adicional: Optional[float] = None  # v0.9.1: obsoleto, usar OtCostoAdicional
+    costos_adicionales: Optional[float] = None  # v0.9.1: obsoleto, usar OtCostoAdicional
+
+    # v0.9.2: FK opcional a Contrato (RF12) — para marcar OTs como cubiertas por contrato
+    contrato_id: Optional[int] = Field(default=None, foreign_key="contrato.id")

@@ -10,8 +10,9 @@ const router = useRouter()
 // --- Variables Generales ---
 const ordenes = ref([])
 const equipos = ref([])
-const estadosOT = ref([]) 
+const estadosOT = ref([])
 const tecnicos = ref([])
+const contratos = ref([])  // v0.9.2: RF12
 const loading = ref(true)
 
 const currentPage = ref(1)
@@ -112,7 +113,8 @@ const formData = ref({
   titulo: '',
   descripcion_falla: '',
   tecnico_asignado_id: null,
-  unidad_tiempo: 'horas'
+  unidad_tiempo: 'horas',
+  contrato_id: null  // v0.9.2: RF12
 })
 
 // Formulario Editar (v0.9.1: sin costo_adicional ni costos_adicionales — ahora se usan OtCostoAdicional)
@@ -122,23 +124,26 @@ const editFormData = ref({
   acciones_realizadas: '',
   tiempo_real_invertido: null,
   unidad_tiempo: 'horas',
-  tecnico_asignado_id: null
+  tecnico_asignado_id: null,
+  contrato_id: null  // v0.9.2: RF12
 })
 
 // --- Funciones de Datos ---
 const fetchData = async () => {
   try {
     loading.value = true
-    const [resOrdenes, resEquipos, resEstados, resUsers] = await Promise.all([
+    const [resOrdenes, resEquipos, resEstados, resUsers, resContratos] = await Promise.all([
       apiClient.get('/ordenes/'),
       apiClient.get('/equipos/'),
       apiClient.get('/ordenes/estados/'),
-      apiClient.get('/users/')
+      apiClient.get('/users/'),
+      apiClient.get('/contratos/')  // v0.9.2: RF12
     ])
     ordenes.value = resOrdenes.data
     equipos.value = resEquipos.data
     estadosOT.value = resEstados.data
     tecnicos.value = resUsers.data
+    contratos.value = resContratos.data  // v0.9.2: RF12
   } catch (error) {
     console.error('Error cargando datos', error)
   } finally {
@@ -151,7 +156,7 @@ const saveOrden = async () => {
     await apiClient.post('/ordenes/', formData.value)
     alert('Orden creada')
     showModal.value = false
-    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas' }
+    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', contrato_id: null }
     fetchData() 
   } catch (error) {
     alert('Error al crear OT')
@@ -188,9 +193,10 @@ const openEditModal = async (ot) => {
       estado_id: fullOt.estado_id,
       prioridad: fullOt.prioridad || 'Media',
       acciones_realizadas: fullOt.acciones_realizadas || '',
-      tiempo_real_invertido: fullOt.tiempo_real_invertido || null,
+      tiempo_real_invertido: fullOt.tiempo_real_investido || null,
       unidad_tiempo: fullOt.unidad_tiempo || 'horas',
-      tecnico_asignado_id: fullOt.tecnico_asignado_id || null
+      tecnico_asignado_id: fullOt.tecnico_asignado_id || null,
+      contrato_id: fullOt.contrato_id || null  // v0.9.2: RF12
     }
 
     // v0.9.1: Cargar costos adicionales (RF11)
@@ -316,6 +322,23 @@ const getTecnicoNombre = (id) => {
   const t = tecnicos.value.find(u => u.id === id)
   return t ? (t.full_name || t.username) : 'Desconocido'
 }
+
+// v0.9.2: Helper para mostrar info del contrato
+const getContratoInfo = (id) => {
+  if (!id) return null
+  return contratos.value.find(c => c.id === id) || null
+}
+
+// v0.9.2: Contratos vigentes para el dropdown (filtrar solo los que cubren el equipo seleccionado)
+const contratosParaEquipo = computed(() => {
+  if (!formData.value.equipo_id) return contratos.value.filter(c => c.activo)
+  // Mostrar contratos vigentes que cubren este equipo O que no tienen equipos específicos
+  return contratos.value.filter(c => {
+    if (!c.activo) return false
+    if (!c.equipos || c.equipos.length === 0) return true  // contrato general
+    return c.equipos.some(e => e.id === formData.value.equipo_id)
+  })
+})
 
 const prioridadClass = (prio) => {
   if (prio === 'Urgente') return 'urgente'
@@ -523,6 +546,21 @@ onMounted(() => {
           <div class="form-group"><label>Técnico Asignado</label><select v-model="formData.tecnico_asignado_id"><option :value="null">-- Sin Asignar --</option><option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">{{ tec.full_name || tec.username }}</option></select></div>
           <div class="form-group"><label>Título / Tipo de OT *</label><select v-model="formData.titulo" required><option value="" disabled>Seleccione tipo...</option><option v-for="t in tiposOT" :key="t" :value="t">{{ t }}</option></select></div>
           <div class="form-group"><label>Descripción</label><textarea v-model="formData.descripcion_falla" required></textarea></div>
+
+          <!-- v0.9.2: Dropdown de contrato (RF12) -->
+          <div class="form-group" v-if="contratosParaEquipo.length > 0">
+            <label>Contrato Asociado (opcional)</label>
+            <select v-model="formData.contrato_id">
+              <option :value="null">— Sin contrato —</option>
+              <option v-for="c in contratosParaEquipo" :key="c.id" :value="c.id">
+                #{{ c.id }} {{ c.tipo_contrato }} - {{ c.proveedor_nombre }}
+              </option>
+            </select>
+            <small style="color: #64748b; font-size: 0.78rem;" v-if="formData.contrato_id">
+              Esta OT se marcará como cubierta por el contrato seleccionado.
+            </small>
+          </div>
+
           <div class="modal-actions"><button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button><button type="submit" class="btn-primary">Crear</button></div>
         </form>
       </div>
@@ -554,6 +592,11 @@ onMounted(() => {
             <p><strong>Técnico:</strong> {{ getTecnicoNombre(selectedOT.tecnico_asignado_id) }}</p>
             <p><strong>Fecha Creación:</strong> {{ selectedOT.fecha_creacion ? new Date(selectedOT.fecha_creacion).toLocaleDateString('es-BO') : 'N/A' }}</p>
             <p><strong>Tiempo Invertido:</strong> {{ selectedOT.tiempo_real_investido || 0 }} {{ selectedOT.unidad_tiempo === 'dias' ? 'días' : 'horas' }}</p>
+            <!-- v0.9.2: Contrato asociado (RF12) -->
+            <p v-if="selectedOT.contrato_id">
+              <strong>Contrato:</strong>
+              <span class="badge-contrato">#{{ selectedOT.contrato_id }} {{ getContratoInfo(selectedOT.contrato_id)?.tipo_contrato || '' }}</span>
+            </p>
           </div>
         </div>
         <div class="detail-full-view">
@@ -652,6 +695,17 @@ onMounted(() => {
           <div class="form-group">
             <label>Acciones Realizadas</label>
             <textarea v-model="editFormData.acciones_realizadas" rows="3" placeholder="Describa la reparación..."></textarea>
+          </div>
+
+          <!-- v0.9.2: Dropdown de contrato en edición (RF12) -->
+          <div class="form-group" v-if="contratos.length > 0">
+            <label>Contrato Asociado</label>
+            <select v-model="editFormData.contrato_id">
+              <option :value="null">— Sin contrato —</option>
+              <option v-for="c in contratos" :key="c.id" :value="c.id">
+                #{{ c.id }} {{ c.tipo_contrato }} - {{ c.proveedor_nombre }}{{ c.activo ? '' : ' (vencido)' }}
+              </option>
+            </select>
           </div>
 
           <!-- v0.9.1: Costos Adicionales (RF11) — reemplaza costo_adicional y costos_adicionales -->
@@ -965,5 +1019,16 @@ th { background-color: #f8f9fa; }
   font-size: 0.88rem;
   color: #1e40af;
   text-align: right;
+}
+
+/* v0.9.2: Badge de contrato en modal de vista */
+.badge-contrato {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1e3a8a;
+  background: #dbeafe;
 }
 </style>

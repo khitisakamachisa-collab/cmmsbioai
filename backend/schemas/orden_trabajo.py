@@ -37,6 +37,8 @@ class OrdenTrabajoRead(OrdenTrabajoBase):
     repuestos_usados: Optional[List[Any]] = None
     costos_adicionales: Optional[List[Any]] = None  # ahora es lista de OtCostoAdicional
     total_costos_adicionales: Optional[float] = None
+    # v0.9.2: FK opcional a Contrato (RF12)
+    contrato_id: Optional[int] = None
     class Config:
         from_attributes = True
 
@@ -53,3 +55,4 @@ class OrdenTrabajoUpdate(BaseModel):
     unidad_tiempo: Optional[str] = None
     fecha_vencimiento: Optional[date] = None
     repuestos_utilizados: Optional[List[dict]] = None
+    contrato_id: Optional[int] = None  # v0.9.2: RF12

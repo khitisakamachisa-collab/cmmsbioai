@@ -11,6 +11,7 @@ const estados = ref([])
 const proveedores = ref([])  // v0.9.0: reemplaza tecnicos
 const loading = ref(true)
 const error_msg = ref('')
+const contratosEquipo = ref([])  // v0.9.2: contratos del equipo en detalle
 
 const PAGE_SIZE = 10
 const currentPage = ref(1)
@@ -63,9 +64,17 @@ const CONDICIONES_ORIGEN = [
 ]
 
 // Función para abrir el modal de detalles
-const openDetailModal = (equipo) => {
+const openDetailModal = async (equipo) => {
   selectedEquipo.value = equipo
+  contratosEquipo.value = []  // v0.9.2: limpiar antes de cargar
   showDetailModal.value = true
+  // v0.9.2: Cargar contratos del equipo
+  try {
+    const res = await apiClient.get(`/contratos/?equipo_id=${equipo.id}`)
+    contratosEquipo.value = res.data
+  } catch (e) {
+    console.warn('No se pudieron cargar contratos del equipo', e)
+  }
 }
 
 // Función para abrir el modal de documentos
@@ -1097,6 +1106,29 @@ onMounted(() => {
             {{ selectedEquipo.observaciones }}
           </div>
         </div>
+
+        <!-- v0.9.2: Contratos asociados al equipo (RF12) -->
+        <div class="detail-full">
+          <h4>📋 Contratos Asociados</h4>
+          <div v-if="contratosEquipo.length > 0" class="contratos-list">
+            <div v-for="c in contratosEquipo" :key="c.id" class="contrato-card">
+              <div class="contrato-card-header">
+                <span class="contrato-tipo">{{ c.tipo_contrato }}</span>
+                <span :class="c.activo ? 'contrato-badge-vigente' : (c.dias_restantes < 0 ? 'contrato-badge-vencido' : 'contrato-badge-pendiente')">
+                  {{ c.activo ? 'Vigente' : (c.dias_restantes < 0 ? 'Vencido' : 'No iniciado') }}
+                </span>
+              </div>
+              <div class="contrato-card-body">
+                <p><strong>Proveedor:</strong> {{ c.proveedor_nombre }}</p>
+                <p><strong>Vigencia:</strong> {{ c.fecha_inicio?.substring(0, 10) }} - {{ c.fecha_fin?.substring(0, 10) }}</p>
+                <p v-if="c.costo_total"><strong>Costo:</strong> {{ c.moneda }} {{ Number(c.costo_total).toFixed(2) }}</p>
+                <p v-if="c.tiempo_respuesta"><strong>Respuesta:</strong> {{ c.tiempo_respuesta }}</p>
+              </div>
+            </div>
+          </div>
+          <p v-else style="color: #94a3b8; font-style: italic;">Este equipo no tiene contratos asociados.</p>
+        </div>
+
         <div class="modal-actions">
           <button class="btn-secondary" @click="showDetailModal = false">Cerrar</button>
         </div>
@@ -1363,6 +1395,17 @@ th { background-color: #f8f9fa; font-weight: bold; }
   transition: background 0.2s;
 }
 .btn-add-proveedor:hover { background: #15803d; }
+
+/* v0.9.2: Contratos en modal de detalle del equipo */
+.contratos-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+.contrato-card { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+.contrato-card-header { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: #f8fafc; }
+.contrato-tipo { font-weight: 600; font-size: 0.85rem; color: #1e293b; }
+.contrato-badge-vigente { padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: #fff; background: #16a34a; }
+.contrato-badge-vencido { padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: #fff; background: #dc2626; }
+.contrato-badge-pendiente { padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: #fff; background: #64748b; }
+.contrato-card-body { padding: 0.5rem 0.75rem; }
+.contrato-card-body p { margin: 0.2rem 0; font-size: 0.82rem; color: #475569; }
 
 .imagen-upload-container { display: flex; flex-direction: column; gap: 0.4rem; }
 .imagen-existente { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; }

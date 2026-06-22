@@ -91,6 +91,17 @@ def _migrate_documento_ot_costo_id():
         conn.commit()
 
 
+def _migrate_ordentrabajo_contrato_id():
+    """v0.9.2: Agrega columna 'contrato_id' a la tabla 'ordentrabajo' para RF12."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(ordentrabajo)"))
+        existing = {row[1] for row in result.fetchall()}
+        if "contrato_id" not in existing:
+            conn.execute(text("ALTER TABLE ordentrabajo ADD COLUMN contrato_id INTEGER REFERENCES contrato(id)"))
+            print("✅ Migración v0.9.2: columna 'contrato_id' agregada a tabla 'ordentrabajo'")
+        conn.commit()
+
+
 def create_db_and_tables():
     """Crea las tablas en la base de datos si no existen, y aplica migraciones."""
     SQLModel.metadata.create_all(engine)
@@ -99,6 +110,7 @@ def create_db_and_tables():
     _migrate_proveedor_ciudad()
     _migrate_equipo_v090()
     _migrate_documento_ot_costo_id()
+    _migrate_ordentrabajo_contrato_id()
 
 
 def get_session():

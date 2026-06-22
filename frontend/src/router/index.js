@@ -11,6 +11,8 @@ import ReportesView from '../views/ReportesView.vue'
 import AyudaView from '../views/AyudaView.vue'
 import ConfiguracionView from '../views/ConfiguracionView.vue'
 import ProveedoresView from '../views/ProveedoresView.vue'
+import ContratosView from '../views/ContratosView.vue'
+import PlanificacionView from '../views/PlanificacionView.vue'
 
 
 const routes = [
@@ -73,6 +75,16 @@ const routes = [
     path: '/proveedores',
     name: 'proveedores',
     component: ProveedoresView
+  },
+  {
+    path: '/contratos',
+    name: 'contratos',
+    component: ContratosView
+  },
+  {
+    path: '/planificacion',
+    name: 'planificacion',
+    component: PlanificacionView
   }
 ]
 

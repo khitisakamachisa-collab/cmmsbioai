@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import apiClient from '../services/api.js'
 import Navbar from '../components/Navbar.vue'
+import { exportToExcelHTML } from '../services/export.js'  // v0.9.3: RF13
 
 // --- Variables Generales ---
 const contratos = ref([])
@@ -194,6 +195,33 @@ const limpiarFiltros = () => {
   filterVigencia.value = ''
 }
 
+// v0.9.3: Exportar contratos filtrados a Excel (RF13)
+const exportarContratos = () => {
+  const data = filteredContratos.value.map(c => ({
+    ...c,
+    proveedor_nombre: c.proveedor_nombre || getProveedorNombre(c.proveedor_id),
+    estado_vigencia: c.activo ? 'Vigente' : (c.dias_restantes < 0 ? 'Vencido' : 'No iniciado'),
+    equipos_nombres: c.equipos?.map(e => e.nombre_corto).join('; ') || ''
+  }))
+  const columns = [
+    { key: 'id', label: 'ID' },
+    { key: 'proveedor_nombre', label: 'Proveedor' },
+    { key: 'tipo_contrato', label: 'Tipo' },
+    { key: 'fecha_inicio', label: 'Fecha Inicio' },
+    { key: 'fecha_fin', label: 'Fecha Fin' },
+    { key: 'estado_vigencia', label: 'Vigencia' },
+    { key: 'dias_restantes', label: 'Dias Restantes' },
+    { key: 'costo_total', label: 'Costo Total' },
+    { key: 'moneda', label: 'Moneda' },
+    { key: 'periodicidad_costo', label: 'Periodicidad' },
+    { key: 'cobertura_detalle', label: 'Cobertura' },
+    { key: 'tiempo_respuesta', label: 'Tiempo Respuesta' },
+    { key: 'equipos_nombres', label: 'Equipos Cubiertos' },
+    { key: 'notas', label: 'Notas' },
+  ]
+  exportToExcelHTML(data, columns, 'CMMS-BioAI_Contratos')
+}
+
 onMounted(() => { fetchData() })
 </script>
 
@@ -208,6 +236,7 @@ onMounted(() => { fetchData() })
             <input v-model="searchQuery" type="search" class="search-input"
               placeholder="Tipo, proveedor..." autocomplete="off" />
           </div>
+          <button class="btn-export" @click="exportarContratos" title="Exportar lista filtrada a Excel">📤 Exportar</button>
           <button class="btn-primary" @click="openCreateModal">+ Nuevo Contrato</button>
         </div>
       </div>
@@ -426,6 +455,8 @@ th { background: #f8f9fa; font-weight: bold; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
 .btn-primary { background: #3498db; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
 .btn-primary:hover { background: #2980b9; }
+.btn-export { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; padding: 0.45rem 0.9rem; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+.btn-export:hover { background: #dcfce7; }
 .btn-secondary { background: #95a5a6; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
 .btn-secondary:hover { background: #7f8c8d; }
 

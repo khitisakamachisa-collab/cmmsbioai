@@ -53,49 +53,51 @@ const entidades = [
     nombre: 'OrdenTrabajo',
     tabla: 'ordentrabajo',
     prefijo: '—',
-    rf: 'RF02',
-    descripcion: 'Orden de trabajo correctiva o preventiva.',
+    rf: 'RF02 v0.9.2',
+    descripcion: 'Orden de trabajo correctiva o preventiva. v0.9.1: costos via OtCostoAdicional (RF11). v0.9.2: contrato_id opcional (RF12).',
     campos: [
       { nombre: 'id', tipo: 'INTEGER', rf: true, impl: true, oblig: true, desc: 'Identificador unico autoincremental' },
-      { nombre: 'equipo_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Equipos.id - Equipo al que se refiere la OT' },
+      { nombre: 'equipo_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Equipos.id' },
       { nombre: 'orden_preventiva_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: false, desc: 'FK a Tareas_MP.id - Tarea preventiva que origino esta OT' },
-      { nombre: 'estado_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Estados_OT.id - Estado actual de la OT' },
+      { nombre: 'estado_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Estados_OT.id' },
       { nombre: 'prioridad', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Baja, Media, Alta, Urgente' },
-      { nombre: 'tecnico_asignado_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: false, desc: 'FK a Usuarios.id - Tecnico biomedico responsable de la OT' },
-      { nombre: 'fecha_creacion', tipo: 'DATETIME', rf: true, impl: true, oblig: true, desc: 'Fecha y hora de creacion de la OT' },
-      { nombre: 'fecha_vencimiento', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'Fecha limite para la resolucion de la OT' },
+      { nombre: 'tecnico_asignado_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: false, desc: 'FK a Usuarios.id' },
+      { nombre: 'fecha_creacion', tipo: 'DATETIME', rf: true, impl: true, oblig: true, desc: 'Fecha y hora de creacion (automatica)' },
+      { nombre: 'fecha_vencimiento', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'Fecha limite para la resolucion' },
       { nombre: 'titulo', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Titulo corto descriptivo de la OT' },
-      { nombre: 'descripcion_falla', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Descripcion detallada de la falla. Entrada principal para IA' },
-      { nombre: 'acciones_realizadas', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Detalle de las actividades realizadas para resolver la falla' },
-      { nombre: 'tiempo_real_invertido', tipo: 'REAL', rf: true, impl: true, oblig: false, desc: 'Horas reales trabajadas en la OT' },
-      { nombre: 'costos_adicionales', tipo: 'REAL', rf: true, impl: true, oblig: false, desc: 'Costos adicionales incurridos (externos, transporte, etc.)' },
-      { nombre: 'tiempo_estimado_horas', tipo: 'REAL', rf: true, impl: false, oblig: false, desc: 'FALTANTE: Tiempo estimado para completar la tarea. Esta en RF02 pero no implementado' },
-      { nombre: 'categoria_accion', tipo: 'TEXT', rf: true, impl: false, oblig: false, desc: 'FALTANTE: Categoria de la accion (Calibracion, Reparacion Electronica, etc.). Esta en RF02 pero no implementado' },
-      { nombre: 'firma_digital_tecnico', tipo: 'TEXT', rf: true, impl: false, oblig: false, desc: 'FALTANTE: Espacio para firma digital del tecnico. Esta en RF02 pero no implementado' },
-      { nombre: 'unidad_tiempo', tipo: 'TEXT', rf: false, impl: true, oblig: false, desc: 'EXTRA: Unidad de tiempo (horas). No esta en RF02' },
-      { nombre: 'costo_adicional', tipo: 'REAL', rf: false, impl: true, oblig: false, desc: 'EXTRA: Costo general adicional. No esta en RF02' }
+      { nombre: 'descripcion_falla', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Descripcion detallada de la falla' },
+      { nombre: 'acciones_realizadas', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Detalle de las actividades realizadas' },
+      { nombre: 'tiempo_real_invertido', tipo: 'REAL', rf: true, impl: true, oblig: false, desc: 'Horas reales trabajadas' },
+      { nombre: 'unidad_tiempo', tipo: 'TEXT', rf: false, impl: true, oblig: false, desc: 'EXTRA: Unidad de tiempo (horas/dias)' },
+      { nombre: 'contrato_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: false, desc: 'v0.9.2: FK opcional a Contrato.id (RF12). Marca la OT como cubierta por contrato' },
+      // v0.9.1: costo_adicional y costos_adicionales OBSOLETOS — reemplazados por OtCostoAdicional (RF11)
+      // Se mantienen en BD SQLite por compatibilidad pero no se usan
+      { nombre: 'tiempo_estimado_horas', tipo: 'REAL', rf: true, impl: false, oblig: false, desc: 'FALTANTE: Tiempo estimado. En RF02 pero no implementado' },
+      { nombre: 'categoria_accion', tipo: 'TEXT', rf: true, impl: false, oblig: false, desc: 'FALTANTE: Categoria de la accion. En RF02 pero no implementado' },
+      { nombre: 'firma_digital_tecnico', tipo: 'TEXT', rf: true, impl: false, oblig: false, desc: 'FALTANTE: Firma digital del tecnico. En RF02 pero no implementado' }
     ]
   },
   {
     nombre: 'TareaPreventiva',
     tabla: 'tareapreventiva',
     prefijo: '—',
-    rf: 'RF03',
-    descripcion: 'Tarea preventiva programada con frecuencia en dias.',
+    rf: 'RF03 v0.9.2',
+    descripcion: 'Tarea preventiva con ciclo verde-amarillo-rojo. proxima_fecha editable. frecuencia_dias como sugerencia.',
     campos: [
       { nombre: 'id', tipo: 'INTEGER', rf: true, impl: true, oblig: true, desc: 'Identificador unico autoincremental' },
-      { nombre: 'equipo_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Equipos.id (RF03: equipo_tipo_id)' },
+      { nombre: 'equipo_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Equipos.id' },
       { nombre: 'titulo', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Titulo corto descriptivo de la tarea' },
-      { nombre: 'descripcion', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Instrucciones detalladas o protocolo (RF03: descripcion_detalle)' },
-      { nombre: 'frecuencia_dias', tipo: 'INTEGER', rf: true, impl: true, oblig: true, desc: 'Intervalo en dias (RF03: periodicidad_valor, simplificado solo dias)' },
-      { nombre: 'ultima_fecha', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'Fecha de la ultima ejecucion exitosa (RF03: ultimo_mantenimiento_fecha)' },
-      { nombre: 'proxima_fecha', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'Fecha objetivo de proxima ejecucion (RF03: proxima_fecha_vencimiento_manual)' },
-      { nombre: 'activa', tipo: 'BOOLEAN', rf: true, impl: true, oblig: true, desc: 'Indica si la tarea esta programada y activa (RF03: activo)' },
-      { nombre: 'responsable_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: false, desc: 'FK a Usuarios.id - Tecnico asignado (RF03: tecnico_asignado_predeterminado_id)' },
-      { nombre: 'periodicidad_tipo', tipo: 'TEXT', rf: true, impl: false, oblig: false, desc: 'FALTANTE: Unidad del intervalo (Dias/Horas/Ciclos). Esta en RF03 pero no implementado' },
-      { nombre: 'condiciones_activacion', tipo: 'TEXT JSON', rf: true, impl: false, oblig: false, desc: 'FALTANTE: Logica compleja de activacion (OR entre horas y dias). Esta en RF03 pero no implementado' },
-      { nombre: 'logica_periodicidad', tipo: 'TEXT JSON', rf: true, impl: false, oblig: false, desc: 'FALTANTE: Patrones de periodicidad complejos (ej. 2 veces al ano). Esta en RF03 pero no implementado' },
-      { nombre: 'contador_acumulado', tipo: 'REAL', rf: true, impl: false, oblig: false, desc: 'FALTANTE: Valor acumulado del contador (horas, ciclos). Esta en RF03 pero no implementado' }
+      { nombre: 'descripcion', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Instrucciones detalladas o protocolo' },
+      { nombre: 'frecuencia_dias', tipo: 'INTEGER', rf: true, impl: true, oblig: true, desc: 'v0.9.2: Solo SUGERENCIA de periodicidad (ej: 90 dias). No auto-calcula proxima_fecha' },
+      { nombre: 'ultima_fecha', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'Fecha de la ultima ejecucion real' },
+      { nombre: 'proxima_fecha', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'v0.9.0: FECHA REAL programada por el usuario (editable, no auto-calculada). Es la fecha que aparece en el calendario' },
+      { nombre: 'activa', tipo: 'BOOLEAN', rf: true, impl: true, oblig: true, desc: 'Indica si la tarea esta activa' },
+      { nombre: 'responsable_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: false, desc: 'FK a Usuarios.id - Tecnico responsable' },
+      { nombre: 'estado_recordatorio', tipo: 'TEXT (calculado)', rf: false, impl: true, oblig: false, desc: 'v0.9.2: EXTRA calculado en runtime. Valores: 🟢 Programada (OT activa), 🟡 Recordatorio, 🔴 Vencida. No se guarda en BD' },
+      { nombre: 'periodicidad_tipo', tipo: 'TEXT', rf: true, impl: false, oblig: false, desc: 'FALTANTE v1.0: Unidad del intervalo (Dias/Horas/Ciclos)' },
+      { nombre: 'condiciones_activacion', tipo: 'TEXT JSON', rf: true, impl: false, oblig: false, desc: 'FALTANTE v1.0: Logica compleja de activacion (OR entre horas y dias)' },
+      { nombre: 'logica_periodicidad', tipo: 'TEXT JSON', rf: true, impl: false, oblig: false, desc: 'FALTANTE v1.0: Patrones de periodicidad complejos (ej. 2 veces al ano)' },
+      { nombre: 'contador_acumulado', tipo: 'REAL', rf: true, impl: false, oblig: false, desc: 'FALTANTE v1.0: Valor acumulado del contador (horas, ciclos)' }
     ]
   },
   {
@@ -301,6 +303,57 @@ const entidades = [
       { nombre: 'tipo_detalle', tipo: 'TEXT', rf: true, impl: false, oblig: true, desc: 'Tipo: OT, Calibracion, Firmware, etc.' },
       { nombre: 'contenido_detalle', tipo: 'TEXT JSON', rf: true, impl: false, oblig: false, desc: 'Contenido JSON con informacion especifica del evento' }
     ]
+  },
+  {
+    nombre: 'OtCostoAdicional',
+    tabla: 'otcostoadicional',
+    prefijo: '—',
+    rf: 'RF11 v0.9.1',
+    descripcion: 'Costo adicional asociado a una OT. Reemplaza los campos obsoletos costo_adicional y costos_adicionales.',
+    campos: [
+      { nombre: 'id', tipo: 'INTEGER', rf: true, impl: true, oblig: true, desc: 'Identificador unico autoincremental' },
+      { nombre: 'orden_trabajo_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a OrdenTrabajo.id' },
+      { nombre: 'tipo_costo', tipo: 'TEXT (enum)', rf: true, impl: true, oblig: true, desc: 'Enum: Transporte, Servicio Externo, Repuesto No Inv., Herramienta Renta, Honorarios/Mano de Obra, Insumos/Materiales, Viaticos, Otro' },
+      { nombre: 'descripcion_costo', tipo: 'TEXT', rf: true, impl: true, oblig: true, desc: 'Descripcion del concepto del costo' },
+      { nombre: 'monto_costo', tipo: 'REAL', rf: true, impl: true, oblig: true, desc: 'Monto del costo (numero positivo)' },
+      { nombre: 'fecha_registro', tipo: 'DATE', rf: true, impl: true, oblig: false, desc: 'Fecha del costo (default = hoy)' },
+      { nombre: 'fecha_creacion', tipo: 'DATETIME', rf: true, impl: true, oblig: true, desc: 'Fecha de creacion en sistema (auditoria)' },
+      { nombre: 'subido_por', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Username del usuario que registro el costo' }
+    ]
+  },
+  {
+    nombre: 'Contrato',
+    tabla: 'contrato',
+    prefijo: '—',
+    rf: 'RF12 v0.9.2',
+    descripcion: 'Contrato de mantenimiento/servicio con un proveedor. activo se calcula en runtime (no se guarda).',
+    campos: [
+      { nombre: 'id', tipo: 'INTEGER', rf: true, impl: true, oblig: true, desc: 'Identificador unico autoincremental' },
+      { nombre: 'proveedor_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Proveedor.id' },
+      { nombre: 'tipo_contrato', tipo: 'TEXT (enum)', rf: true, impl: true, oblig: true, desc: 'Enum: Comodato, Mantenimiento Preventivo, Mantenimiento Correctivo, Leasing, Garantia Extendida, Soporte Tecnico, Servicio Integral, Otro' },
+      { nombre: 'fecha_inicio', tipo: 'DATETIME', rf: true, impl: true, oblig: true, desc: 'Fecha de inicio de vigencia' },
+      { nombre: 'fecha_fin', tipo: 'DATETIME', rf: true, impl: true, oblig: true, desc: 'Fecha de fin de vigencia' },
+      { nombre: 'costo_total', tipo: 'REAL', rf: true, impl: true, oblig: false, desc: 'Costo total del contrato (si periodicidad = Unico)' },
+      { nombre: 'costo_periodico', tipo: 'REAL', rf: true, impl: true, oblig: false, desc: 'Costo periodico (si periodicidad != Unico)' },
+      { nombre: 'periodicidad_costo', tipo: 'TEXT (enum)', rf: true, impl: true, oblig: false, desc: 'Enum: Unico, Mensual, Trimestral, Semestral, Anual' },
+      { nombre: 'moneda', tipo: 'TEXT (enum)', rf: true, impl: true, oblig: false, desc: 'Enum: USD, EUR, BOB, MXN, ARS, CLP, COP, PEN, BRL, Otro' },
+      { nombre: 'cobertura_detalle', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Descripcion de lo que cubre el contrato' },
+      { nombre: 'tiempo_respuesta', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Tiempo maximo de respuesta del proveedor (ej: 24 hs)' },
+      { nombre: 'horario_servicio', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Horario de servicio acordado (ej: Lun-Vie 8-18hs)' },
+      { nombre: 'notas', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Notas o comentarios adicionales' },
+      { nombre: 'fecha_creacion', tipo: 'DATETIME', rf: true, impl: true, oblig: true, desc: 'Fecha de creacion en sistema (auditoria)' }
+    ]
+  },
+  {
+    nombre: 'ContratoEquipo',
+    tabla: 'contrato_equipo',
+    prefijo: '—',
+    rf: 'RF12 v0.9.2',
+    descripcion: 'Relacion N:M entre Contrato y Equipo. Un contrato puede cubrir 0, 1 o N equipos.',
+    campos: [
+      { nombre: 'contrato_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Contrato.id. PK compuesta' },
+      { nombre: 'equipo_id', tipo: 'INTEGER FK', rf: true, impl: true, oblig: true, desc: 'FK a Equipo.id. PK compuesta' }
+    ]
   }
 ]
 
@@ -368,20 +421,20 @@ const requisitosRF = [
     estado: 'Completo v0.9.0'
   },
   {
-    id: 'RF02', nombre: 'Gestion de OT', entidad: 'OrdenTrabajo',
-    descripcion: 'Gestion de ordenes de trabajo correctivas y preventivas con prioridad, tecnico asignado y seguimiento.',
-    camposRF: 16, implementados: 13, faltantes: 3, extras: 2,
+    id: 'RF02', nombre: 'Gestion de OT v0.9.2', entidad: 'OrdenTrabajo',
+    descripcion: 'Gestion de ordenes de trabajo correctivas y preventivas. v0.9.1: costos via OtCostoAdicional (RF11). v0.9.2: contrato_id opcional (RF12).',
+    camposRF: 14, implementados: 11, faltantes: 3, extras: 2,
     detalleFaltantes: ['tiempo_estimado_horas', 'categoria_accion', 'firma_digital_tecnico'],
-    detalleExtras: ['unidad_tiempo', 'costo_adicional'],
+    detalleExtras: ['unidad_tiempo', 'contrato_id (RF12)'],
     estado: '3 campos RF faltantes'
   },
   {
-    id: 'RF03', nombre: 'Mantenimiento Preventivo', entidad: 'TareaPreventiva',
-    descripcion: 'Planificacion de tareas preventivas con periodicidad, activacion y seguimiento de fechas.',
-    camposRF: 13, implementados: 9, faltantes: 4, extras: 0,
-    detalleFaltantes: ['periodicidad_tipo (Dias/Horas/Ciclos)', 'condiciones_activacion (JSON)', 'logica_periodicidad (JSON)', 'contador_acumulado'],
-    detalleExtras: [],
-    estado: '4 campos RF faltantes'
+    id: 'RF03', nombre: 'Mantenimiento Preventivo v0.9.2', entidad: 'TareaPreventiva',
+    descripcion: 'Planificacion de tareas preventivas con ciclo verde-amarillo-rojo. proxima_fecha editable (no auto-calculada). frecuencia_dias como sugerencia.',
+    camposRF: 13, implementados: 9, faltantes: 4, extras: 1,
+    detalleFaltantes: ['periodicidad_tipo (Dias/Horas/Ciclos) — v1.0', 'condiciones_activacion (JSON) — v1.0', 'logica_periodicidad (JSON) — v1.0', 'contador_acumulado — v1.0'],
+    detalleExtras: ['estado_recordatorio (calculado en runtime)'],
+    estado: '9/13 implementados. 4 pendientes v1.0'
   },
   {
     id: 'RF04', nombre: 'Gestion de Inventario', entidad: 'Repuesto',
@@ -440,12 +493,44 @@ const requisitosRF = [
     estado: 'Completo con importacion Excel'
   },
   {
-    id: 'RF11', nombre: 'Calendario Preventivo', entidad: 'Preventivo',
-    descripcion: 'Vista de calendario visual para tareas preventivas programadas.',
+    id: 'RF11', nombre: 'Gestion Detallada de Costos en OT v0.9.1', entidad: 'OtCostoAdicional',
+    descripcion: 'Registro de multiples costos individuales (con descripcion, tipo y monto) asociados a una OT. 8 tipos de costo. Total automatico. Documentos justificativos via DocumentoAdjunto con ot_costo_id.',
+    camposRF: 8, implementados: 8, faltantes: 0, extras: 0,
+    detalleFaltantes: [],
+    detalleExtras: [],
+    estado: 'Completo v0.9.1'
+  },
+  {
+    id: 'RF12', nombre: 'Gestion de Contratos v0.9.2', entidad: 'Contrato + ContratoEquipo',
+    descripcion: 'Contratos de mantenimiento/servicio con proveedores. Relacion N:M con equipos. Calculo de vigencia en runtime. 3 enums estrictos. Badges visuales. Pagina dedicada + secciones en Equipo y Proveedor. FK opcional en OrdenTrabajo.',
+    camposRF: 14, implementados: 14, faltantes: 0, extras: 0,
+    detalleFaltantes: [],
+    detalleExtras: [],
+    estado: 'Completo v0.9.2'
+  },
+  {
+    id: 'RF13', nombre: 'Exportacion de Datos', entidad: 'Sistema',
+    descripcion: 'Exportacion de registros en formato Excel/CSV para uso externo (reportes, respaldos, auditorias).',
     camposRF: 0, implementados: 0, faltantes: 0, extras: 0,
     detalleFaltantes: [],
-    detalleExtras: ['Vista calendario mensual', 'Resumen de estado por colores', 'Detalle de tarea desde calendario'],
-    estado: 'Implementado'
+    detalleExtras: ['Export Excel en Equipos, OTs, Contratos (v0.9.3 parcial)'],
+    estado: 'Parcial v0.9.3'
+  },
+  {
+    id: 'RF03+', nombre: 'MP Rediseñado (Ciclo Verde-Amarillo-Rojo) v0.9.2', entidad: 'TareaPreventiva',
+    descripcion: 'Rediseño del modulo de MP: 🟢 Programada (OT activa), 🟡 Recordatorio, 🔴 Vencida. proxima_fecha editable. frecuencia_dias como sugerencia. Calendario unificado en pagina Planificacion.',
+    camposRF: 9, implementados: 9, faltantes: 0, extras: 1,
+    detalleFaltantes: [],
+    detalleExtras: ['estado_recordatorio (calculado en runtime)'],
+    estado: 'Completo v0.9.2'
+  },
+  {
+    id: 'PLAN', nombre: 'Pagina Planificacion v0.9.2', entidad: 'Sistema',
+    descripcion: 'Calendario mensual unificado OT + MP. Filtros: Tipo, Equipo, Ubicacion, Responsable. Colores del ciclo MP + colores de OT por estado. Click en evento abre detalle.',
+    camposRF: 0, implementados: 0, faltantes: 0, extras: 0,
+    detalleFaltantes: [],
+    detalleExtras: ['Calendario mensual unificado', 'Resumen rapido', 'Leyenda visual', 'Modal detalle con navegacion'],
+    estado: 'Implementado v0.9.2'
   }
 ]
 

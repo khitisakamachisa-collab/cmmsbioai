@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
 import Navbar from '../components/Navbar.vue'
 import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'
+import { exportToExcelHTML } from '../services/export.js'  // v0.9.3: RF13
 
 const router = useRouter()
 
@@ -393,6 +394,31 @@ const eliminarCosto = async (costoId) => {
   }
 }
 
+// v0.9.3: Exportar OTs filtradas a Excel (RF13)
+const exportarOrdenes = () => {
+  const data = filteredOrdenes.value.map(ot => ({
+    ...ot,
+    equipo_nombre: getEquipoNombre(ot.equipo_id),
+    tecnico_nombre: getTecnicoNombre(ot.tecnico_asignado_id),
+    estado_nombre: estadosOT.value.find(e => e.id === ot.estado_id)?.nombre_estado || ''
+  }))
+  const columns = [
+    { key: 'id', label: 'ID' },
+    { key: 'titulo', label: 'Titulo' },
+    { key: 'equipo_nombre', label: 'Equipo' },
+    { key: 'estado_nombre', label: 'Estado' },
+    { key: 'prioridad', label: 'Prioridad' },
+    { key: 'tecnico_nombre', label: 'Tecnico' },
+    { key: 'fecha_creacion', label: 'Fecha Creacion' },
+    { key: 'fecha_vencimiento', label: 'Fecha Vencimiento' },
+    { key: 'descripcion_falla', label: 'Descripcion Falla' },
+    { key: 'acciones_realizadas', label: 'Acciones Realizadas' },
+    { key: 'tiempo_real_invertido', label: 'Tiempo Invertido' },
+    { key: 'unidad_tiempo', label: 'Unidad' },
+  ]
+  exportToExcelHTML(data, columns, 'CMMS-BioAI_Ordenes')
+}
+
 onMounted(() => {
   fetchData()
 })
@@ -418,6 +444,7 @@ onMounted(() => {
               autocomplete="off"
             >
           </div>
+          <button class="btn-export" @click="exportarOrdenes" title="Exportar lista filtrada a Excel">📤 Exportar</button>
           <button class="btn-primary" @click="showModal = true">+ Nueva Orden</button>
         </div>
       </div>
@@ -1031,4 +1058,7 @@ th { background-color: #f8f9fa; }
   color: #1e3a8a;
   background: #dbeafe;
 }
+
+.btn-export { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; padding: 0.45rem 0.9rem; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+.btn-export:hover { background: #dcfce7; }
 </style>

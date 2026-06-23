@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
 import Navbar from '../components/Navbar.vue'
 import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'
+import { exportToExcelHTML } from '../services/export.js'  // v0.9.3: RF13
 
 // --- Variables Generales ---
 const equipos = ref([])
@@ -564,6 +565,32 @@ const getEstadoColor = (id) => {
   return estado ? estado.color : '#95a5a6'
 }
 
+// v0.9.3: Exportar equipos filtrados a Excel (RF13)
+const exportarEquipos = () => {
+  const data = filteredEquipos.value.map(eq => ({
+    ...eq,
+    estado_nombre: getNombreEstado(eq.estado_id),
+    proveedor_nombre: getProveedorName(eq.proveedor_principal_id)
+  }))
+  const columns = [
+    { key: 'id', label: 'ID' },
+    { key: 'nombre_corto', label: 'Nombre Corto' },
+    { key: 'modelo', label: 'Modelo' },
+    { key: 'numero_serie', label: 'N° Serie' },
+    { key: 'numero_material', label: 'N° Material' },
+    { key: 'marca', label: 'Marca' },
+    { key: 'fecha_adquisicion', label: 'Fecha Adquisicion' },
+    { key: 'ubicacion_actual', label: 'Ubicacion' },
+    { key: 'estado_nombre', label: 'Estado' },
+    { key: 'condicion_origen', label: 'Condicion' },
+    { key: 'proveedor_nombre', label: 'Proveedor' },
+    { key: 'fecha_inicio_garantia', label: 'Inicio Garantia' },
+    { key: 'fecha_fin_garantia', label: 'Fin Garantia' },
+    { key: 'observaciones', label: 'Observaciones' },
+  ]
+  exportToExcelHTML(data, columns, 'CMMS-BioAI_Equipos')
+}
+
 onMounted(() => {
   fetchEquipos()
   fetchEstados()
@@ -598,6 +625,9 @@ onMounted(() => {
               <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
             </svg>
             Cargar Excel
+          </button>
+          <button class="btn-export" @click="exportarEquipos" title="Exportar lista filtrada a Excel">
+            📤 Exportar
           </button>
           <button class="btn-primary" @click="openCreateModal">+ Nuevo Equipo</button>
         </div>
@@ -1301,6 +1331,9 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .btn-primary:hover { background-color: #2980b9; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+
+.btn-export { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; padding: 0.45rem 0.9rem; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+.btn-export:hover { background: #dcfce7; }
 
 .btn-import {
   background-color: #27ae60; color: white; border: none; padding: 0.6rem 1.1rem;

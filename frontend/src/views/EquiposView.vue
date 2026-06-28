@@ -596,7 +596,7 @@ onMounted(() => {
               v-model="searchQuery"
               type="search"
               class="search-input"
-              placeholder="Nombre, marca, modelo..."
+              placeholder="Nombre, marca, modelo, núm. serie, núm. material..."
               autocomplete="off"
               aria-label="Buscar equipos"
             >
@@ -674,13 +674,12 @@ onMounted(() => {
             <th>Marca</th>
             <th>Ubicación</th>
             <th>Estado</th>
-            <th>Condición</th>
             <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="!filteredEquipos.length">
-            <td class="table-empty-cell" colspan="8">
+            <td class="table-empty-cell" colspan="7">
               {{ searchQuery.trim() ? 'No hay equipos que coincidan con la búsqueda.' : 'No hay equipos para mostrar.' }}
             </td>
           </tr>
@@ -710,34 +709,30 @@ onMounted(() => {
                 {{ getNombreEstado(equipo.estado_id) }}
               </span>
             </td>
-            <td>
-              <span v-if="equipo.condicion_origen" class="badge-condicion">{{ equipo.condicion_origen }}</span>
-              <span v-else>—</span>
-            </td>
             <td class="actions-cell">
-              <button class="btn-icon" title="Ver Detalles" @click="openDetailModal(equipo)">
+              <button class="btn-icon btn-view" title="Ver Detalles" @click="openDetailModal(equipo)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
                 </svg>
               </button>
-              <button class="btn-icon" title="Editar" @click="openEditModal(equipo)">
+              <button class="btn-icon btn-edit" title="Editar" @click="openEditModal(equipo)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
                 </svg>
               </button>
-              <button class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteEquipo(equipo.id)">
+              <button class="btn-icon btn-delete" title="Eliminar" @click="deleteEquipo(equipo.id)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
                   <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
                 </svg>
               </button>
-              <button class="btn-icon btn-secondary-icon" title="Ver Historial" @click="openHistory(equipo)">
+              <button class="btn-icon btn-history" title="Ver Historial" @click="openHistory(equipo)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M8 3.5a.5.5 0 0 0-1 0V9a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 8.71V3.5z"/>
                   <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/>
                 </svg>
               </button>
-              <button class="btn-icon btn-doc-icon" title="Documentos Adjuntos" @click="openDocsModal(equipo)">
+              <button class="btn-icon btn-doc" title="Documentos Adjuntos" @click="openDocsModal(equipo)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
                 </svg>
@@ -1376,8 +1371,9 @@ th { background-color: #f8f9fa; font-weight: bold; }
 /* v0.9.4: Sub-badges de garantía y contrato debajo del nombre */
 .sub-badges {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
   margin-top: 2px;
 }
 .sub-badge-garantia {
@@ -1451,7 +1447,7 @@ th { background-color: #f8f9fa; font-weight: bold; }
 
 .actions-cell { display: flex; gap: 0.5rem; align-items: center; }
 .btn-icon {
-  background: #f0f2f5;
+  background: #f0f2f5; color: #555;
   border: none;
   padding: 8px;
   border-radius: 6px;
@@ -1459,10 +1455,18 @@ th { background-color: #f8f9fa; font-weight: bold; }
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #555;
   transition: all 0.2s;
 }
-.btn-icon:hover { background: #dfe2e6; color: #000; }
+
+/* v0.9.11: Iconos estilo Proveedores v0.9.7 — gris por defecto, color solo en hover */
+.btn-view:hover { background: #16a34a; color: #ffffff; }
+.btn-edit:hover { background: #2563eb; color: #ffffff; }
+.btn-delete:hover { background: #dc2626; color: #ffffff; }
+.btn-history:hover { background: #7c3aed; color: #ffffff; }
+.btn-doc:hover { background: #0891b2; color: #ffffff; }
+
+/* Compatibilidad: estilos anteriores (deprecados) — NO agregar .btn-icon:hover aquí
+   porque pisaría las reglas específicas .btn-view:hover etc. por orden de cascada */
 .btn-danger-icon:hover { background: #fee2e2; color: #c0392b; }
 .btn-secondary-icon:hover { background: #e2e8f0; color: #475569; }
 .btn-doc-icon:hover { background: #e8f4fd; color: #2563eb; }

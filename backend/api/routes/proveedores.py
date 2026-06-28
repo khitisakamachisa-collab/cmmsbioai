@@ -454,9 +454,109 @@ def eliminar_proveedor(proveedor_id: int, session: Session = Depends(get_session
     for c in contactos:
         session.delete(c)
 
+    # v0.9.11: Desasociar equipos cuyo proveedor_principal era este proveedor
+    # (no eliminamos los equipos, solo quitamos la referencia)
+    from models.equipos import Equipo
+    equipos_asociados = session.exec(
+        select(Equipo).where(Equipo.proveedor_principal_id == proveedor_id)
+    ).all()
+    for eq in equipos_asociados:
+        eq.proveedor_principal_id = None
+        session.add(eq)
+
     session.delete(db_proveedor)
     session.commit()
     return None
+
+
+# ============================================================
+# v0.9.11: EQUIPOS ASOCIADOS AL PROVEEDOR
+# Endpoint para asociar/desasociar equipos en lote usando
+# el campo Equipo.proveedor_principal_id (relación 1:N)
+# ============================================================
+@router.get("/{proveedor_id}/equipos")
+def listar_equipos_proveedor(proveedor_id: int, session: Session = Depends(get_session)):
+    """
+    Lista los equipos cuyo proveedor_principal_id es el proveedor indicado.
+    Útil para mostrar los equipos asociados a un proveedor en el frontend.
+    """
+    from models.equipos import Equipo
+    proveedor = session.get(Proveedor, proveedor_id)
+    if not proveedor:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    equipos = session.exec(
+        select(Equipo).where(Equipo.proveedor_principal_id == proveedor_id)
+    ).all()
+    return [
+        {
+            "id": eq.id,
+            "nombre_corto": eq.nombre_corto,
+            "modelo": eq.modelo,
+            "marca": eq.marca,
+            "numero_serie": eq.numero_serie,
+            "ubicacion_actual": eq.ubicacion_actual,
+        }
+        for eq in equipos
+    ]
+
+
+@router.put("/{proveedor_id}/equipos")
+def actualizar_equipos_proveedor(
+    proveedor_id: int,
+    payload: dict,
+    session: Session = Depends(get_session)
+):
+    """
+    Sincroniza los equipos cuyo proveedor_principal es este proveedor.
+    Recibe: { "equipos_ids": [1, 2, 3] }
+
+    Lógica:
+    - Equipos en la lista que tenían OTRO proveedor → se asignan a este.
+    - Equipos que estaban asignados a este pero NO están en la lista → se desasocian (NULL).
+    - Equipos en la lista que YA estaban asignados a este → no se tocan.
+    """
+    from models.equipos import Equipo
+    proveedor = session.get(Proveedor, proveedor_id)
+    if not proveedor:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+
+    equipos_ids_nuevos = payload.get("equipos_ids") or []
+    if not isinstance(equipos_ids_nuevos, list):
+        raise HTTPException(status_code=400, detail="equipos_ids debe ser una lista de enteros")
+
+    # Convertir a set de ints
+    try:
+        nuevos_set = {int(x) for x in equipos_ids_nuevos}
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="equipos_ids debe contener enteros válidos")
+
+    # Equipos actualmente asignados a este proveedor
+    actuales = session.exec(
+        select(Equipo).where(Equipo.proveedor_principal_id == proveedor_id)
+    ).all()
+    actuales_ids = {eq.id for eq in actuales}
+
+    # Desasociar los que ya no están en la nueva lista
+    for eq in actuales:
+        if eq.id not in nuevos_set:
+            eq.proveedor_principal_id = None
+            session.add(eq)
+
+    # Asociar los nuevos (verificando que existan)
+    for eq_id in nuevos_set:
+        eq = session.get(Equipo, eq_id)
+        if eq:
+            eq.proveedor_principal_id = proveedor_id
+            session.add(eq)
+
+    session.commit()
+
+    return {
+        "ok": True,
+        "proveedor_id": proveedor_id,
+        "equipos_asociados": len(nuevos_set),
+        "mensaje": f"Se asociaron {len(nuevos_set)} equipo(s) al proveedor"
+    }
 
 
 # ============================================================

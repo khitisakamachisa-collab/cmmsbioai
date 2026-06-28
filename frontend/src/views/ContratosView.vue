@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import apiClient from '../services/api.js'
 import Navbar from '../components/Navbar.vue'
+import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'  // v0.9.12
 import { exportToExcelHTML, exportToCSV } from '../services/export.js'
 
 // --- Variables generales ---
@@ -20,6 +21,16 @@ const filterVigencia = ref('')   // '' | 'vigente' | 'vencido' | 'proximo'
 const filterTipo = ref('')
 const filterProveedor = ref('')
 
+// --- Importación Excel (v0.9.8, mismo patrón que Equipos/Proveedores) ---
+const showImportModal = ref(false)
+const importFile = ref(null)
+const importing = ref(false)
+const importResult = ref(null)
+const importDragOver = ref(false)
+
+// --- Buscador interno de equipos en el modal (v0.9.8) ---
+const equiposSearchQuery = ref('')
+
 // --- Opciones para selects ---
 const tiposContrato = [
   'Comodato', 'Mantenimiento Preventivo', 'Mantenimiento Correctivo',
@@ -37,6 +48,10 @@ const saving = ref(false)
 // --- Modal Detalle ---
 const showDetailModal = ref(false)
 const selectedContrato = ref(null)
+
+// v0.9.12: Modal Documentos
+const showDocsModal = ref(false)
+const docsContrato = ref(null)
 
 // --- Helpers ---
 const formatFecha = (f) => {
@@ -182,11 +197,14 @@ function resetForm() {
 
 function abrirCrear() {
   resetForm()
+  equiposSearchQuery.value = ''
   isEditing.value = false
   showModal.value = true
 }
 
 function abrirEditar(c) {
+  // v0.9.10: guardar referencia al contrato que se edita para que guardarContrato() pueda obtener su id
+  selectedContrato.value = c
   formData.value = {
     proveedor_id: c.proveedor_id,
     tipo_contrato: c.tipo_contrato,
@@ -202,6 +220,7 @@ function abrirEditar(c) {
     notas: c.notas ?? '',
     equipos_ids: Array.isArray(c.equipos) ? c.equipos.map(e => e.id) : []
   }
+  equiposSearchQuery.value = ''
   isEditing.value = true
   showModal.value = true
 }
@@ -256,6 +275,12 @@ async function guardarContrato() {
 function verDetalle(c) {
   selectedContrato.value = c
   showDetailModal.value = true
+}
+
+// v0.9.12: Abrir modal de documentos del contrato
+function abrirDocs(c) {
+  docsContrato.value = c
+  showDocsModal.value = true
 }
 
 // --- Eliminar ---
@@ -314,6 +339,151 @@ function exportarCSV() {
   exportToCSV(rows, `Contratos_${new Date().toISOString().slice(0, 10)}`)
 }
 
+// --- Importación Excel (v0.9.8, mismo patrón que Equipos/Proveedores) ---
+function openImportModal() {
+  importFile.value = null
+  importResult.value = null
+  importing.value = false
+  importDragOver.value = false
+  showImportModal.value = true
+}
+
+function handleFileSelect(event) {
+  const file = event.target.files[0]
+  if (file) {
+    importFile.value = file
+    importResult.value = null
+  }
+}
+
+function handleDragOver(e) {
+  e.preventDefault()
+  importDragOver.value = true
+}
+
+function handleDragLeave(e) {
+  e.preventDefault()
+  importDragOver.value = false
+}
+
+function handleDrop(e) {
+  e.preventDefault()
+  importDragOver.value = false
+  const file = e.dataTransfer.files[0]
+  if (file) {
+    importFile.value = file
+    importResult.value = null
+  }
+}
+
+function descargarPlantillaExcel() {
+  const link = document.createElement('a')
+  link.href = `${import.meta.env.BASE_URL}plantillas/plantilla_contratos.xlsx`
+  link.download = 'CMMS-BioAI_Plantilla_Contratos.xlsx'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+function descargarPlantillaCSV() {
+  const link = document.createElement('a')
+  link.href = `${import.meta.env.BASE_URL}plantillas/plantilla_contratos.csv`
+  link.download = 'CMMS-BioAI_Plantilla_Contratos.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+async function submitImport() {
+  if (!importFile.value) {
+    alert('Seleccione un archivo primero')
+    return
+  }
+  const ext = importFile.value.name.toLowerCase()
+  if (!ext.endsWith('.xlsx') && !ext.endsWith('.csv')) {
+    alert('Solo se aceptan archivos .xlsx o .csv')
+    return
+  }
+  try {
+    importing.value = true
+    importResult.value = null
+    const fd = new FormData()
+    fd.append('file', importFile.value)
+    const res = await apiClient.post('/contratos/import-excel', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    importResult.value = res.data
+    await cargarContratos()
+    await cargarAuxiliares()
+  } catch (e) {
+    const msg = e.response?.data?.detail || 'Error al importar'
+    alert(typeof msg === 'string' ? msg : JSON.stringify(msg))
+    console.error(e)
+  } finally {
+    importing.value = false
+  }
+}
+
+function resetImport() {
+  importFile.value = null
+  importResult.value = null
+}
+
+// --- Filtrado de equipos dentro del modal (v0.9.8) ---
+const equiposFiltrados = computed(() => {
+  const q = equiposSearchQuery.value.trim().toLowerCase()
+  if (!q) return equipos.value
+  return equipos.value.filter(eq => {
+    const nombre = String(eq.nombre_corto ?? '').toLowerCase()
+    const modelo = String(eq.modelo ?? '').toLowerCase()
+    const serie = String(eq.numero_serie ?? '').toLowerCase()
+    const marca = String(eq.marca ?? '').toLowerCase()
+    return nombre.includes(q) || modelo.includes(q) || serie.includes(q) || marca.includes(q)
+  })
+})
+
+// Contador de equipos seleccionados para mostrar en el label
+const equiposSeleccionadosCount = computed(() => {
+  return Array.isArray(formData.value.equipos_ids) ? formData.value.equipos_ids.length : 0
+})
+
+// v0.9.9: Opción B — chips/tags para Equipos Asociados
+// Lista de objetos equipo ya seleccionados (para mostrar como chips)
+const equiposSeleccionados = computed(() => {
+  if (!Array.isArray(formData.value.equipos_ids)) return []
+  return formData.value.equipos_ids
+    .map(id => equipos.value.find(e => e.id === id))
+    .filter(Boolean)
+})
+
+// Resultados de búsqueda EXCLUYENDO los ya seleccionados (para no duplicar)
+const equiposResultadosBusqueda = computed(() => {
+  return equiposFiltrados.value.filter(eq =>
+    !(formData.value.equipos_ids || []).includes(eq.id)
+  )
+})
+
+function agregarEquipo(eq) {
+  if (!Array.isArray(formData.value.equipos_ids)) {
+    formData.value.equipos_ids = []
+  }
+  if (!formData.value.equipos_ids.includes(eq.id)) {
+    formData.value.equipos_ids.push(eq.id)
+  }
+  // Limpiar búsqueda para que la lista de resultados se oculte
+  equiposSearchQuery.value = ''
+}
+
+function quitarEquipo(id) {
+  if (Array.isArray(formData.value.equipos_ids)) {
+    formData.value.equipos_ids = formData.value.equipos_ids.filter(i => i !== id)
+  }
+}
+
+function limpiarSeleccionEquipos() {
+  formData.value.equipos_ids = []
+}
+
 // --- Init ---
 onMounted(async () => {
   await Promise.all([cargarContratos(), cargarAuxiliares()])
@@ -327,11 +497,30 @@ onMounted(async () => {
       <div class="page-header">
         <div>
           <h2>Contratos</h2>
-          <p class="subtitle">Gestión de contratos de mantenimiento, leasing, comodato y otros (RF12)</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-secondary" @click="exportarExcel" :disabled="!filteredContratos.length">📤 Excel</button>
-          <button class="btn btn-secondary" @click="exportarCSV" :disabled="!filteredContratos.length">📄 CSV</button>
+          <div class="search-wrapper">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+            </svg>
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="search-input"
+              placeholder="Proveedor, tipo, cobertura, notas..."
+              autocomplete="off"
+              aria-label="Buscar contratos"
+            >
+          </div>
+          <button class="btn-import" @click="openImportModal" title="Cargar contratos desde Excel">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+              <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+            </svg>
+            Cargar Excel
+          </button>
+          <button class="btn btn-export-excel" @click="exportarExcel" :disabled="!filteredContratos.length" title="Exportar tabla actual a Excel">📤 Excel</button>
+          <button class="btn btn-export-csv" @click="exportarCSV" :disabled="!filteredContratos.length" title="Exportar tabla actual a CSV">📄 CSV</button>
           <button class="btn btn-primary" @click="abrirCrear">+ Nuevo Contrato</button>
         </div>
       </div>
@@ -356,13 +545,9 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Filtros -->
+      <!-- Filtros (sin buscador, igual a Equipos/Proveedores) -->
       <div class="filtros-card">
         <div class="filtros-grid">
-          <div class="filtro-item">
-            <label>Buscar</label>
-            <input v-model="searchQuery" type="text" placeholder="Proveedor, tipo, cobertura..." class="input" />
-          </div>
           <div class="filtro-item">
             <label>Vigencia</label>
             <select v-model="filterVigencia" class="input">
@@ -388,7 +573,13 @@ onMounted(async () => {
             </select>
           </div>
           <div class="filtro-actions">
-            <button v-if="tieneFiltrosActivos" class="btn btn-link" @click="limpiarFiltros">Limpiar</button>
+            <button v-if="tieneFiltrosActivos" class="btn-clear-filters" @click="limpiarFiltros" title="Limpiar filtros">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+              </svg>
+              Limpiar
+            </button>
+            <span v-if="tieneFiltrosActivos" class="filter-count">{{ filteredContratos.length }} de {{ contratos.length }}</span>
           </div>
         </div>
       </div>
@@ -441,10 +632,28 @@ onMounted(async () => {
                 </span>
                 <span v-else class="text-muted">—</span>
               </td>
-              <td class="acciones-col">
-                <button class="btn-icon" title="Ver detalle" @click="verDetalle(c)">👁</button>
-                <button class="btn-icon" title="Editar" @click="abrirEditar(c)">✏️</button>
-                <button class="btn-icon btn-icon-danger" title="Eliminar" @click="eliminarContrato(c)">🗑</button>
+              <td class="acciones-col actions-cell">
+                <button class="btn-icon btn-view" title="Ver detalle" @click="verDetalle(c)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                  </svg>
+                </button>
+                <button class="btn-icon btn-edit" title="Editar" @click="abrirEditar(c)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5z"/>
+                  </svg>
+                </button>
+                <button class="btn-icon btn-doc" title="Documentos Adjuntos" @click="abrirDocs(c)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
+                  </svg>
+                </button>
+                <button class="btn-icon btn-delete" title="Eliminar" @click="eliminarContrato(c)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                    <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                  </svg>
+                </button>
               </td>
             </tr>
           </tbody>
@@ -530,13 +739,57 @@ onMounted(async () => {
               <textarea v-model="formData.notas" class="input" rows="2"></textarea>
             </div>
             <div class="form-group form-group-full">
-              <label>Equipos Asociados</label>
-              <div class="equipos-checkbox-grid">
-                <label v-for="eq in equipos" :key="eq.id" class="checkbox-item">
-                  <input type="checkbox" :value="eq.id" v-model="formData.equipos_ids" />
-                  <span>{{ eq.nombre_corto || eq.modelo }} <small v-if="eq.numero_serie" class="text-muted">({{ eq.numero_serie }})</small></span>
-                </label>
-                <p v-if="!equipos.length" class="text-muted">No hay equipos registrados.</p>
+              <label>
+                Equipos Asociados
+                <span class="equipos-counter">({{ equiposSeleccionadosCount }} seleccionado{{ equiposSeleccionadosCount === 1 ? '' : 's' }} de {{ equipos.length }})</span>
+                <button v-if="equiposSeleccionadosCount > 0" type="button" class="btn-limpiar-seleccion" @click="limpiarSeleccionEquipos" title="Quitar todos">Limpiar selección</button>
+              </label>
+              <div class="equipos-selector">
+                <!-- v0.9.9: Opción B — chips/tags de equipos seleccionados -->
+                <div v-if="equiposSeleccionados.length" class="chips-container">
+                  <span v-for="eq in equiposSeleccionados" :key="eq.id" class="chip">
+                    <span class="chip-text">
+                      <strong>{{ eq.nombre_corto || eq.modelo }}</strong>
+                      <strong v-if="eq.marca" class="chip-sub-bold">{{ eq.marca }}</strong>
+                      <strong v-if="eq.numero_serie" class="chip-sub-bold">SN: {{ eq.numero_serie }}</strong>
+                    </span>
+                    <button type="button" class="chip-remove" @click="quitarEquipo(eq.id)" title="Quitar equipo">×</button>
+                  </span>
+                </div>
+                <div v-else class="chips-empty">
+                  No hay equipos seleccionados. Use el buscador para agregar.
+                </div>
+
+                <!-- Buscador -->
+                <div class="equipos-search-wrapper">
+                  <svg class="equipos-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                  </svg>
+                  <input
+                    v-model="equiposSearchQuery"
+                    type="search"
+                    class="equipos-search-input"
+                    placeholder="Buscar equipo por nombre, modelo, serie o marca para agregar..."
+                    autocomplete="off"
+                  >
+                  <button v-if="equiposSearchQuery" type="button" class="equipos-search-clear" @click="equiposSearchQuery = ''" title="Limpiar búsqueda">×</button>
+                </div>
+
+                <!-- Resultados de búsqueda (excluyendo ya seleccionados) -->
+                <div v-if="equiposSearchQuery" class="equipos-resultados">
+                  <p v-if="!equipos.length" class="text-muted equipos-empty">No hay equipos registrados.</p>
+                  <p v-else-if="!equiposResultadosBusqueda.length" class="text-muted equipos-empty">No se encontraron equipos con "{{ equiposSearchQuery }}" o ya están todos seleccionados.</p>
+                  <div v-else class="equipos-resultados-list">
+                    <div v-for="eq in equiposResultadosBusqueda" :key="eq.id" class="equipo-item" @click="agregarEquipo(eq)">
+                      <div class="equipo-item-info">
+                        <strong>{{ eq.nombre_corto || eq.modelo }}</strong>
+                        <strong v-if="eq.marca" class="equipo-item-bold">{{ eq.marca }}</strong>
+                        <strong v-if="eq.numero_serie" class="equipo-item-bold">SN: {{ eq.numero_serie }}</strong>
+                      </div>
+                      <span class="equipo-item-add" title="Agregar">+ Agregar</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -579,6 +832,21 @@ onMounted(async () => {
               <span class="detalle-label">Días Restantes</span>
               <span class="detalle-value">{{ selectedContrato.dias_restantes ?? '—' }}</span>
             </div>
+            <!-- v0.9.11: Precio del contrato destacado -->
+            <div class="detalle-item detalle-precio">
+              <span class="detalle-label">Precio del Contrato</span>
+              <span class="detalle-value detalle-precio-value">
+                <span v-if="selectedContrato.costo_total !== null && selectedContrato.costo_total !== undefined">
+                  {{ formatMoneda(selectedContrato.costo_total, selectedContrato.moneda) }}
+                  <small class="detalle-precio-tipo">Costo total</small>
+                </span>
+                <span v-else-if="selectedContrato.costo_periodico !== null && selectedContrato.costo_periodico !== undefined">
+                  {{ formatMoneda(selectedContrato.costo_periodico, selectedContrato.moneda) }}
+                  <small class="detalle-precio-tipo">Costo {{ selectedContrato.periodicidad_costo.toLowerCase() }}</small>
+                </span>
+                <span v-else class="text-muted">—</span>
+              </span>
+            </div>
             <div class="detalle-item">
               <span class="detalle-label">Costo Total</span>
               <span class="detalle-value">{{ formatMoneda(selectedContrato.costo_total, selectedContrato.moneda) }}</span>
@@ -611,9 +879,9 @@ onMounted(async () => {
               <div v-if="selectedContrato.equipos && selectedContrato.equipos.length" class="equipos-lista">
                 <div v-for="eq in selectedContrato.equipos" :key="eq.id" class="equipo-tag">
                   <strong>{{ eq.nombre_corto }}</strong>
-                  <small v-if="eq.modelo" class="text-muted">— {{ eq.modelo }}</small>
-                  <small v-if="eq.numero_serie" class="text-muted">SN: {{ eq.numero_serie }}</small>
-                  <small v-if="eq.ubicacion_actual" class="text-muted">📍 {{ eq.ubicacion_actual }}</small>
+                  <strong v-if="eq.modelo" class="equipo-tag-detalle">— {{ eq.modelo }}</strong>
+                  <strong v-if="eq.numero_serie" class="equipo-tag-detalle">SN: {{ eq.numero_serie }}</strong>
+                  <strong v-if="eq.ubicacion_actual" class="equipo-tag-detalle">📍 {{ eq.ubicacion_actual }}</strong>
                 </div>
               </div>
               <span v-else class="text-muted">Sin equipos asociados</span>
@@ -621,9 +889,135 @@ onMounted(async () => {
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-danger" @click="eliminarContrato(selectedContrato)">🗑 Eliminar</button>
-          <button class="btn btn-primary" @click="abrirEditar(selectedContrato); showDetailModal = false">✏️ Editar</button>
           <button class="btn btn-secondary" @click="showDetailModal = false">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== Modal Importar Excel (v0.9.8) ==================== -->
+    <div v-if="showImportModal" class="modal-overlay" @click.self="showImportModal = false">
+      <div class="modal modal-lg">
+        <div class="modal-header">
+          <h3>Importar Contratos desde Excel</h3>
+          <button class="btn-close" @click="showImportModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <!-- Paso 1: Selección de archivo -->
+          <div v-if="!importResult && !importing">
+            <div
+              class="drop-zone"
+              :class="{ 'drop-zone--active': importDragOver, 'drop-zone--has-file': importFile }"
+              @dragover="handleDragOver"
+              @dragleave="handleDragLeave"
+              @drop="handleDrop"
+              @click="$refs.fileInput.click()"
+            >
+              <div v-if="!importFile" class="drop-zone-content">
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="currentColor" viewBox="0 0 16 16" style="color: #94a3b8;">
+                  <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                  <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/>
+                </svg>
+                <p class="drop-zone-text">Arrastre su archivo Excel o CSV aquí</p>
+                <p class="drop-zone-subtext">o haga clic para seleccionar</p>
+              </div>
+              <div v-else class="drop-zone-content">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="currentColor" viewBox="0 0 16 16" style="color: #27ae60;">
+                  <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1zm-3.5 8l-1.5-1.5L5 10l1 1 3-3 .5.5-3.5 3.5z"/>
+                </svg>
+                <p class="drop-zone-filename">{{ importFile.name }}</p>
+                <p class="drop-zone-subtext">{{ (importFile.size / 1024).toFixed(1) }} KB</p>
+              </div>
+            </div>
+            <input ref="fileInput" type="file" accept=".xlsx,.csv" style="display: none;" @change="handleFileSelect">
+
+            <div class="import-info">
+              <p><strong>Formato:</strong> Archivo .xlsx o .csv con encabezados en la primera fila.</p>
+              <p><strong>Columna obligatoria:</strong> proveedor_nombre, tipo_contrato, fecha_inicio, fecha_fin</p>
+              <p><strong>Equipos:</strong> en columna <code>equipos_series</code>, lista de número de serie separados por <code>;</code></p>
+              <p>Si el proveedor no existe, se <strong>crea automáticamente</strong>. Si ya existe un contrato con mismo proveedor+tipo+fecha_inicio, se <strong>actualiza</strong> (upsert).</p>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" @click="showImportModal = false">Cancelar</button>
+              <button type="button" class="btn-outline" @click="descargarPlantillaExcel" title="Descargar plantilla Excel con datos de ejemplo">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: -2px; margin-right: 4px;">
+                  <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                  <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                </svg>
+                Plantilla Excel
+              </button>
+              <button type="button" class="btn-outline" @click="descargarPlantillaCSV" title="Descargar plantilla CSV">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: -2px; margin-right: 4px;">
+                  <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                  <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                </svg>
+                Plantilla CSV
+              </button>
+              <button type="button" class="btn btn-primary" :disabled="!importFile" @click="submitImport">
+                Importar
+              </button>
+            </div>
+          </div>
+
+          <!-- Paso 2: Procesando -->
+          <div v-if="importing" class="import-progress">
+            <div class="spinner"></div>
+            <p style="text-align: center; color: #475569;">Importando contratos...</p>
+          </div>
+
+          <!-- Paso 3: Resultados -->
+          <div v-if="importResult && !importing">
+            <div class="result-summary">
+              <div class="result-item result-success">
+                <span class="result-number">{{ importResult.exitosos }}</span>
+                <span class="result-label">Nuevos</span>
+              </div>
+              <div class="result-item result-updated">
+                <span class="result-number">{{ importResult.actualizados }}</span>
+                <span class="result-label">Actualizados</span>
+              </div>
+              <div class="result-item result-failed">
+                <span class="result-number">{{ importResult.fallidos }}</span>
+                <span class="result-label">Fallidos</span>
+              </div>
+              <div class="result-item result-total">
+                <span class="result-number">{{ importResult.total_procesados }}</span>
+                <span class="result-label">Total</span>
+              </div>
+            </div>
+
+            <div v-if="importResult.errores && importResult.errores.length > 0" class="import-errors">
+              <h4>Detalle de errores / advertencias</h4>
+              <div class="error-list">
+                <div v-for="(err, idx) in importResult.errores" :key="idx" class="error-item">
+                  <span class="error-fila">Fila {{ err.fila }}</span>
+                  <span class="error-nombre">(Contrato: {{ err.nombre }})</span>
+                  <span class="error-msg">{{ err.errores.join(', ') }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" @click="resetImport">Importar otro archivo</button>
+              <button type="button" class="btn btn-primary" @click="showImportModal = false">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== Modal Documentos (v0.9.12) ==================== -->
+    <div v-if="showDocsModal && docsContrato" class="modal-overlay" @click.self="showDocsModal = false">
+      <div class="modal modal-lg">
+        <div class="modal-header">
+          <h3>Documentos — Contrato #{{ docsContrato.id }} ({{ docsContrato.tipo_contrato }})</h3>
+          <button class="btn-close" @click="showDocsModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <DocumentosAdjuntos :contrato-id="docsContrato.id" />
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showDocsModal = false">Cerrar</button>
         </div>
       </div>
     </div>
@@ -854,6 +1248,13 @@ onMounted(async () => {
 .btn-secondary { background: #e2e8f0; color: #475569; }
 .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
 
+/* v0.9.9: Botones de exportar con color sólido armónico con Importar (verde) y + Nuevo (azul) */
+.btn-export-excel { background: #f59e0b; color: white; }
+.btn-export-excel:hover:not(:disabled) { background: #d97706; }
+
+.btn-export-csv { background: #0891b2; color: white; }
+.btn-export-csv:hover:not(:disabled) { background: #0e7490; }
+
 .btn-danger { background: #ef4444; color: white; }
 .btn-danger:hover:not(:disabled) { background: #dc2626; }
 
@@ -863,18 +1264,246 @@ onMounted(async () => {
   padding: 0.5rem;
 }
 
+/* v0.9.8: Iconos SVG estilo Proveedores v0.9.7 — gris por defecto, color en hover */
+.actions-cell { display: flex; gap: 0.5rem; align-items: center; }
 .btn-icon {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 1rem;
-  padding: 0.2rem 0.35rem;
-  border-radius: 4px;
-  transition: background 0.15s;
+  background: #f0f2f5; color: #555;
+  border: none; padding: 8px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+}
+.btn-view:hover { background: #16a34a; color: #ffffff; }
+.btn-edit:hover { background: #2563eb; color: #ffffff; }
+.btn-doc:hover { background: #0891b2; color: #ffffff; }  /* v0.9.12 */
+.btn-delete:hover { background: #dc2626; color: #ffffff; }
+
+/* Buscador superior (estilo Equipos/Proveedores) */
+.search-wrapper {
+  position: relative; display: flex; align-items: center;
+  min-width: 200px; flex: 1 1 220px; max-width: 360px;
+}
+.search-icon {
+  position: absolute; left: 10px; color: #94a3b8; pointer-events: none; z-index: 1;
+}
+.search-input {
+  width: 100%; padding: 0.55rem 0.85rem 0.55rem 2.2rem;
+  border: 1px solid #cbd5e1; border-radius: 6px;
+  font-size: 0.9rem; box-sizing: border-box; background: #fff;
+}
+.search-input::placeholder { color: #94a3b8; }
+.search-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+
+/* Botón "Cargar Excel" (estilo Equipos/Proveedores) */
+.btn-import {
+  background-color: #27ae60; color: white; border: none; padding: 0.6rem 1.1rem;
+  border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem;
+  display: flex; align-items: center; gap: 0.4rem; transition: background-color 0.2s;
+}
+.btn-import:hover { background-color: #219a52; }
+.btn-import svg { flex-shrink: 0; }
+
+/* Botón outline para plantillas dentro del modal */
+.btn-outline {
+  background-color: transparent; color: #3b82f6; border: 1.5px solid #3b82f6;
+  padding: 0.45rem 0.9rem; border-radius: 4px; cursor: pointer; font-weight: 600;
+  font-size: 0.85rem; transition: all 0.2s; display: flex; align-items: center;
+}
+.btn-outline:hover { background-color: #ebf5ff; }
+
+/* Botón limpiar filtros */
+.btn-clear-filters {
+  display: flex; align-items: center; gap: 0.3rem;
+  padding: 0.35rem 0.7rem; border: 1px solid #fecaca; border-radius: 6px;
+  background: #fef2f2; color: #dc2626;
+  font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.btn-clear-filters:hover { background: #fee2e2; }
+.filter-count {
+  font-size: 0.78rem; font-weight: 600; color: #64748b;
+  background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px;
 }
 
-.btn-icon:hover { background: #f1f5f9; }
-.btn-icon-danger:hover { background: #fee2e2; }
+/* Drop-zone y spinner (estilo Equipos) */
+.drop-zone {
+  border: 2px dashed #cbd5e1; border-radius: 10px; padding: 2rem 1.5rem;
+  text-align: center; cursor: pointer; transition: all 0.25s ease;
+  margin-bottom: 1rem; background: #f8fafc;
+}
+.drop-zone:hover { border-color: #3b82f6; background: #f0f7ff; }
+.drop-zone--active { border-color: #3b82f6; background: #e8f4fd; border-style: solid; }
+.drop-zone--has-file { border-color: #27ae60; border-style: solid; background: #f0fdf4; }
+.drop-zone-content { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+.drop-zone-text { font-size: 1rem; font-weight: 600; color: #475569; margin: 0; }
+.drop-zone-subtext { font-size: 0.85rem; color: #94a3b8; margin: 0; }
+.drop-zone-filename { font-size: 0.95rem; font-weight: 600; color: #27ae60; margin: 0; word-break: break-all; }
+
+.import-info {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
+  padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.85rem; color: #475569;
+}
+.import-info p { margin: 0.2rem 0; }
+.import-info code {
+  background: #f1f5f9; padding: 0.1rem 0.35rem; border-radius: 4px;
+  font-size: 0.82rem; color: #7c3aed;
+}
+
+.import-progress {
+  padding: 2rem; display: flex; flex-direction: column; align-items: center; gap: 1rem;
+}
+.spinner {
+  width: 40px; height: 40px; border: 4px solid #e2e8f0;
+  border-top-color: #3b82f6; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.result-summary {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1rem;
+}
+.result-item { text-align: center; padding: 0.75rem; border-radius: 8px; }
+.result-number { display: block; font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+.result-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: #64748b; }
+.result-success { background: #f0fdf4; }
+.result-success .result-number { color: #16a34a; }
+.result-updated { background: #eff6ff; }
+.result-updated .result-number { color: #2563eb; }
+.result-failed { background: #fef2f2; }
+.result-failed .result-number { color: #dc2626; }
+.result-total { background: #f8fafc; border: 1px solid #e2e8f0; }
+.result-total .result-number { color: #1e293b; }
+
+.import-errors {
+  background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.75rem;
+}
+.import-errors h4 { margin: 0 0 0.5rem 0; color: #991b1b; font-size: 0.9rem; }
+.error-list { max-height: 200px; overflow-y: auto; }
+.error-item {
+  padding: 0.35rem 0; font-size: 0.83rem; color: #7f1d1d;
+  border-bottom: 1px solid #fecaca;
+}
+.error-item:last-child { border-bottom: none; }
+.error-fila { font-weight: 700; margin-right: 0.5rem; }
+.error-nombre { color: #991b1b; font-size: 0.8rem; margin-right: 0.5rem; }
+.error-msg { color: #b91c1c; }
+
+/* v0.9.8: Selector de equipos con buscador interno */
+.equipos-counter {
+  font-size: 0.75rem; font-weight: 500; color: #64748b;
+  background: #f1f5f9; padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.5rem;
+}
+.btn-limpiar-seleccion {
+  background: transparent; border: none; color: #dc2626; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; text-decoration: underline;
+  margin-left: 0.5rem; padding: 0;
+}
+.btn-limpiar-seleccion:hover { color: #b91c1c; }
+.equipos-selector {
+  display: flex; flex-direction: column; gap: 0.6rem;
+}
+
+/* v0.9.9: Chips/tags de equipos seleccionados */
+.chips-container {
+  display: flex; flex-wrap: wrap; gap: 0.4rem;
+  padding: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  min-height: 42px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.chips-empty {
+  padding: 0.75rem;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  background: #fde68a; color: #000000;
+  border: 1px solid #f59e0b;
+  padding: 0.3rem 0.4rem 0.3rem 0.65rem;
+  border-radius: 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: all 0.15s;
+  box-shadow: 0 1px 2px rgba(245, 158, 11, 0.25);
+}
+.chip:hover { background: #fcd34d; border-color: #d97706; }
+.chip-text {
+  display: inline-flex; flex-direction: column; line-height: 1.2;
+}
+.chip-sub-bold {
+  font-size: 0.72rem; font-weight: 600; color: #000000; margin-top: 2px;
+}
+.chip-remove {
+  background: rgba(0, 0, 0, 0.15); border: none; color: #000000;
+  cursor: pointer; font-size: 1rem; line-height: 1;
+  width: 18px; height: 18px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; transition: all 0.15s;
+}
+.chip-remove:hover { background: #000000; color: #ffffff; }
+
+/* Buscador */
+.equipos-search-wrapper {
+  position: relative; display: flex; align-items: center;
+}
+.equipos-search-icon {
+  position: absolute; left: 10px; color: #94a3b8; pointer-events: none; z-index: 1;
+}
+.equipos-search-input {
+  width: 100%; padding: 0.5rem 2rem 0.5rem 2rem;
+  border: 1px solid #cbd5e1; border-radius: 6px;
+  font-size: 0.88rem; box-sizing: border-box; background: #fff;
+}
+.equipos-search-input::placeholder { color: #94a3b8; }
+.equipos-search-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+.equipos-search-clear {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: transparent; border: none; color: #94a3b8; cursor: pointer;
+  font-size: 1.3rem; line-height: 1; padding: 0.2rem 0.4rem; border-radius: 4px;
+}
+.equipos-search-clear:hover { background: #f1f5f9; color: #475569; }
+
+/* Resultados de búsqueda (lista desplegable) */
+.equipos-resultados {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: white;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.equipos-resultados-list {
+  display: flex; flex-direction: column;
+}
+.equipo-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.15s;
+}
+.equipo-item:last-child { border-bottom: none; }
+.equipo-item:hover { background: #f0f7ff; }
+.equipo-item-info {
+  display: flex; flex-direction: column; gap: 0.1rem; line-height: 1.3;
+}
+.equipo-item-info strong:first-child { font-size: 0.92rem; }
+.equipo-item-bold {
+  font-size: 0.76rem; font-weight: 600; color: #334155;
+}
+.equipo-item-add {
+  font-size: 0.78rem; font-weight: 700; color: #16a34a;
+  background: #dcfce7; padding: 0.2rem 0.55rem; border-radius: 12px;
+  flex-shrink: 0; transition: all 0.15s;
+}
+.equipo-item:hover .equipo-item-add {
+  background: #16a34a; color: white;
+}
+.equipos-empty { padding: 1rem; text-align: center; }
 
 .paginacion {
   display: flex;
@@ -987,28 +1616,6 @@ textarea.input {
   font-family: inherit;
 }
 
-.equipos-checkbox-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.35rem;
-  max-height: 180px;
-  overflow-y: auto;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
-  padding: 0.5rem;
-}
-
-.checkbox-item {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-  padding: 0.2rem;
-}
-
-.checkbox-item:hover { background: #f8fafc; border-radius: 3px; }
-
 /* Detalle */
 .detalle-grid {
   display: grid;
@@ -1037,6 +1644,35 @@ textarea.input {
   color: #1e293b;
 }
 
+/* v0.9.11: Precio del contrato destacado en el modal "ojo" */
+.detalle-precio {
+  grid-column: 1 / -1;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+.detalle-precio .detalle-label {
+  color: #92400e;
+  font-size: 0.78rem;
+}
+.detalle-precio-value {
+  font-size: 1.4rem !important;
+  font-weight: 700;
+  color: #92400e;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.detalle-precio-tipo {
+  font-size: 0.72rem !important;
+  font-weight: 500;
+  color: #b45309;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
 .equipos-lista {
   display: flex;
   flex-direction: column;
@@ -1045,14 +1681,22 @@ textarea.input {
 }
 
 .equipo-tag {
-  background: #f1f5f9;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
   padding: 0.5rem 0.7rem;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.85rem;
+  color: #000000;
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   align-items: baseline;
+}
+.equipo-tag strong { color: #000000; }
+.equipo-tag-detalle {
+  font-weight: 600;
+  color: #000000;
+  font-size: 0.78rem;
 }
 
 @media (max-width: 768px) {

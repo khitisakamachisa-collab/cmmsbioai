@@ -44,6 +44,10 @@ def _migrate_documento_herramienta_id():
         if "herramienta_id" not in existing:
             conn.execute(text("ALTER TABLE documentoadjunto ADD COLUMN herramienta_id INTEGER REFERENCES herramienta(id)"))
             print("✅ Migración: columna 'herramienta_id' agregada a tabla 'documentoadjunto'")
+        # v0.9.12: agregar contrato_id a documentoadjunto
+        if "contrato_id" not in existing:
+            conn.execute(text("ALTER TABLE documentoadjunto ADD COLUMN contrato_id INTEGER REFERENCES contrato(id)"))
+            print("✅ Migración v0.9.12: columna 'contrato_id' agregada a tabla 'documentoadjunto'")
         conn.commit()
 
 

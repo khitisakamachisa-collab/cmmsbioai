@@ -43,3 +43,96 @@ dentro de las fechas del contrato. si este contrato esta fuera de fecha no se mo
 
 consulta: el realizar el calculo para cada equipo de si esta dentro de las fechas de contrato o dentro de las fechas de garantía, puede ser complicado si se elige para un gran numero de equipos, pero, se consulta si este valor es mejor se guarde en alguna tabla o en la misma tabla de equipo con un nuevo campo. o en la tabla estadoequipo? como es mejor? 
 
+
+
+
+haremos pequeñas modificaciones en la pagina de EQUIPOS
+haremos una busqueda mas, adicional a nombre modelo y marca, haremos una segunda busqueda por "numero de serie".
+quitaremos de la lista "Condición" no es necesario que se muestre, pero se mantendrá en  los filtros.
+en los iconos de las "Acciones" estos están en colores oscuros y algunos se muestran en colores cuando se pasa el mouse por sobre ellos. 
+ahora, intentemos que sean de colores antes de pasar el mouse sobre ellos, para que visualmente sean mas familiares para el usuario final.
+
+
+
+en la pagina de "Proovedores", el boton de las "plantillas" y de "importar" son distintas en logica a las que tiene la pagina "EQUIPOS".
+vamos a hacerla igual que en equipos.
+en la misma pagina de "proovedores" el "ojo" puede ver, pero puede agregar editar y eliminar un contacto, eso no puede ser. por definicion
+el "ojo" solo puede vizualizar. lo resolveremos de esta manera, en el lapiz modificaremos editaremos todo lo de la empresa, como esta hasta ahora.
+el bote de basura sirve para eliminar eso esta bien. pero crearemos un nuevo icono con una persona, ese sera el icono de contacto, donde podremos adicionar eliminar modificar los contactos de la empresa, pueden ser varios contactos, siguiendo la logica.
+adicionalmente los iconos seran de color. todos esos iconos de esta pagina seran de color.
+hagamoslo¡¡¡
+
+
+ok, seguiremos haciendo cambios en "proovedores".
+Cuando queremos hacer un nuevo contacto y precionamos "+ Agregar Contacto" la ventana de "nuevo contacto" se abre detraz de la pantalla que hemos abierto anteriormente y debemos cerrarla manualmente para poder acceder a la que esta detraz.
+lo solucionaremos de la siguiente manera. cuanto presionemos "+ Agregar Contacto" esa ventana debe cerrarse para dar paso a la ventana de "nuevo contacto"
+lo mismo debemos hacer cuando abrimos un contacto y queremos editarlo, debemos cerrar esa ventana para dar paso a la anterior de edicion.
+
+sobre el color de los iconos, ahora probaremos esto: los iconos estaran sin colores como estaban anteriormente y cuando pasemos el mouse encima 
+se pondran del color que ahora usan para cuando el mouse esta encima...
+hagamoslo.
+
+
+Paginas "Contratos"
+la pagina contratos, tiene diferencias visuales y de uso que no encajan con las otras paginas.
+no existe un boton de "Cargar Excel" como en las otras paginas para que se puedan importar las plantillas. debe crearse siguiendo el patron de la
+pagina de "EQUIPOS".
+
+en "+ Nuevo Contrato" sale una ventana pero al momento de seleccionar los equipos "Equipos Asociados", ¿pero que ocurre si los equipos son muchos?
+¿no sera demaciado larga la pagina? ¿que pasa si son mas de 100 equipos?.
+debemos conversar sobre opciones de hacerlo mas practico.
+
+la opcion de "Buscar" se encuentra en un lugar distinto a donde se muestra en las otras paginas, seguir el ejemplo de "EQUIPOS".
+el buscador debe estar alejado de los filtros. como en "EQUIPOS"
+
+Los colores de los iconos ojo, lapiz y basurero seran los que utilizamos en "proovedores".
+hagamoslo
+
+sigamos tu recomendación , opción B.
+observaciones: en la lista las "Acciones" están en vertical, deben estar en horizontal.
+los botones de exportar, deben estar en un color semejante a los de importar y "+ Nuevo Contrato", tienen que ser un color solido, que convine con los otros.
+
+
+
+
+
+se puede crear uno nuevo.
+pero
+cuando edito sale error
+localhost5173
+Error al guardar contrato: [{"type":"int_parsing","loc":["path","contrato_id"],"msg":"Input should be a valid integer, unable to parse string as an integer","input":"undefined"}]
+en el backend sale este error
+2026-06-28 17:27:21,467 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     127.0.0.1:60398 - "GET /contratos/ HTTP/1.1" 200 OK
+2026-06-28 17:27:21,469 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     127.0.0.1:54572 - "PUT /contratos/undefined HTTP/1.1" 422 Unprocessable Content
+
+otras cosas a corregir
+en la lista en "Acciones" se muestran los iconos muy a la derecha. no están alineados, como en las otra paginas.
+revisa por que esta asi y corrigelo.
+en el "ojo" en visualización se muestran opciones de edición y eliminar. no deben estar allí eliminalos, ver es solo ver.
+
+otra cosa, cuando en editar o en nuevo contrato se buscan los equipos los números de serie y marca deben estar también en negrillas.
+otra cosa, quita de la pagina la explicación "Gestión de contratos de mantenimiento, leasing, comodato y otros (RF12)"
+
+
+ok, esta solucionado.
+vamos a hacer unas modificaciones mas a EQUIPOS.
+cuando un equipo tiene "contrato" y "garantía" en el nombre corto se poden uno debajo del otro generando una tercera fila que descompagina todo.
+entonces, pon uno al lado del otro. cuando se seleccione garantía y en contrato, para evitar generar una tercera fila.
+en esta misma pagina usaremos los colores y formas para los iconos que estamos usando en "promovedores"
+
+En la pagina "contratos" en el "ojo" que se muestre también el precio del contrato.
+que el fondo de los equipos seleccionados en el contrato sea de un color resaltándolo, el color que ahora tiene es muy similar al fondo en general.
+
+y respecto a tu pregunta.
+si, quiero aplicar el mismo selector chips/tags a Proveedores (en su modal de crear/editar empresa).
+
+
+
+
+otras correcciones.
+en EQUIPOS en los iconos cuando se pasa el mouse sobre ellos no cambian de color. deben cambiar como en proovedores. revisa que paso.
+en CONTRATOS debemos adicionar DOCUMENTACION, ya que los contratos tienen documentación. etc.
+en CONTRATOS, los Equipos Asociados en ver deben tener un fondo de color mas llamativo. y todo su texto en negro.
+en CONTRATOS, en editar los chips pueden ser de cualquier color que sugieras pero las letras deben ser en negro no en blanco. para facilidad de lectura.

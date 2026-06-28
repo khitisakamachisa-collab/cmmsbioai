@@ -1,0 +1,11 @@
+nombre_herramienta,numero_identificacion,descripcion,categoria,cantidad_disponible,unidad_medida,ubicacion_almacen,estado_uso,costo_adquisicion,fecha_adquisicion,proveedor_ultimo,observaciones
+Osciloscopio digital Rigol DS1054Z,OSC-001,Osciloscopio 4 canales 50MHz para diagnostico de equipos medicos,Instrumento de Medición,1,unidad,Taller - Estante A1,Disponible,5200.0,2024-03-15,Rigol Technologies,Calibracion anual vigente
+Multímetro Fluke 87V,MUL-002,Multímetro digital True RMS industrial,Instrumento de Medición,2,unidad,Taller - Estante A1,Disponible,2800.0,2024-01-20,Fluke Corporation,Unidad con bateria nueva
+Analizador de seguridad eléctrica Fluke ESA620,ANA-003,Para prueba de seguridad eléctrica en equipos médicos según IEC 62353,Instrumento de Medición,1,unidad,Taller - Estante A2,En Uso,15000.0,2024-06-10,Fluke Corporation,En uso en mantenimiento preventivo
+Juego de destornilladores aislados Wiha,DES-004,Juego 12 piezas VDE 1000V para trabajo en equipos energizados,Herramienta Manual,3,juego,Taller - Cajón B1,Disponible,450.0,2024-02-05,Wiha,
+Pinza amperimérica Fluke 376 FC,PIN-005,Pinza AC/DC 1000A con Bluetooth,Instrumento de Medición,1,unidad,Taller - Estante A1,Disponible,3500.0,2024-04-18,Fluke Corporation,Con certificado de calibracion
+Alcohol isopropílico 99%,ALC-006,Para limpieza de componentes electrónicos y ópticos,Consumible,5,litro,Taller - Estante C2,Disponible,85.0,2025-01-10,Quimica Bolivia,Almacenar en lugar ventilado
+Estaño para soldadura 60/40 0.8mm,EST-007,Rollo 500g soldadura electrónica con núcleo de resina,Consumible,4,rollo,Taller - Estante C1,Disponible,120.0,2025-02-15,ElectroSolder,
+Kit de calibración presión,KIT-008,Kit con manómetro patrón y accesorios para calibración de equipos de presión,Kit,1,kit,Taller - Estante A3,Disponible,8500.0,2024-08-01,Additel,Incluye case y certificados
+Generador de señales Rigol DG822,GEN-009,Generador de funciones 2 canales 30MHz para pruebas de equipos,Instrumento de Medición,1,unidad,Taller - Estante A2,Disponible,4100.0,2024-05-22,Rigol Technologies,
+Cautín soldador Weller WE1010,CAU-010,Estación de soldadura 70W con control de temperatura,Herramienta Manual,2,unidad,Taller - Estante B1,Disponible,680.0,2024-09-12,Weller,Una unidad en reparacion

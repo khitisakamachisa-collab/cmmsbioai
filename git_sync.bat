@@ -13,7 +13,7 @@ echo ==============================
 echo 2. Subiendo cambios locales...
 echo ==============================
 git add .
-git commit -m "version 9.0.4 equipos ok - contratos-frontend"
+git commit -m "v0.9.12 — Fix hover Equipos + Documentos Contratos + chips negros"
 git push origin main
 
 echo ==============================

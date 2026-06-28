@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
 import Navbar from '../components/Navbar.vue'
 import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'
-import { exportToExcelHTML } from '../services/export.js'  // v0.9.3: RF13
 
 // --- Variables Generales ---
 const equipos = ref([])
@@ -12,7 +11,6 @@ const estados = ref([])
 const proveedores = ref([])  // v0.9.0: reemplaza tecnicos
 const loading = ref(true)
 const error_msg = ref('')
-const contratosEquipo = ref([])  // v0.9.2: contratos del equipo en detalle
 
 const PAGE_SIZE = 10
 const currentPage = ref(1)
@@ -22,6 +20,8 @@ const searchQuery = ref('')
 const filterUbicacion = ref('')
 const filterEstado = ref('')
 const filterCondicion = ref('')
+const filterGarantia = ref('')   // v0.9.4: filtro de garantía
+const filterContrato = ref('')   // v0.9.4: filtro de contrato
 
 // --- Variables Modal ---
 const showModal = ref(false)
@@ -65,17 +65,9 @@ const CONDICIONES_ORIGEN = [
 ]
 
 // Función para abrir el modal de detalles
-const openDetailModal = async (equipo) => {
+const openDetailModal = (equipo) => {
   selectedEquipo.value = equipo
-  contratosEquipo.value = []  // v0.9.2: limpiar antes de cargar
   showDetailModal.value = true
-  // v0.9.2: Cargar contratos del equipo
-  try {
-    const res = await apiClient.get(`/contratos/?equipo_id=${equipo.id}`)
-    contratosEquipo.value = res.data
-  } catch (e) {
-    console.warn('No se pudieron cargar contratos del equipo', e)
-  }
 }
 
 // Función para abrir el modal de documentos
@@ -224,7 +216,7 @@ const ubicacionesUnicas = computed(() => {
 })
 
 const tieneFiltrosActivos = computed(() => {
-  return searchQuery.value.trim() || filterUbicacion.value || filterEstado.value || filterCondicion.value
+  return searchQuery.value.trim() || filterUbicacion.value || filterEstado.value || filterCondicion.value || filterGarantia.value || filterContrato.value
 })
 
 const limpiarFiltros = () => {
@@ -232,6 +224,8 @@ const limpiarFiltros = () => {
   filterUbicacion.value = ''
   filterEstado.value = ''
   filterCondicion.value = ''
+  filterGarantia.value = ''
+  filterContrato.value = ''
 }
 
 const filteredEquipos = computed(() => {
@@ -265,6 +259,20 @@ const filteredEquipos = computed(() => {
     result = result.filter(eq => eq.condicion_origen === filterCondicion.value)
   }
 
+  // v0.9.4: Filtro por garantía
+  if (filterGarantia.value === 'con') {
+    result = result.filter(eq => eq.en_garantia === true)
+  } else if (filterGarantia.value === 'sin') {
+    result = result.filter(eq => eq.en_garantia !== true)
+  }
+
+  // v0.9.4: Filtro por contrato
+  if (filterContrato.value === 'con') {
+    result = result.filter(eq => eq.en_contrato === true)
+  } else if (filterContrato.value === 'sin') {
+    result = result.filter(eq => eq.en_contrato !== true)
+  }
+
   return result
 })
 
@@ -280,7 +288,7 @@ watch(
   }
 )
 
-watch([searchQuery, filterUbicacion, filterEstado, filterCondicion], () => {
+watch([searchQuery, filterUbicacion, filterEstado, filterCondicion, filterGarantia, filterContrato], () => {
   currentPage.value = 1
 })
 
@@ -565,32 +573,6 @@ const getEstadoColor = (id) => {
   return estado ? estado.color : '#95a5a6'
 }
 
-// v0.9.3: Exportar equipos filtrados a Excel (RF13)
-const exportarEquipos = () => {
-  const data = filteredEquipos.value.map(eq => ({
-    ...eq,
-    estado_nombre: getNombreEstado(eq.estado_id),
-    proveedor_nombre: getProveedorName(eq.proveedor_principal_id)
-  }))
-  const columns = [
-    { key: 'id', label: 'ID' },
-    { key: 'nombre_corto', label: 'Nombre Corto' },
-    { key: 'modelo', label: 'Modelo' },
-    { key: 'numero_serie', label: 'N° Serie' },
-    { key: 'numero_material', label: 'N° Material' },
-    { key: 'marca', label: 'Marca' },
-    { key: 'fecha_adquisicion', label: 'Fecha Adquisicion' },
-    { key: 'ubicacion_actual', label: 'Ubicacion' },
-    { key: 'estado_nombre', label: 'Estado' },
-    { key: 'condicion_origen', label: 'Condicion' },
-    { key: 'proveedor_nombre', label: 'Proveedor' },
-    { key: 'fecha_inicio_garantia', label: 'Inicio Garantia' },
-    { key: 'fecha_fin_garantia', label: 'Fin Garantia' },
-    { key: 'observaciones', label: 'Observaciones' },
-  ]
-  exportToExcelHTML(data, columns, 'CMMS-BioAI_Equipos')
-}
-
 onMounted(() => {
   fetchEquipos()
   fetchEstados()
@@ -626,9 +608,6 @@ onMounted(() => {
             </svg>
             Cargar Excel
           </button>
-          <button class="btn-export" @click="exportarEquipos" title="Exportar lista filtrada a Excel">
-            📤 Exportar
-          </button>
           <button class="btn-primary" @click="openCreateModal">+ Nuevo Equipo</button>
         </div>
       </div>
@@ -654,6 +633,24 @@ onMounted(() => {
           <select v-model="filterCondicion" class="filter-select">
             <option value="">Todas</option>
             <option v-for="c in CONDICIONES_ORIGEN" :key="c" :value="c">{{ c }}</option>
+          </select>
+        </div>
+        <!-- v0.9.4: Filtro de garantía -->
+        <div class="filter-group">
+          <label class="filter-label">Garantía:</label>
+          <select v-model="filterGarantia" class="filter-select">
+            <option value="">Todas</option>
+            <option value="con">🟢 En garantía</option>
+            <option value="sin">Sin garantía</option>
+          </select>
+        </div>
+        <!-- v0.9.4: Filtro de contrato -->
+        <div class="filter-group">
+          <label class="filter-label">Contrato:</label>
+          <select v-model="filterContrato" class="filter-select">
+            <option value="">Todos</option>
+            <option value="con">📋 En contrato</option>
+            <option value="sin">Sin contrato</option>
           </select>
         </div>
         <button v-if="tieneFiltrosActivos" class="btn-clear-filters" @click="limpiarFiltros" title="Limpiar todos los filtros">
@@ -696,16 +693,21 @@ onMounted(() => {
               :key="equipo.id"
             >
             <td>{{ equipo.id }}</td>
-            <td>{{ equipo.nombre_corto || 'N/A' }}</td>
+            <td>
+              <strong>{{ equipo.nombre_corto || 'N/A' }}</strong>
+              <!-- v0.9.4: garantía y contrato debajo del nombre (solo si aplican) -->
+              <div v-if="equipo.en_garantia || equipo.en_contrato" class="sub-badges">
+                <span v-if="equipo.en_garantia" class="sub-badge-garantia" :title="`Garantía hasta: ${equipo.fecha_fin_garantia}`">🟢 En garantía</span>
+                <span v-if="equipo.en_contrato" class="sub-badge-contrato">📋 En contrato</span>
+              </div>
+            </td>
             <td>{{ equipo.modelo }}</td>
             <td>{{ equipo.marca }}</td>
             <td>{{ equipo.ubicacion_actual }}</td>
             <td>
+              <!-- v0.9.4: SOLO estado operativo, sin mezclar garantía -->
               <span class="badge" :style="{ backgroundColor: getEstadoColor(equipo.estado_id) }">
                 {{ getNombreEstado(equipo.estado_id) }}
-              </span>
-              <span v-if="getGarantiaBadge(equipo).text" :class="getGarantiaBadge(equipo).class" :title="`Fin garantía: ${equipo.fecha_fin_garantia}`">
-                {{ getGarantiaBadge(equipo).text }}
               </span>
             </td>
             <td>
@@ -1136,29 +1138,6 @@ onMounted(() => {
             {{ selectedEquipo.observaciones }}
           </div>
         </div>
-
-        <!-- v0.9.2: Contratos asociados al equipo (RF12) -->
-        <div class="detail-full">
-          <h4>📋 Contratos Asociados</h4>
-          <div v-if="contratosEquipo.length > 0" class="contratos-list">
-            <div v-for="c in contratosEquipo" :key="c.id" class="contrato-card">
-              <div class="contrato-card-header">
-                <span class="contrato-tipo">{{ c.tipo_contrato }}</span>
-                <span :class="c.activo ? 'contrato-badge-vigente' : (c.dias_restantes < 0 ? 'contrato-badge-vencido' : 'contrato-badge-pendiente')">
-                  {{ c.activo ? 'Vigente' : (c.dias_restantes < 0 ? 'Vencido' : 'No iniciado') }}
-                </span>
-              </div>
-              <div class="contrato-card-body">
-                <p><strong>Proveedor:</strong> {{ c.proveedor_nombre }}</p>
-                <p><strong>Vigencia:</strong> {{ c.fecha_inicio?.substring(0, 10) }} - {{ c.fecha_fin?.substring(0, 10) }}</p>
-                <p v-if="c.costo_total"><strong>Costo:</strong> {{ c.moneda }} {{ Number(c.costo_total).toFixed(2) }}</p>
-                <p v-if="c.tiempo_respuesta"><strong>Respuesta:</strong> {{ c.tiempo_respuesta }}</p>
-              </div>
-            </div>
-          </div>
-          <p v-else style="color: #94a3b8; font-style: italic;">Este equipo no tiene contratos asociados.</p>
-        </div>
-
         <div class="modal-actions">
           <button class="btn-secondary" @click="showDetailModal = false">Cerrar</button>
         </div>
@@ -1332,9 +1311,6 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
 
-.btn-export { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; padding: 0.45rem 0.9rem; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
-.btn-export:hover { background: #dcfce7; }
-
 .btn-import {
   background-color: #27ae60; color: white; border: none; padding: 0.6rem 1.1rem;
   border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem;
@@ -1397,6 +1373,26 @@ th { background-color: #f8f9fa; font-weight: bold; }
   background: #dbeafe;
 }
 
+/* v0.9.4: Sub-badges de garantía y contrato debajo del nombre */
+.sub-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 2px;
+}
+.sub-badge-garantia {
+  font-size: 0.68rem;
+  color: #16a34a;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.sub-badge-contrato {
+  font-size: 0.68rem;
+  color: #2563eb;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
 /* v0.9.0: Campos no editables (deshabilitados en edición) */
 .warning-no-editable {
   background: #fef2f2;
@@ -1428,17 +1424,6 @@ th { background-color: #f8f9fa; font-weight: bold; }
   transition: background 0.2s;
 }
 .btn-add-proveedor:hover { background: #15803d; }
-
-/* v0.9.2: Contratos en modal de detalle del equipo */
-.contratos-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
-.contrato-card { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-.contrato-card-header { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.75rem; background: #f8fafc; }
-.contrato-tipo { font-weight: 600; font-size: 0.85rem; color: #1e293b; }
-.contrato-badge-vigente { padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: #fff; background: #16a34a; }
-.contrato-badge-vencido { padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: #fff; background: #dc2626; }
-.contrato-badge-pendiente { padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: #fff; background: #64748b; }
-.contrato-card-body { padding: 0.5rem 0.75rem; }
-.contrato-card-body p { margin: 0.2rem 0; font-size: 0.82rem; color: #475569; }
 
 .imagen-upload-container { display: flex; flex-direction: column; gap: 0.4rem; }
 .imagen-existente { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; }

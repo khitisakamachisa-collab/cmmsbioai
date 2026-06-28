@@ -121,10 +121,60 @@ def crear_equipo(equipo: EquipoCreate, session: Session = Depends(get_session)):
     return db_equipo
 
 
-@router.get("/", response_model=list[EquipoRead])
+@router.get("/")
 def listar_equipos(session: Session = Depends(get_session)):
+    """
+    Lista todos los equipos con campos calculados:
+    - en_garantia: bool (calculado desde fecha_inicio_garantia y fecha_fin_garantia)
+    - en_contrato: bool (calculado consultando ContratoEquipo + Contrato vigente)
+    """
+    from models.contratos import Contrato, ContratoEquipo
+    from datetime import date as date_type
+
     equipos = session.exec(select(Equipo)).all()
-    return equipos
+    hoy = date_type.today()
+
+    # Pre-cargar todos los ContratoEquipo para evitar N+1 queries
+    todas_asociaciones = session.exec(select(ContratoEquipo)).all()
+    todos_contratos = {c.id: c for c in session.exec(select(Contrato)).all()}
+
+    resultado = []
+    for eq in equipos:
+        data = eq.model_dump()
+
+        # Calcular en_garantia
+        en_garantia = False
+        if eq.fecha_inicio_garantia and eq.fecha_fin_garantia:
+            inicio = eq.fecha_inicio_garantia
+            fin = eq.fecha_fin_garantia
+            if hasattr(inicio, 'date'):
+                inicio = inicio.date()
+            if hasattr(fin, 'date'):
+                fin = fin.date()
+            if inicio <= hoy <= fin:
+                en_garantia = True
+        data['en_garantia'] = en_garantia
+
+        # Calcular en_contrato
+        en_contrato = False
+        equipo_contrato_ids = [a.contrato_id for a in todas_asociaciones if a.equipo_id == eq.id]
+        for contrato_id in equipo_contrato_ids:
+            contrato = todos_contratos.get(contrato_id)
+            if contrato:
+                inicio = contrato.fecha_inicio
+                fin = contrato.fecha_fin
+                if hasattr(inicio, 'date'):
+                    inicio = inicio.date()
+                if hasattr(fin, 'date'):
+                    fin = fin.date()
+                if inicio <= hoy <= fin:
+                    en_contrato = True
+                    break
+        data['en_contrato'] = en_contrato
+
+        resultado.append(data)
+
+    return resultado
 
 
 @router.put("/{equipo_id}", response_model=EquipoRead)

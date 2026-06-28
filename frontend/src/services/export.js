@@ -1,90 +1,130 @@
 /**
- * Utilidades de exportación para CMMS-BioAI v0.9.3 (RF13)
- * Funciones para exportar datos a CSV (compatible con Excel)
+ * Servicios de exportación - RF13
+ * Funciones para exportar datos a Excel (.xls via HTML) y CSV.
+ * No dependen de librerías externas — usan Blob + download nativo del navegador.
  */
 
 /**
- * Convierte un array de objetos a CSV y lo descarga.
- * @param {Array} data - Array de objetos a exportar
- * @param {Array} columns - Array de {key, label} con las columnas a exportar
- * @param {string} filename - Nombre del archivo sin extensión
+ * Escapa un valor para colocarlo dentro de una celda HTML (<td>).
+ * @param {any} val
+ * @returns {string}
  */
-export function exportToCSV(data, columns, filename) {
-  if (!data || data.length === 0) {
-    alert('No hay datos para exportar')
-    return
-  }
-
-  // Cabeceras
-  const headers = columns.map(c => `"${c.label}"`).join(',')
-
-  // Filas
-  const rows = data.map(item => {
-    return columns.map(c => {
-      let val = item[c.key]
-      if (val === null || val === undefined) val = ''
-      // Escapar comillas y saltos de línea
-      val = String(val).replace(/"/g, '""').replace(/\n/g, ' ')
-      return `"${val}"`
-    }).join(',')
-  })
-
-  // Combinar
-  const csv = '\ufeff' + headers + '\n' + rows.join('\n')  // BOM para Excel
-
-  // Descargar
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  const date = new Date().toISOString().substring(0, 10)
-  link.download = `${filename}_${date}.csv`
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  window.URL.revokeObjectURL(url)
+function escapeHtml(val) {
+  if (val === null || val === undefined) return ''
+  const s = String(val)
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 /**
- * Convierte un array de objetos a HTML table y lo abre para imprimir/guardar como Excel.
- * @param {Array} data - Array de objetos a exportar
- * @param {Array} columns - Array de {key, label} con las columnas a exportar
- * @param {string} filename - Nombre del archivo sin extensión
+ * Escapa un valor para CSV siguiendo reglas RFC 4180.
+ * @param {any} val
+ * @returns {string}
  */
-export function exportToExcelHTML(data, columns, filename) {
-  if (!data || data.length === 0) {
-    alert('No hay datos para exportar')
-    return
+function escapeCsv(val) {
+  if (val === null || val === undefined) return ''
+  const s = String(val)
+  // Si contiene comilla, coma, salto de línea o punto y coma → envolver en comillas y duplicar comillas
+  if (/[",\n;]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`
   }
+  return s
+}
 
-  let html = '<table border="1"><thead><tr>'
-  columns.forEach(c => {
-    html += `<th style="background:#2C3E50;color:white;font-weight:bold;padding:8px;">${c.label}</th>`
-  })
-  html += '</tr></thead><tbody>'
+/**
+ * Convierte un array de objetos a tabla HTML para Excel.
+ * @param {Array<Object>} rows
+ * @returns {string}
+ */
+function rowsToHtmlTable(rows) {
+  if (!rows || !rows.length) {
+    return '<table><tr><td>(sin datos)</td></tr></table>'
+  }
+  const headers = Object.keys(rows[0])
+  const thead = `<tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr>`
+  const tbody = rows.map(r =>
+    `<tr>${headers.map(h => `<td>${escapeHtml(r[h])}</td>`).join('')}</tr>`
+  ).join('')
+  return `<table border="1">${thead}${tbody}</table>`
+}
 
-  data.forEach(item => {
-    html += '<tr>'
-    columns.forEach(c => {
-      let val = item[c.key]
-      if (val === null || val === undefined) val = ''
-      html += `<td style="padding:6px;">${String(val).replace(/</g, '&lt;')}</td>`
-    })
-    html += '</tr>'
-  })
+/**
+ * Convierte un array de objetos a texto CSV.
+ * @param {Array<Object>} rows
+ * @param {string} delimiter - por defecto ','
+ * @returns {string}
+ */
+function rowsToCsv(rows, delimiter = ',') {
+  if (!rows || !rows.length) return ''
+  const headers = Object.keys(rows[0])
+  const lines = [headers.join(delimiter)]
+  for (const r of rows) {
+    lines.push(headers.map(h => escapeCsv(r[h])).join(delimiter))
+  }
+  return lines.join('\n')
+}
 
-  html += '</tbody></table>'
+/**
+ * Dispara la descarga de un Blob en el navegador.
+ * @param {Blob} blob
+ * @param {string} filename
+ */
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  // Liberar URL después de un breve delay
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
 
-  // Crear archivo .xls (Excel abre HTML con extensión .xls)
-  const blob = new Blob(['\ufeff<html><head><meta charset="utf-8"></head><body>' + html + '</body></html>'],
-    { type: 'application/vnd.ms-excel;charset=utf-8' })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  const date = new Date().toISOString().substring(0, 10)
-  link.download = `${filename}_${date}.xls`
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  window.URL.revokeObjectURL(url)
+/**
+ * Exporta un array de objetos a un archivo .xls (HTML table con header Excel).
+ * @param {Array<Object>} rows - Array de objetos planos (cada key = columna)
+ * @param {string} baseName - Nombre base del archivo (sin extensión)
+ */
+export function exportToExcelHTML(rows, baseName = 'export') {
+  const html = rowsToHtmlTable(rows)
+  const fullHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+xmlns:x="urn:schemas-microsoft-com:office:excel"
+xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<!--[if gte mso 9]><xml>
+<x:ExcelWorkbook>
+  <x:ExcelWorksheets>
+    <x:ExcelWorksheet>
+      <x:Name>Hoja1</x:Name>
+      <x:WorksheetOptions>
+        <x:DisplayGridlines/>
+      </x:WorksheetOptions>
+    </x:ExcelWorksheet>
+  </x:ExcelWorksheets>
+</x:ExcelWorkbook>
+</xml><![endif]-->
+</head>
+<body>${html}</body>
+</html>`
+  const blob = new Blob([fullHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+  downloadBlob(blob, `${baseName}.xls`)
+}
+
+/**
+ * Exporta un array de objetos a un archivo .csv (UTF-8 con BOM para Excel).
+ * @param {Array<Object>} rows - Array de objetos planos
+ * @param {string} baseName - Nombre base del archivo (sin extensión)
+ * @param {string} [delimiter=',']
+ */
+export function exportToCSV(rows, baseName = 'export', delimiter = ',') {
+  const csv = rowsToCsv(rows, delimiter)
+  // BOM para que Excel detecte UTF-8 correctamente
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  downloadBlob(blob, `${baseName}.csv`)
 }

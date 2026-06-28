@@ -5,27 +5,12 @@ from typing import Optional, List, Any
 from pydantic import BaseModel, field_validator
 from datetime import datetime, date
 
-
-# Valores válidos para enums
 TIPOS_CONTRATO = {
     'Comodato', 'Mantenimiento Preventivo', 'Mantenimiento Correctivo',
     'Leasing', 'Garantía Extendida', 'Soporte Técnico', 'Servicio Integral', 'Otro'
 }
-
 PERIODICIDADES = {'Único', 'Mensual', 'Trimestral', 'Semestral', 'Anual'}
-
 MONEDAS = {'USD', 'EUR', 'BOB', 'MXN', 'ARS', 'CLP', 'COP', 'PEN', 'BRL', 'Otro'}
-
-
-class ContratoEquipoCreate(BaseModel):
-    equipo_id: int
-
-
-class ContratoEquipoRead(BaseModel):
-    contrato_id: int
-    equipo_id: int
-    class Config:
-        from_attributes = True
 
 
 class ContratoCreate(BaseModel):
@@ -41,7 +26,7 @@ class ContratoCreate(BaseModel):
     tiempo_respuesta: Optional[str] = None
     horario_servicio: Optional[str] = None
     notas: Optional[str] = None
-    equipos_ids: Optional[List[int]] = None  # IDs de equipos a asociar
+    equipos_ids: Optional[List[int]] = None
 
     @field_validator('tipo_contrato')
     @classmethod
@@ -77,7 +62,7 @@ class ContratoUpdate(BaseModel):
     tiempo_respuesta: Optional[str] = None
     horario_servicio: Optional[str] = None
     notas: Optional[str] = None
-    equipos_ids: Optional[List[int]] = None  # Para reemplazar todas las asociaciones
+    equipos_ids: Optional[List[int]] = None
 
     @field_validator('tipo_contrato')
     @classmethod
@@ -122,12 +107,9 @@ class ContratoRead(BaseModel):
     horario_servicio: Optional[str]
     notas: Optional[str]
     fecha_creacion: datetime
-    # Campos calculados (no están en BD, se calculan en runtime)
     activo: Optional[bool] = None
     dias_restantes: Optional[int] = None
-    # Equipos asociados
-    equipos: Optional[List[Any]] = None  # Lista de equipos asociados al contrato
-    # Info del proveedor (para mostrar en listados)
+    equipos: Optional[List[Any]] = None
     proveedor_nombre: Optional[str] = None
 
     class Config:

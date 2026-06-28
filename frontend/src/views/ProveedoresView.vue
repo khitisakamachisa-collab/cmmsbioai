@@ -30,7 +30,6 @@ const showContactoModal = ref(false)
 const contactoEditing = ref(false)
 const contactoFormData = ref({})
 const contactoPadreId = ref(null)
-const contratosProveedor = ref([])  // v0.9.2: contratos del proveedor en detalle
 
 // --- Importación Excel ---
 const showImportModal = ref(false)
@@ -180,17 +179,9 @@ const deleteProveedor = async (id) => {
 }
 
 // --- Detalle (ver contactos) ---
-const openDetailModal = async (prov) => {
+const openDetailModal = (prov) => {
   selectedProveedor.value = prov
-  contratosProveedor.value = []  // v0.9.2: limpiar
   showDetailModal.value = true
-  // v0.9.2: Cargar contratos del proveedor
-  try {
-    const res = await apiClient.get(`/contratos/?proveedor_id=${prov.id}`)
-    contratosProveedor.value = res.data
-  } catch (e) {
-    console.warn('No se pudieron cargar contratos del proveedor', e)
-  }
 }
 
 // --- CRUD Contactos ---
@@ -575,35 +566,6 @@ onMounted(() => {
                     <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
                   </svg>
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- v0.9.2: Contratos del proveedor (RF12) -->
-        <hr class="detail-separator">
-        <div class="contactos-section">
-          <h4>📋 Contratos ({{ contratosProveedor.length }})</h4>
-          <div v-if="!contratosProveedor.length" class="empty-contactos">
-            Este proveedor no tiene contratos registrados.
-          </div>
-          <div v-else class="contactos-list">
-            <div v-for="c in contratosProveedor" :key="c.id" class="contacto-card" style="background: #f0f9ff; border-color: #bae6fd;">
-              <div class="contacto-info">
-                <div class="contacto-nombre">
-                  <strong>{{ c.tipo_contrato }}</strong>
-                  <span :class="c.activo ? 'contacto-cargo' : 'contacto-cargo'" style="background: #fef2f2; color: #dc2626;" v-if="!c.activo">
-                    {{ c.dias_restantes < 0 ? 'Vencido' : 'No iniciado' }}
-                  </span>
-                  <span class="contacto-cargo" style="background: #d1fae5; color: #15803d;" v-else>
-                    Vigente ({{ c.dias_restantes }}d)
-                  </span>
-                </div>
-                <div class="contacto-datos">
-                  <span>{{ c.fecha_inicio?.substring(0, 10) }} - {{ c.fecha_fin?.substring(0, 10) }}</span>
-                  <span v-if="c.costo_total"> · {{ c.moneda }} {{ Number(c.costo_total).toFixed(2) }}</span>
-                  <span v-if="c.equipos?.length"> · {{ c.equipos.length }} equipo(s)</span>
-                </div>
               </div>
             </div>
           </div>

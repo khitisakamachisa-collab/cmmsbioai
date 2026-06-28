@@ -40,7 +40,7 @@ app.include_router(documentos.router)
 app.include_router(herramientas.router)
 app.include_router(configuracion.router)
 app.include_router(proveedores.router)
-app.include_router(contratos.router)  # v0.9.2: RF12
+app.include_router(contratos.router)
 
 # Servir archivos estaticos (documentos subidos) - usa config.py
 uploads_dir = get_dir("uploads_base")

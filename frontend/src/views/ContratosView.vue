@@ -1,10 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import apiClient from '../services/api.js'
 import Navbar from '../components/Navbar.vue'
-import { exportToExcelHTML } from '../services/export.js'  // v0.9.3: RF13
+import { exportToExcelHTML, exportToCSV } from '../services/export.js'
 
-// --- Variables Generales ---
+// --- Variables generales ---
 const contratos = ref([])
 const proveedores = ref([])
 const equipos = ref([])
@@ -13,108 +13,163 @@ const errorMsg = ref('')
 
 const PAGE_SIZE = 10
 const currentPage = ref(1)
-const searchQuery = ref('')
 
 // --- Filtros ---
+const searchQuery = ref('')
+const filterVigencia = ref('')   // '' | 'vigente' | 'vencido' | 'proximo'
+const filterTipo = ref('')
 const filterProveedor = ref('')
-const filterVigencia = ref('')
 
-// --- Modal ---
-const showModal = ref(false)
-const isEditing = ref(false)
-const formData = ref({})
-
-// --- Constantes ---
-const TIPOS_CONTRATO = [
+// --- Opciones para selects ---
+const tiposContrato = [
   'Comodato', 'Mantenimiento Preventivo', 'Mantenimiento Correctivo',
   'Leasing', 'Garantía Extendida', 'Soporte Técnico', 'Servicio Integral', 'Otro'
 ]
-const PERIODICIDADES = ['Único', 'Mensual', 'Trimestral', 'Semestral', 'Anual']
-const MONEDAS = ['USD', 'EUR', 'BOB', 'MXN', 'ARS', 'CLP', 'COP', 'PEN', 'BRL', 'Otro']
+const periodicidades = ['Único', 'Mensual', 'Trimestral', 'Semestral', 'Anual']
+const monedas = ['USD', 'EUR', 'BOB', 'MXN', 'ARS', 'CLP', 'COP', 'PEN', 'BRL', 'Otro']
 
-// --- Computados ---
-const filteredContratos = computed(() => {
-  let result = contratos.value
-  const q = searchQuery.value.trim().toLowerCase()
-  if (q) {
-    result = result.filter(c =>
-      c.tipo_contrato?.toLowerCase().includes(q) ||
-      c.proveedor_nombre?.toLowerCase().includes(q)
-    )
-  }
-  if (filterProveedor.value) {
-    result = result.filter(c => c.proveedor_id == filterProveedor.value)
-  }
-  if (filterVigencia.value === 'vigente') {
-    result = result.filter(c => c.activo === true)
-  } else if (filterVigencia.value === 'vencido') {
-    result = result.filter(c => c.activo === false && c.dias_restantes < 0)
-  } else if (filterVigencia.value === 'proximo') {
-    result = result.filter(c => c.activo === true && c.dias_restantes <= 30)
-  }
-  return result
-})
+// --- Modal Crear/Editar ---
+const showModal = ref(false)
+const isEditing = ref(false)
+const formData = ref({})
+const saving = ref(false)
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredContratos.value.length / PAGE_SIZE)))
+// --- Modal Detalle ---
+const showDetailModal = ref(false)
+const selectedContrato = ref(null)
 
-const tieneFiltros = computed(() => searchQuery.value.trim() || filterProveedor.value || filterVigencia.value)
-
-// --- Fetch ---
-const fetchData = async () => {
+// --- Helpers ---
+const formatFecha = (f) => {
+  if (!f) return '—'
   try {
-    loading.value = true
-    const [resContratos, resProveedores, resEquipos] = await Promise.all([
-      apiClient.get('/contratos/'),
-      apiClient.get('/proveedores/'),
-      apiClient.get('/equipos/')
-    ])
-    contratos.value = resContratos.data
-    proveedores.value = resProveedores.data
-    equipos.value = resEquipos.data
+    const d = new Date(f)
+    return d.toLocaleDateString('es-BO', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  } catch {
+    return String(f).slice(0, 10)
+  }
+}
+
+const formatMoneda = (val, moneda) => {
+  if (val === null || val === undefined || val === '') return '—'
+  const num = Number(val)
+  if (isNaN(num)) return String(val)
+  return `${num.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moneda || ''}`.trim()
+}
+
+const getEstadoVigencia = (c) => {
+  if (!c) return { label: '—', clase: 'badge-gray' }
+  if (c.activo) {
+    if (c.dias_restantes !== null && c.dias_restantes <= 30) {
+      return { label: `Vence pronto (${c.dias_restantes}d)`, clase: 'badge-yellow' }
+    }
+    return { label: 'Vigente', clase: 'badge-green' }
+  }
+  if (c.dias_restantes !== null && c.dias_restantes > 0) {
+    return { label: 'Programado', clase: 'badge-blue' }
+  }
+  return { label: 'Vencido', clase: 'badge-red' }
+}
+
+// --- Carga de datos ---
+async function cargarContratos() {
+  loading.value = true
+  errorMsg.value = ''
+  try {
+    const res = await apiClient.get('/contratos/')
+    contratos.value = Array.isArray(res.data) ? res.data : []
   } catch (e) {
-    errorMsg.value = 'Error al cargar datos'
-    console.error(e)
+    errorMsg.value = 'Error al cargar contratos: ' + (e.response?.data?.detail || e.message)
   } finally {
     loading.value = false
   }
 }
 
-// --- Helpers ---
-const getProveedorNombre = (id) => {
-  const p = proveedores.value.find(p => p.id === id)
-  return p ? p.nombre_empresa : 'N/A'
-}
-
-const getVigenciaBadge = (contrato) => {
-  if (contrato.activo === true) {
-    if (contrato.dias_restantes <= 30) return { text: `Por vencer (${contrato.dias_restantes}d)`, class: 'badge-vencer' }
-    return { text: 'Vigente', class: 'badge-vigente' }
+async function cargarAuxiliares() {
+  try {
+    const [pr, eq] = await Promise.all([
+      apiClient.get('/proveedores/'),
+      apiClient.get('/equipos/')
+    ])
+    proveedores.value = Array.isArray(pr.data) ? pr.data : []
+    equipos.value = Array.isArray(eq.data) ? (Array.isArray(eq.data) ? eq.data : (eq.data.items || [])) : []
+  } catch (e) {
+    console.error('Error cargando auxiliares:', e)
   }
-  if (contrato.dias_restantes < 0) return { text: 'Vencido', class: 'badge-vencido' }
-  return { text: 'No iniciado', class: 'badge-no-iniciado' }
 }
 
-const formatMoneda = (monto, moneda) => {
-  if (monto == null) return '—'
-  const simbolos = { USD: '$', EUR: '€', BOB: 'Bs', MXN: '$', ARS: '$', CLP: '$', COP: '$', PEN: 'S/', BRL: 'R$', Otro: '' }
-  return `${simbolos[moneda] || ''} ${Number(monto).toFixed(2)}`
+// --- Filtros computados ---
+const tieneFiltrosActivos = computed(() =>
+  searchQuery.value.trim() || filterVigencia.value || filterTipo.value || filterProveedor.value
+)
+
+const limpiarFiltros = () => {
+  searchQuery.value = ''
+  filterVigencia.value = ''
+  filterTipo.value = ''
+  filterProveedor.value = ''
 }
 
-const formatFecha = (fecha) => {
-  if (!fecha) return '—'
-  return new Date(fecha).toLocaleDateString('es-BO')
-}
+const filteredContratos = computed(() => {
+  let result = contratos.value
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    result = result.filter(c => {
+      const proveedor = String(c.proveedor_nombre ?? '').toLowerCase()
+      const tipo = String(c.tipo_contrato ?? '').toLowerCase()
+      const cobertura = String(c.cobertura_detalle ?? '').toLowerCase()
+      const notas = String(c.notas ?? '').toLowerCase()
+      return proveedor.includes(q) || tipo.includes(q) || cobertura.includes(q) || notas.includes(q)
+    })
+  }
+  if (filterTipo.value) {
+    result = result.filter(c => c.tipo_contrato === filterTipo.value)
+  }
+  if (filterProveedor.value) {
+    result = result.filter(c => String(c.proveedor_id) === String(filterProveedor.value))
+  }
+  if (filterVigencia.value === 'vigente') {
+    result = result.filter(c => c.activo === true)
+  } else if (filterVigencia.value === 'vencido') {
+    result = result.filter(c => c.activo === false && (c.dias_restantes === null || c.dias_restantes <= 0))
+  } else if (filterVigencia.value === 'proximo') {
+    result = result.filter(c => c.activo === true && c.dias_restantes !== null && c.dias_restantes <= 30)
+  } else if (filterVigencia.value === 'programado') {
+    result = result.filter(c => c.activo === false && c.dias_restantes !== null && c.dias_restantes > 0)
+  }
+  return result
+})
 
-// --- CRUD ---
-const openCreateModal = () => {
-  isEditing.value = false
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredContratos.value.length / PAGE_SIZE))
+)
+
+const paginatedContratos = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return filteredContratos.value.slice(start, start + PAGE_SIZE)
+})
+
+watch([searchQuery, filterVigencia, filterTipo, filterProveedor], () => {
+  currentPage.value = 1
+})
+
+// --- Stats ---
+const stats = computed(() => {
+  const total = contratos.value.length
+  const vigentes = contratos.value.filter(c => c.activo).length
+  const vencidos = contratos.value.filter(c => !c.activo && (c.dias_restantes === null || c.dias_restantes <= 0)).length
+  const proximos = contratos.value.filter(c => c.activo && c.dias_restantes !== null && c.dias_restantes <= 30).length
+  return { total, vigentes, vencidos, proximos }
+})
+
+// --- Formulario ---
+function resetForm() {
   formData.value = {
     proveedor_id: '',
     tipo_contrato: 'Mantenimiento Preventivo',
     fecha_inicio: '',
     fecha_fin: '',
-    costo_total: null,
-    costo_periodico: null,
+    costo_total: '',
+    costo_periodico: '',
     periodicidad_costo: 'Único',
     moneda: 'USD',
     cobertura_detalle: '',
@@ -123,342 +178,888 @@ const openCreateModal = () => {
     notas: '',
     equipos_ids: []
   }
+}
+
+function abrirCrear() {
+  resetForm()
+  isEditing.value = false
   showModal.value = true
 }
 
-const openEditModal = async (contrato) => {
-  try {
-    const res = await apiClient.get(`/contratos/${contrato.id}`)
-    const full = res.data
-    isEditing.value = true
-    formData.value = {
-      id: full.id,
-      proveedor_id: full.proveedor_id,
-      tipo_contrato: full.tipo_contrato,
-      fecha_inicio: full.fecha_inicio?.substring(0, 10),
-      fecha_fin: full.fecha_fin?.substring(0, 10),
-      costo_total: full.costo_total,
-      costo_periodico: full.costo_periodico,
-      periodicidad_costo: full.periodicidad_costo,
-      moneda: full.moneda,
-      cobertura_detalle: full.cobertura_detalle || '',
-      tiempo_respuesta: full.tiempo_respuesta || '',
-      horario_servicio: full.horario_servicio || '',
-      notas: full.notas || '',
-      equipos_ids: full.equipos?.map(e => e.id) || []
-    }
-    showModal.value = true
-  } catch (e) {
-    alert('Error al cargar contrato')
-    console.error(e)
+function abrirEditar(c) {
+  formData.value = {
+    proveedor_id: c.proveedor_id,
+    tipo_contrato: c.tipo_contrato,
+    fecha_inicio: c.fecha_inicio ? String(c.fecha_inicio).slice(0, 10) : '',
+    fecha_fin: c.fecha_fin ? String(c.fecha_fin).slice(0, 10) : '',
+    costo_total: c.costo_total ?? '',
+    costo_periodico: c.costo_periodico ?? '',
+    periodicidad_costo: c.periodicidad_costo || 'Único',
+    moneda: c.moneda || 'USD',
+    cobertura_detalle: c.cobertura_detalle ?? '',
+    tiempo_respuesta: c.tiempo_respuesta ?? '',
+    horario_servicio: c.horario_servicio ?? '',
+    notas: c.notas ?? '',
+    equipos_ids: Array.isArray(c.equipos) ? c.equipos.map(e => e.id) : []
   }
+  isEditing.value = true
+  showModal.value = true
 }
 
-const saveContrato = async () => {
+function cerrarModal() {
+  showModal.value = false
+}
+
+async function guardarContrato() {
+  // Validaciones
+  if (!formData.value.proveedor_id) {
+    alert('Seleccione un proveedor')
+    return
+  }
+  if (!formData.value.fecha_inicio || !formData.value.fecha_fin) {
+    alert('Ingrese fechas de inicio y fin')
+    return
+  }
+  if (formData.value.fecha_fin < formData.value.fecha_inicio) {
+    alert('La fecha fin debe ser mayor o igual a la fecha inicio')
+    return
+  }
+
+  saving.value = true
   try {
     const payload = { ...formData.value }
-    if (payload.costo_total === '' || payload.costo_total === null) payload.costo_total = null
-    if (payload.costo_periodico === '' || payload.costo_periodico === null) payload.costo_periodico = null
-    if (payload.equipos_ids?.length === 0) payload.equipos_ids = null
+    // Convertir números vacíos a null
+    if (payload.costo_total === '') payload.costo_total = null
+    if (payload.costo_periodico === '') payload.costo_periodico = null
+    payload.proveedor_id = parseInt(payload.proveedor_id)
+    if (!payload.equipos_ids || payload.equipos_ids.length === 0) {
+      payload.equipos_ids = null
+    }
 
     if (isEditing.value) {
-      await apiClient.put(`/contratos/${payload.id}`, payload)
-      alert('Contrato actualizado')
+      const id = selectedContrato.value?.id
+      await apiClient.put(`/contratos/${id}`, payload)
     } else {
       await apiClient.post('/contratos/', payload)
-      alert('Contrato creado')
     }
     showModal.value = false
-    fetchData()
+    await cargarContratos()
   } catch (e) {
-    const msg = e.response?.data?.detail || 'Error al guardar'
-    alert(typeof msg === 'string' ? msg : JSON.stringify(msg))
-    console.error(e)
+    const detail = e.response?.data?.detail || e.message
+    alert('Error al guardar contrato: ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)))
+  } finally {
+    saving.value = false
   }
 }
 
-const deleteContrato = async (id) => {
-  if (!confirm('¿Eliminar este contrato y sus asociaciones con equipos?')) return
+// --- Detalle ---
+function verDetalle(c) {
+  selectedContrato.value = c
+  showDetailModal.value = true
+}
+
+// --- Eliminar ---
+async function eliminarContrato(c) {
+  if (!confirm(`¿Eliminar contrato #${c.id} (${c.tipo_contrato} - ${c.proveedor_nombre})?\nEsta acción no se puede deshacer.`)) return
   try {
-    await apiClient.delete(`/contratos/${id}`)
-    alert('Contrato eliminado')
-    fetchData()
+    await apiClient.delete(`/contratos/${c.id}`)
+    await cargarContratos()
+    if (selectedContrato.value?.id === c.id) {
+      showDetailModal.value = false
+      selectedContrato.value = null
+    }
   } catch (e) {
-    alert('Error al eliminar')
-    console.error(e)
+    alert('Error al eliminar: ' + (e.response?.data?.detail || e.message))
   }
 }
 
-const limpiarFiltros = () => {
-  searchQuery.value = ''
-  filterProveedor.value = ''
-  filterVigencia.value = ''
-}
-
-// v0.9.3: Exportar contratos filtrados a Excel (RF13)
-const exportarContratos = () => {
-  const data = filteredContratos.value.map(c => ({
-    ...c,
-    proveedor_nombre: c.proveedor_nombre || getProveedorNombre(c.proveedor_id),
-    estado_vigencia: c.activo ? 'Vigente' : (c.dias_restantes < 0 ? 'Vencido' : 'No iniciado'),
-    equipos_nombres: c.equipos?.map(e => e.nombre_corto).join('; ') || ''
+// --- Exportar ---
+function exportarExcel() {
+  const rows = filteredContratos.value.map(c => ({
+    ID: c.id,
+    Proveedor: c.proveedor_nombre || '',
+    Tipo: c.tipo_contrato || '',
+    'Fecha Inicio': c.fecha_inicio ? String(c.fecha_inicio).slice(0, 10) : '',
+    'Fecha Fin': c.fecha_fin ? String(c.fecha_fin).slice(0, 10) : '',
+    Estado: getEstadoVigencia(c).label,
+    'Días Restantes': c.dias_restantes ?? '',
+    'Costo Total': c.costo_total ?? '',
+    'Costo Periódico': c.costo_periodico ?? '',
+    Periodicidad: c.periodicidad_costo || '',
+    Moneda: c.moneda || '',
+    'Tiempo Respuesta': c.tiempo_respuesta || '',
+    'Horario Servicio': c.horario_servicio || '',
+    'Cobertura': c.cobertura_detalle || '',
+    'Equipos Asociados': Array.isArray(c.equipos) ? c.equipos.map(e => e.nombre_corto).join('; ') : '',
+    Notas: c.notas || ''
   }))
-  const columns = [
-    { key: 'id', label: 'ID' },
-    { key: 'proveedor_nombre', label: 'Proveedor' },
-    { key: 'tipo_contrato', label: 'Tipo' },
-    { key: 'fecha_inicio', label: 'Fecha Inicio' },
-    { key: 'fecha_fin', label: 'Fecha Fin' },
-    { key: 'estado_vigencia', label: 'Vigencia' },
-    { key: 'dias_restantes', label: 'Dias Restantes' },
-    { key: 'costo_total', label: 'Costo Total' },
-    { key: 'moneda', label: 'Moneda' },
-    { key: 'periodicidad_costo', label: 'Periodicidad' },
-    { key: 'cobertura_detalle', label: 'Cobertura' },
-    { key: 'tiempo_respuesta', label: 'Tiempo Respuesta' },
-    { key: 'equipos_nombres', label: 'Equipos Cubiertos' },
-    { key: 'notas', label: 'Notas' },
-  ]
-  exportToExcelHTML(data, columns, 'CMMS-BioAI_Contratos')
+  exportToExcelHTML(rows, `Contratos_${new Date().toISOString().slice(0, 10)}`)
 }
 
-onMounted(() => { fetchData() })
+function exportarCSV() {
+  const rows = filteredContratos.value.map(c => ({
+    id: c.id,
+    proveedor: c.proveedor_nombre || '',
+    tipo: c.tipo_contrato || '',
+    fecha_inicio: c.fecha_inicio ? String(c.fecha_inicio).slice(0, 10) : '',
+    fecha_fin: c.fecha_fin ? String(c.fecha_fin).slice(0, 10) : '',
+    estado: getEstadoVigencia(c).label,
+    dias_restantes: c.dias_restantes ?? '',
+    costo_total: c.costo_total ?? '',
+    costo_periodico: c.costo_periodico ?? '',
+    periodicidad: c.periodicidad_costo || '',
+    moneda: c.moneda || '',
+    equipos: Array.isArray(c.equipos) ? c.equipos.map(e => e.nombre_corto).join('; ') : ''
+  }))
+  exportToCSV(rows, `Contratos_${new Date().toISOString().slice(0, 10)}`)
+}
+
+// --- Init ---
+onMounted(async () => {
+  await Promise.all([cargarContratos(), cargarAuxiliares()])
+})
 </script>
 
 <template>
-  <div class="dashboard-container">
-    <Navbar @logout="$router.push('/')" />
-    <main class="content">
-      <div class="top-bar">
-        <h2>Gestión de Contratos</h2>
-        <div class="top-bar-actions">
-          <div class="search-wrapper">
-            <input v-model="searchQuery" type="search" class="search-input"
-              placeholder="Tipo, proveedor..." autocomplete="off" />
-          </div>
-          <button class="btn-export" @click="exportarContratos" title="Exportar lista filtrada a Excel">📤 Exportar</button>
-          <button class="btn-primary" @click="openCreateModal">+ Nuevo Contrato</button>
+  <div>
+    <Navbar />
+    <div class="container">
+      <div class="page-header">
+        <div>
+          <h2>Contratos</h2>
+          <p class="subtitle">Gestión de contratos de mantenimiento, leasing, comodato y otros (RF12)</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-secondary" @click="exportarExcel" :disabled="!filteredContratos.length">📤 Excel</button>
+          <button class="btn btn-secondary" @click="exportarCSV" :disabled="!filteredContratos.length">📄 CSV</button>
+          <button class="btn btn-primary" @click="abrirCrear">+ Nuevo Contrato</button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total</div>
+          <div class="stat-value">{{ stats.total }}</div>
+        </div>
+        <div class="stat-card stat-green">
+          <div class="stat-label">Vigentes</div>
+          <div class="stat-value">{{ stats.vigentes }}</div>
+        </div>
+        <div class="stat-card stat-yellow">
+          <div class="stat-label">Vencen ≤30d</div>
+          <div class="stat-value">{{ stats.proximos }}</div>
+        </div>
+        <div class="stat-card stat-red">
+          <div class="stat-label">Vencidos</div>
+          <div class="stat-value">{{ stats.vencidos }}</div>
         </div>
       </div>
 
       <!-- Filtros -->
-      <div class="filter-bar">
-        <div class="filter-group">
-          <label class="filter-label">Proveedor:</label>
-          <select v-model="filterProveedor" class="filter-select">
-            <option value="">Todos</option>
-            <option v-for="p in proveedores" :key="p.id" :value="p.id">{{ p.nombre_empresa }}</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label class="filter-label">Vigencia:</label>
-          <select v-model="filterVigencia" class="filter-select">
-            <option value="">Todos</option>
-            <option value="vigente">Vigentes</option>
-            <option value="vencido">Vencidos</option>
-            <option value="proximo">Por vencer (30d)</option>
-          </select>
-        </div>
-        <button v-if="tieneFiltros" class="btn-clear-filters" @click="limpiarFiltros">Limpiar</button>
-        <span v-if="tieneFiltros" class="filter-count">{{ filteredContratos.length }} de {{ contratos.length }}</span>
-      </div>
-
-      <div v-if="loading">Cargando contratos...</div>
-      <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
-
-      <table v-if="!loading && contratos.length">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Proveedor</th>
-            <th>Tipo</th>
-            <th>Vigencia</th>
-            <th>Estado</th>
-            <th>Equipos</th>
-            <th>Costo</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="!filteredContratos.length">
-            <td colspan="8" class="empty-cell">No hay contratos que coincidan.</td>
-          </tr>
-          <tr v-for="c in filteredContratos.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)" :key="c.id">
-            <td>#{{ c.id }}</td>
-            <td><strong>{{ c.proveedor_nombre }}</strong></td>
-            <td>{{ c.tipo_contrato }}</td>
-            <td>{{ formatFecha(c.fecha_inicio) }} - {{ formatFecha(c.fecha_fin) }}</td>
-            <td>
-              <span :class="getVigenciaBadge(c).class">{{ getVigenciaBadge(c).text }}</span>
-            </td>
-            <td>{{ c.equipos?.length || 0 }}</td>
-            <td>{{ formatMoneda(c.costo_total, c.moneda) }}</td>
-            <td class="actions-cell">
-              <button class="btn-icon" title="Editar" @click="openEditModal(c)">✏️</button>
-              <button class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteContrato(c.id)">🗑️</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div v-if="!loading && !contratos.length" class="empty-state">
-        No hay contratos registrados. Haga clic en "Nuevo Contrato" para comenzar.
-      </div>
-
-      <div v-if="!loading && filteredContratos.length" class="table-pagination">
-        <button class="btn-pagination" :disabled="currentPage <= 1" @click="currentPage--">Anterior</button>
-        <span>Página {{ currentPage }} de {{ totalPages }}</span>
-        <button class="btn-pagination" :disabled="currentPage >= totalPages" @click="currentPage++">Siguiente</button>
-      </div>
-    </main>
-
-    <!-- Modal Crear/Editar -->
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal" style="max-width: 650px;">
-        <h3>{{ isEditing ? 'Editar Contrato' : 'Nuevo Contrato' }}</h3>
-        <form @submit.prevent="saveContrato">
-          <div class="form-group">
-            <label>Proveedor *</label>
-            <select v-model="formData.proveedor_id" required>
-              <option value="">— Seleccionar —</option>
+      <div class="filtros-card">
+        <div class="filtros-grid">
+          <div class="filtro-item">
+            <label>Buscar</label>
+            <input v-model="searchQuery" type="text" placeholder="Proveedor, tipo, cobertura..." class="input" />
+          </div>
+          <div class="filtro-item">
+            <label>Vigencia</label>
+            <select v-model="filterVigencia" class="input">
+              <option value="">Todos</option>
+              <option value="vigente">Vigentes</option>
+              <option value="proximo">Vencen ≤30d</option>
+              <option value="programado">Programados</option>
+              <option value="vencido">Vencidos</option>
+            </select>
+          </div>
+          <div class="filtro-item">
+            <label>Tipo</label>
+            <select v-model="filterTipo" class="input">
+              <option value="">Todos</option>
+              <option v-for="t in tiposContrato" :key="t" :value="t">{{ t }}</option>
+            </select>
+          </div>
+          <div class="filtro-item">
+            <label>Proveedor</label>
+            <select v-model="filterProveedor" class="input">
+              <option value="">Todos</option>
               <option v-for="p in proveedores" :key="p.id" :value="p.id">{{ p.nombre_empresa }}</option>
             </select>
           </div>
-          <div class="form-row">
+          <div class="filtro-actions">
+            <button v-if="tieneFiltrosActivos" class="btn btn-link" @click="limpiarFiltros">Limpiar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mensaje de error -->
+      <div v-if="errorMsg" class="alert alert-error">{{ errorMsg }}</div>
+
+      <!-- Tabla -->
+      <div class="table-card">
+        <div v-if="loading" class="loading">Cargando contratos...</div>
+        <table v-else-if="paginatedContratos.length" class="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Proveedor</th>
+              <th>Tipo</th>
+              <th>Vigencia</th>
+              <th>Estado</th>
+              <th>Costo</th>
+              <th>Equipos</th>
+              <th class="acciones-col">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="c in paginatedContratos" :key="c.id">
+              <td>#{{ c.id }}</td>
+              <td>{{ c.proveedor_nombre || '—' }}</td>
+              <td>{{ c.tipo_contrato }}</td>
+              <td>
+                <div class="vigencia-cell">
+                  <div>{{ formatFecha(c.fecha_inicio) }}</div>
+                  <div class="text-muted">→ {{ formatFecha(c.fecha_fin) }}</div>
+                </div>
+              </td>
+              <td>
+                <span class="badge" :class="getEstadoVigencia(c).clase">{{ getEstadoVigencia(c).label }}</span>
+              </td>
+              <td>
+                <div v-if="c.costo_total !== null && c.costo_total !== undefined">
+                  {{ formatMoneda(c.costo_total, c.moneda) }}
+                </div>
+                <div v-else-if="c.costo_periodico !== null && c.costo_periodico !== undefined" class="text-muted">
+                  {{ formatMoneda(c.costo_periodico, c.moneda) }} / {{ c.periodicidad_costo }}
+                </div>
+                <span v-else class="text-muted">—</span>
+              </td>
+              <td>
+                <span v-if="c.equipos && c.equipos.length" class="equipos-count">
+                  {{ c.equipos.length }} equipo(s)
+                </span>
+                <span v-else class="text-muted">—</span>
+              </td>
+              <td class="acciones-col">
+                <button class="btn-icon" title="Ver detalle" @click="verDetalle(c)">👁</button>
+                <button class="btn-icon" title="Editar" @click="abrirEditar(c)">✏️</button>
+                <button class="btn-icon btn-icon-danger" title="Eliminar" @click="eliminarContrato(c)">🗑</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="empty">
+          <p>No hay contratos registrados.</p>
+          <button class="btn btn-primary" @click="abrirCrear">+ Crear primer contrato</button>
+        </div>
+
+        <!-- Paginación -->
+        <div v-if="filteredContratos.length > PAGE_SIZE" class="paginacion">
+          <button class="btn btn-secondary" :disabled="currentPage === 1" @click="currentPage--">← Anterior</button>
+          <span>Página {{ currentPage }} de {{ totalPages }} ({{ filteredContratos.length }} contratos)</span>
+          <button class="btn btn-secondary" :disabled="currentPage >= totalPages" @click="currentPage++">Siguiente →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Crear/Editar -->
+    <div v-if="showModal" class="modal-overlay" @click.self="cerrarModal">
+      <div class="modal modal-lg">
+        <div class="modal-header">
+          <h3>{{ isEditing ? 'Editar Contrato' : 'Nuevo Contrato' }}</h3>
+          <button class="btn-close" @click="cerrarModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-grid">
             <div class="form-group">
-              <label>Tipo de Contrato *</label>
-              <select v-model="formData.tipo_contrato" required>
-                <option v-for="t in TIPOS_CONTRATO" :key="t" :value="t">{{ t }}</option>
+              <label>Proveedor <span class="req">*</span></label>
+              <select v-model="formData.proveedor_id" class="input">
+                <option value="">— Seleccionar —</option>
+                <option v-for="p in proveedores" :key="p.id" :value="p.id">{{ p.nombre_empresa }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Tipo de Contrato <span class="req">*</span></label>
+              <select v-model="formData.tipo_contrato" class="input">
+                <option v-for="t in tiposContrato" :key="t" :value="t">{{ t }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Fecha Inicio <span class="req">*</span></label>
+              <input v-model="formData.fecha_inicio" type="date" class="input" />
+            </div>
+            <div class="form-group">
+              <label>Fecha Fin <span class="req">*</span></label>
+              <input v-model="formData.fecha_fin" type="date" class="input" />
+            </div>
+            <div class="form-group">
+              <label>Costo Total</label>
+              <input v-model="formData.costo_total" type="number" step="0.01" class="input" placeholder="0.00" />
+            </div>
+            <div class="form-group">
+              <label>Costo Periódico</label>
+              <input v-model="formData.costo_periodico" type="number" step="0.01" class="input" placeholder="0.00" />
+            </div>
+            <div class="form-group">
+              <label>Periodicidad Costo</label>
+              <select v-model="formData.periodicidad_costo" class="input">
+                <option v-for="p in periodicidades" :key="p" :value="p">{{ p }}</option>
               </select>
             </div>
             <div class="form-group">
               <label>Moneda</label>
-              <select v-model="formData.moneda">
-                <option v-for="m in MONEDAS" :key="m" :value="m">{{ m }}</option>
+              <select v-model="formData.moneda" class="input">
+                <option v-for="m in monedas" :key="m" :value="m">{{ m }}</option>
               </select>
             </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Fecha Inicio *</label>
-              <input v-model="formData.fecha_inicio" type="date" required>
-            </div>
-            <div class="form-group">
-              <label>Fecha Fin *</label>
-              <input v-model="formData.fecha_fin" type="date" required>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Costo Total</label>
-              <input v-model="formData.costo_total" type="number" step="0.01" min="0" placeholder="0.00">
-            </div>
-            <div class="form-group">
-              <label>Costo Periódico</label>
-              <input v-model="formData.costo_periodico" type="number" step="0.01" min="0" placeholder="0.00">
-            </div>
-            <div class="form-group">
-              <label>Periodicidad</label>
-              <select v-model="formData.periodicidad_costo">
-                <option v-for="p in PERIODICIDADES" :key="p" :value="p">{{ p }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
             <div class="form-group">
               <label>Tiempo de Respuesta</label>
-              <input v-model="formData.tiempo_respuesta" type="text" placeholder="Ej: 24 hs, 48 hs">
+              <input v-model="formData.tiempo_respuesta" type="text" class="input" placeholder="ej: 24h hábil" />
             </div>
             <div class="form-group">
               <label>Horario de Servicio</label>
-              <input v-model="formData.horario_servicio" type="text" placeholder="Ej: Lun-Vie 8-18hs">
+              <input v-model="formData.horario_servicio" type="text" class="input" placeholder="ej: L-V 8:00-18:00" />
+            </div>
+            <div class="form-group form-group-full">
+              <label>Cobertura (detalle)</label>
+              <textarea v-model="formData.cobertura_detalle" class="input" rows="2" placeholder="Servicios incluidos en el contrato..."></textarea>
+            </div>
+            <div class="form-group form-group-full">
+              <label>Notas</label>
+              <textarea v-model="formData.notas" class="input" rows="2"></textarea>
+            </div>
+            <div class="form-group form-group-full">
+              <label>Equipos Asociados</label>
+              <div class="equipos-checkbox-grid">
+                <label v-for="eq in equipos" :key="eq.id" class="checkbox-item">
+                  <input type="checkbox" :value="eq.id" v-model="formData.equipos_ids" />
+                  <span>{{ eq.nombre_corto || eq.modelo }} <small v-if="eq.numero_serie" class="text-muted">({{ eq.numero_serie }})</small></span>
+                </label>
+                <p v-if="!equipos.length" class="text-muted">No hay equipos registrados.</p>
+              </div>
             </div>
           </div>
-          <div class="form-group">
-            <label>Cobertura</label>
-            <textarea v-model="formData.cobertura_detalle" rows="2" placeholder="Qué incluye el contrato..."></textarea>
-          </div>
-          <div class="form-group">
-            <label>Equipos Cubiertos</label>
-            <div class="equipos-checkbox-grid">
-              <label v-for="eq in equipos" :key="eq.id" class="checkbox-label">
-                <input type="checkbox" :value="eq.id" v-model="formData.equipos_ids">
-                {{ eq.nombre_corto || eq.modelo }} ({{ eq.numero_serie }})
-              </label>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="cerrarModal" :disabled="saving">Cancelar</button>
+          <button class="btn btn-primary" @click="guardarContrato" :disabled="saving">
+            {{ saving ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Detalle -->
+    <div v-if="showDetailModal && selectedContrato" class="modal-overlay" @click.self="showDetailModal = false">
+      <div class="modal modal-lg">
+        <div class="modal-header">
+          <h3>Contrato #{{ selectedContrato.id }} — {{ selectedContrato.tipo_contrato }}</h3>
+          <button class="btn-close" @click="showDetailModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="detalle-grid">
+            <div class="detalle-item">
+              <span class="detalle-label">Proveedor</span>
+              <span class="detalle-value">{{ selectedContrato.proveedor_nombre || '—' }}</span>
+            </div>
+            <div class="detalle-item">
+              <span class="detalle-label">Estado</span>
+              <span class="badge" :class="getEstadoVigencia(selectedContrato).clase">{{ getEstadoVigencia(selectedContrato).label }}</span>
+            </div>
+            <div class="detalle-item">
+              <span class="detalle-label">Fecha Inicio</span>
+              <span class="detalle-value">{{ formatFecha(selectedContrato.fecha_inicio) }}</span>
+            </div>
+            <div class="detalle-item">
+              <span class="detalle-label">Fecha Fin</span>
+              <span class="detalle-value">{{ formatFecha(selectedContrato.fecha_fin) }}</span>
+            </div>
+            <div class="detalle-item">
+              <span class="detalle-label">Días Restantes</span>
+              <span class="detalle-value">{{ selectedContrato.dias_restantes ?? '—' }}</span>
+            </div>
+            <div class="detalle-item">
+              <span class="detalle-label">Costo Total</span>
+              <span class="detalle-value">{{ formatMoneda(selectedContrato.costo_total, selectedContrato.moneda) }}</span>
+            </div>
+            <div class="detalle-item">
+              <span class="detalle-label">Costo Periódico</span>
+              <span class="detalle-value">
+                {{ formatMoneda(selectedContrato.costo_periodico, selectedContrato.moneda) }}
+                <small v-if="selectedContrato.costo_periodico !== null && selectedContrato.costo_periodico !== undefined" class="text-muted">/ {{ selectedContrato.periodicidad_costo }}</small>
+              </span>
+            </div>
+            <div class="detalle-item">
+              <span class="detalle-label">Tiempo de Respuesta</span>
+              <span class="detalle-value">{{ selectedContrato.tiempo_respuesta || '—' }}</span>
+            </div>
+            <div class="detalle-item">
+              <span class="detalle-label">Horario de Servicio</span>
+              <span class="detalle-value">{{ selectedContrato.horario_servicio || '—' }}</span>
+            </div>
+            <div class="detalle-item detalle-full">
+              <span class="detalle-label">Cobertura</span>
+              <span class="detalle-value">{{ selectedContrato.cobertura_detalle || '—' }}</span>
+            </div>
+            <div class="detalle-item detalle-full">
+              <span class="detalle-label">Notas</span>
+              <span class="detalle-value">{{ selectedContrato.notas || '—' }}</span>
+            </div>
+            <div class="detalle-item detalle-full">
+              <span class="detalle-label">Equipos Asociados ({{ selectedContrato.equipos?.length || 0 }})</span>
+              <div v-if="selectedContrato.equipos && selectedContrato.equipos.length" class="equipos-lista">
+                <div v-for="eq in selectedContrato.equipos" :key="eq.id" class="equipo-tag">
+                  <strong>{{ eq.nombre_corto }}</strong>
+                  <small v-if="eq.modelo" class="text-muted">— {{ eq.modelo }}</small>
+                  <small v-if="eq.numero_serie" class="text-muted">SN: {{ eq.numero_serie }}</small>
+                  <small v-if="eq.ubicacion_actual" class="text-muted">📍 {{ eq.ubicacion_actual }}</small>
+                </div>
+              </div>
+              <span v-else class="text-muted">Sin equipos asociados</span>
             </div>
           </div>
-          <div class="form-group">
-            <label>Notas</label>
-            <textarea v-model="formData.notas" rows="2" placeholder="Observaciones..."></textarea>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
-            <button type="submit" class="btn-primary">Guardar</button>
-          </div>
-        </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-danger" @click="eliminarContrato(selectedContrato)">🗑 Eliminar</button>
+          <button class="btn btn-primary" @click="abrirEditar(selectedContrato); showDetailModal = false">✏️ Editar</button>
+          <button class="btn btn-secondary" @click="showDetailModal = false">Cerrar</button>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.dashboard-container { padding: 0; }
-.content { padding: 2rem; }
-.top-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
-.top-bar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
-.search-input { padding: 0.55rem 0.85rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; min-width: 200px; }
-.search-input:focus { outline: none; border-color: #3498db; }
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
 
-.filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; margin-bottom: 1rem; padding: 0.75rem 1rem; background: white; border-radius: 8px; border: 1px solid #e2e8f0; }
-.filter-group { display: flex; align-items: center; gap: 0.35rem; }
-.filter-label { font-size: 0.82rem; font-weight: 600; color: #64748b; }
-.filter-select { padding: 0.35rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; min-width: 120px; }
-.btn-clear-filters { padding: 0.35rem 0.7rem; border: 1px solid #fecaca; border-radius: 6px; background: #fef2f2; color: #dc2626; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
-.filter-count { font-size: 0.78rem; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; }
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
 
-table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-size: 0.88rem; }
-th { background: #f8f9fa; font-weight: bold; }
-.empty-cell { text-align: center; color: #64748b; padding: 1.5rem; }
-.empty-state { text-align: center; padding: 2.5rem; color: #64748b; }
+.page-header h2 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.6rem;
+  color: #1e293b;
+}
 
-.badge-vigente { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: #fff; background: #16a34a; }
-.badge-vencer { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: #1e293b; background: #fbbf24; }
-.badge-vencido { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: #fff; background: #dc2626; }
-.badge-no-iniciado { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: #fff; background: #64748b; }
+.subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
 
-.actions-cell { display: flex; gap: 0.5rem; }
-.btn-icon { background: #f0f2f5; border: none; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 1rem; }
-.btn-icon:hover { background: #dfe2e6; }
-.btn-danger-icon:hover { background: #fee2e2; }
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
 
-.table-pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; }
-.btn-pagination { background: #3498db; color: white; border: none; padding: 0.5rem 1.1rem; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
-.btn-pagination:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-pagination:hover:not(:disabled) { background: #2980b9; }
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
 
-.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; }
-.modal { background: white; padding: 1.5rem; border-radius: 8px; width: 100%; max-width: 550px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-.modal h3 { margin: 0 0 1rem 0; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
-.form-group { margin-bottom: 0.85rem; }
-.form-group label { display: block; margin-bottom: 0.3rem; font-weight: 600; color: #334155; font-size: 0.88rem; }
-.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.5rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; box-sizing: border-box; font-family: inherit; }
-.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #3498db; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-.form-row:has(.form-group:nth-child(3)) { grid-template-columns: 1fr 1fr 1fr; }
-@media (max-width: 600px) { .form-row { grid-template-columns: 1fr !important; } }
+.stat-card {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-left: 4px solid #64748b;
+}
 
-.equipos-checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.35rem; max-height: 150px; overflow-y: auto; padding: 0.5rem; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; }
-.checkbox-label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: #334155; cursor: pointer; }
-.checkbox-label input { width: auto; }
+.stat-green { border-left-color: #10b981; }
+.stat-yellow { border-left-color: #f59e0b; }
+.stat-red { border-left-color: #ef4444; }
 
-.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
-.btn-primary { background: #3498db; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
-.btn-primary:hover { background: #2980b9; }
-.btn-export { background: #f0fdf4; color: #16a34a; border: 1px solid #86efac; padding: 0.45rem 0.9rem; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
-.btn-export:hover { background: #dcfce7; }
-.btn-secondary { background: #95a5a6; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
-.btn-secondary:hover { background: #7f8c8d; }
+.stat-label {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
 
-.error { color: #dc2626; background: #fef2f2; padding: 0.75rem; border-radius: 6px; margin: 1rem 0; }
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-top: 0.25rem;
+}
+
+.filtros-card {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1rem;
+}
+
+.filtros-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.filtro-item label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.25rem;
+}
+
+.filtro-actions {
+  display: flex;
+  align-items: end;
+}
+
+.input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: white;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.table-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.loading, .empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.empty p {
+  margin-bottom: 1rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.table thead {
+  background: #f1f5f9;
+}
+
+.table th {
+  padding: 0.7rem 0.6rem;
+  text-align: left;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.table td {
+  padding: 0.6rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+}
+
+.table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.acciones-col {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.vigencia-cell {
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.text-muted {
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+
+.equipos-count {
+  display: inline-block;
+  background: #e0e7ff;
+  color: #4338ca;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-green { background: #dcfce7; color: #166534; }
+.badge-yellow { background: #fef3c7; color: #92400e; }
+.badge-red { background: #fee2e2; color: #991b1b; }
+.badge-blue { background: #dbeafe; color: #1e40af; }
+.badge-gray { background: #e2e8f0; color: #475569; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary { background: #3b82f6; color: white; }
+.btn-primary:hover:not(:disabled) { background: #2563eb; }
+
+.btn-secondary { background: #e2e8f0; color: #475569; }
+.btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
+
+.btn-danger { background: #ef4444; color: white; }
+.btn-danger:hover:not(:disabled) { background: #dc2626; }
+
+.btn-link {
+  background: transparent;
+  color: #3b82f6;
+  padding: 0.5rem;
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.btn-icon:hover { background: #f1f5f9; }
+.btn-icon-danger:hover { background: #fee2e2; }
+
+.paginacion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  color: #64748b;
+  border-top: 1px solid #f1f5f9;
+}
+
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
+}
+
+.alert-error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+.modal {
+  background: white;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 600px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-lg { max-width: 800px; }
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #1e293b;
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #64748b;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+.btn-close:hover { background: #f1f5f9; }
+
+.modal-body {
+  padding: 1.25rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1rem;
+}
+
+.form-group { display: flex; flex-direction: column; gap: 0.25rem; }
+.form-group-full { grid-column: 1 / -1; }
+
+.form-group label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.req { color: #ef4444; }
+
+textarea.input {
+  resize: vertical;
+  min-height: 50px;
+  font-family: inherit;
+}
+
+.equipos-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.35rem;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.2rem;
+}
+
+.checkbox-item:hover { background: #f8fafc; border-radius: 3px; }
+
+/* Detalle */
+.detalle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1.25rem;
+}
+
+.detalle-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.detalle-full { grid-column: 1 / -1; }
+
+.detalle-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.detalle-value {
+  font-size: 0.92rem;
+  color: #1e293b;
+}
+
+.equipos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.equipo-tag {
+  background: #f1f5f9;
+  padding: 0.5rem 0.7rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+@media (max-width: 768px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .detalle-grid { grid-template-columns: 1fr; }
+  .page-header { flex-direction: column; align-items: stretch; }
+  .header-actions { justify-content: stretch; }
+  .header-actions .btn { flex: 1; justify-content: center; }
+}
 </style>

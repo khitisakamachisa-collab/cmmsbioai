@@ -10,7 +10,6 @@ const router = useRouter()
 const tareas = ref([])
 const equipos = ref([])
 const usuarios = ref([])
-const ordenes = ref([])  // v0.9.2: para verificar OTs activas por MP
 const loading = ref(true)
 
 const currentPage = ref(1)
@@ -63,16 +62,14 @@ const fetchInventario = async () => {
 const fetchData = async () => {
   try {
     loading.value = true
-    const [resTareas, resEquipos, resUsers, resOrdenes] = await Promise.all([
+    const [resTareas, resEquipos, resUsers] = await Promise.all([
       apiClient.get('/preventivo/'),
       apiClient.get('/equipos/'),
-      apiClient.get('/users/'),
-      apiClient.get('/ordenes/')  // v0.9.2: para verificar OTs activas por MP
+      apiClient.get('/users/')
     ])
     tareas.value = resTareas.data
     equipos.value = resEquipos.data
     usuarios.value = resUsers.data
-    ordenes.value = resOrdenes.data  // v0.9.2
   } catch (error) {
     console.error(error)
   } finally {
@@ -122,9 +119,9 @@ const filteredTareas = computed(() => {
     result = result.filter(t => String(t.responsable_id) === String(filterUsuario.value))
   }
 
-  // Filtro estado (v0.9.2: incluye ciclo verde→amarillo→rojo)
+  // Filtro estado
   if (filterEstado.value) {
-    result = result.filter(t => getStatusClass(t.proxima_fecha, tieneOtActiva(t)) === filterEstado.value)
+    result = result.filter(t => getStatusClass(t.proxima_fecha) === filterEstado.value)
   }
 
   return result
@@ -345,62 +342,46 @@ const getUsuarioNombre = (id) => {
   return u ? (u.full_name || u.username) : 'Sin asignar'
 }
 
-// v0.9.2: Helper para calcular estado del ciclo verde→amarillo→rojo
-// Necesita saber si hay OT activa para este MP
-const getStatusClass = (proximaFecha, tieneOtActiva = false) => {
-  // 🟢 Verde: hay OT activa (programada)
-  if (tieneOtActiva) return 'status-programada'
-
+// Helper para calcular estado visual (Vencido, Proximo, OK)
+const getStatusClass = (proximaFecha) => {
   if (!proximaFecha) return 'status-unknown'
   const today = new Date().setHours(0,0,0,0)
   const dueDate = new Date(proximaFecha).setHours(0,0,0,0)
-
-  // 🔴 Rojo: vencida (sin OT activa y fecha pasada)
+  
   if (dueDate < today) return 'status-overdue'
   if (dueDate === today) return 'status-due-today'
-
-  // 🟡 Amarillo: recordatorio (sin OT activa pero fecha futura)
+  
   const diffDays = (dueDate - today) / (1000 * 60 * 60 * 24)
   if (diffDays <= 7) return 'status-upcoming'
-
+  
   return 'status-ok'
 }
 
-const getStatusLabel = (proximaFecha, tieneOtActiva = false) => {
-  if (tieneOtActiva) return '🟢 Programada'
+const getStatusLabel = (proximaFecha) => {
   if (!proximaFecha) return 'Sin fecha'
   const today = new Date().setHours(0,0,0,0)
   const dueDate = new Date(proximaFecha).setHours(0,0,0,0)
-
-  if (dueDate < today) return '🔴 Vencida'
-  if (dueDate === today) return '🔴 Hoy'
-
+  
+  if (dueDate < today) return 'Vencida'
+  if (dueDate === today) return 'Hoy'
+  
   const diffDays = (dueDate - today) / (1000 * 60 * 60 * 24)
-  if (diffDays <= 7) return '🟡 Próxima'
-
-  return '🟡 Recordatorio'
+  if (diffDays <= 7) return 'Proxima'
+  
+  return 'OK'
 }
 
-// v0.9.2: Verificar si una tarea tiene OT activa
-const tieneOtActiva = (tarea) => {
-  return ordenes.value.some(ot =>
-    ot.orden_preventiva_id === tarea.id &&
-    (ot.estado_id === 1 || ot.estado_id === 2 || ot.estado_id === 3)  // Abierta, En Proceso, Esp. Repuesto
-  )
-}
-
-// Color para el calendario (v0.9.2: incluye verde para OT activa)
-const getCalEventColor = (proximaFecha, tieneOt = false) => {
-  if (tieneOt) return '#16a34a' // 🟢 verde: OT activa (programada)
+// Color para el calendario
+const getCalEventColor = (proximaFecha) => {
   if (!proximaFecha) return '#94a3b8' // gris
   const today = new Date().setHours(0,0,0,0)
   const dueDate = new Date(proximaFecha).setHours(0,0,0,0)
-
-  if (dueDate < today) return '#ef4444' // 🔴 rojo: vencida
-  if (dueDate === today) return '#f97316' // 🔴 naranja: hoy
-
+  
+  if (dueDate < today) return '#ef4444' // rojo
+  if (dueDate === today) return '#f97316' // naranja
+  
   const diffDays = (dueDate - today) / (1000 * 60 * 60 * 24)
-  if (diffDays <= 7) return '#eab308' // 🟡 amarillo: próxima
+  if (diffDays <= 7) return '#eab308' // amarillo
   
   return '#22c55e' // verde
 }
@@ -553,10 +534,9 @@ const irPaginaSiguiente = () => {
 const resumenCalendario = computed(() => {
   const activas = filteredTareas.value.filter(t => t.activa)
   const total = activas.length
-  const vencidas = activas.filter(t => getStatusClass(t.proxima_fecha, tieneOtActiva(t)) === 'status-overdue').length
-  const hoyCount = activas.filter(t => getStatusClass(t.proxima_fecha, tieneOtActiva(t)) === 'status-due-today').length
-  const proximas = activas.filter(t => getStatusClass(t.proxima_fecha, tieneOtActiva(t)) === 'status-upcoming').length
-  const programadas = activas.filter(t => getStatusClass(t.proxima_fecha, tieneOtActiva(t)) === 'status-programada').length
+  const vencidas = activas.filter(t => getStatusClass(t.proxima_fecha) === 'status-overdue').length
+  const hoyCount = activas.filter(t => getStatusClass(t.proxima_fecha) === 'status-due-today').length
+  const proximas = activas.filter(t => getStatusClass(t.proxima_fecha) === 'status-upcoming').length
   return { total, vencidas, hoy: hoyCount, proximas }
 })
 
@@ -641,11 +621,10 @@ onMounted(() => {
           <label class="filter-label">Estado:</label>
           <select v-model="filterEstado" class="filter-select">
             <option value="">Todos</option>
-            <option value="status-programada">🟢 Programada</option>
-            <option value="status-overdue">🔴 Vencida</option>
-            <option value="status-due-today">🔴 Hoy</option>
-            <option value="status-upcoming">🟡 Próxima</option>
-            <option value="status-ok">🟡 Recordatorio</option>
+            <option value="status-overdue">Vencida</option>
+            <option value="status-due-today">Hoy</option>
+            <option value="status-upcoming">Proxima</option>
+            <option value="status-ok">OK</option>
             <option value="status-unknown">Sin fecha</option>
           </select>
         </div>
@@ -691,8 +670,8 @@ onMounted(() => {
               <td>{{ tarea.proxima_fecha || 'Pendiente' }}</td>
               <td>{{ getUsuarioNombre(tarea.responsable_id) }}</td>
               <td>
-                <span class="badge" :class="getStatusClass(tarea.proxima_fecha, tieneOtActiva(tarea))">
-                  {{ getStatusLabel(tarea.proxima_fecha, tieneOtActiva(tarea)) }}
+                <span class="badge" :class="getStatusClass(tarea.proxima_fecha)">
+                  {{ getStatusLabel(tarea.proxima_fecha) }}
                 </span>
               </td>
               <td class="actions-cell">
@@ -815,8 +794,8 @@ onMounted(() => {
                 v-for="tarea in celda.tareas.slice(0, 3)" 
                 :key="tarea.id"
                 class="cal-event"
-                :style="{
-                  borderLeftColor: getCalEventColor(tarea.proxima_fecha, tieneOtActiva(tarea)),
+                :style="{ 
+                  borderLeftColor: getCalEventColor(tarea.proxima_fecha),
                   backgroundColor: getCalEventBg(tarea.proxima_fecha)
                 }"
                 @click="openDetalleTarea(tarea)"
@@ -1166,7 +1145,6 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .status-overdue { background-color: #f8d7da; color: #721c24; }
 .status-due-today { background-color: #ffeaa7; color: #856404; }
 .status-unknown { background-color: #e2e3e5; color: #383d41; }
-.status-programada { background-color: #d1ecf1; color: #0c5460; }  /* v0.9.2: verde-azulado para OT activa */
 
 /* Modales */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }

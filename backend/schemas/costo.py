@@ -6,7 +6,6 @@ from datetime import date, datetime
 from pydantic import BaseModel, field_validator
 
 
-# Valores válidos para tipo_costo
 TIPOS_COSTO_VALIDOS = {
     'Transporte', 'Servicio Externo', 'Repuesto No Inventariado',
     'Herramienta Renta', 'Honorarios / Mano de Obra',
@@ -15,7 +14,6 @@ TIPOS_COSTO_VALIDOS = {
 
 
 class OtCostoAdicionalCreate(BaseModel):
-    """Schema para crear un costo adicional."""
     orden_trabajo_id: int
     tipo_costo: str
     descripcion_costo: str
@@ -27,9 +25,7 @@ class OtCostoAdicionalCreate(BaseModel):
     @classmethod
     def validate_tipo_costo(cls, v):
         if v not in TIPOS_COSTO_VALIDOS:
-            raise ValueError(
-                f'tipo_costo debe ser uno de: {", ".join(sorted(TIPOS_COSTO_VALIDOS))}'
-            )
+            raise ValueError(f'tipo_costo debe ser uno de: {", ".join(sorted(TIPOS_COSTO_VALIDOS))}')
         return v
 
     @field_validator('monto_costo')
@@ -41,7 +37,6 @@ class OtCostoAdicionalCreate(BaseModel):
 
 
 class OtCostoAdicionalUpdate(BaseModel):
-    """Schema para actualizar un costo adicional."""
     tipo_costo: Optional[str] = None
     descripcion_costo: Optional[str] = None
     monto_costo: Optional[float] = None
@@ -53,21 +48,11 @@ class OtCostoAdicionalUpdate(BaseModel):
         if v is None or v == '':
             return v
         if v not in TIPOS_COSTO_VALIDOS:
-            raise ValueError(
-                f'tipo_costo debe ser uno de: {", ".join(sorted(TIPOS_COSTO_VALIDOS))}'
-            )
-        return v
-
-    @field_validator('monto_costo')
-    @classmethod
-    def validate_monto(cls, v):
-        if v is not None and v < 0:
-            raise ValueError('monto_costo debe ser un número positivo')
+            raise ValueError(f'tipo_costo debe ser uno de: {", ".join(sorted(TIPOS_COSTO_VALIDOS))}')
         return v
 
 
 class OtCostoAdicionalRead(BaseModel):
-    """Schema para leer/respuesta de un costo adicional."""
     id: int
     orden_trabajo_id: int
     tipo_costo: str

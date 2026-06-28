@@ -63,6 +63,11 @@ def _migrate_equipo_v090():
     Migra la tabla 'equipo' al esquema v0.9.0:
     - Agrega columnas nuevas: observaciones, fecha_inicio_garantia, condicion_origen, proveedor_principal_id
     - NO elimina columnas obsoletas (SQLite no soporta DROP COLUMN fácilmente).
+      Las columnas registro_sanitario_bolivia, calibracion_proxima, responsable_tecnico_id,
+      proveedor_principal se quedan en la tabla pero SQLModel las ignora.
+    - Migración de datos: proveedor_principal (texto) → proveedor_principal_id (FK)
+      No se hace aquí automáticamente porque requiere buscar/crear proveedores.
+      Se hace vía endpoint /configuracion/migrar-proveedores (a implementar en Fase 2).
     """
     new_columns = [
         ("observaciones", "VARCHAR"),
@@ -80,28 +85,6 @@ def _migrate_equipo_v090():
         conn.commit()
 
 
-def _migrate_documento_ot_costo_id():
-    """v0.9.1: Agrega columna 'ot_costo_id' a la tabla 'documentoadjunto' para RF11."""
-    with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(documentoadjunto)"))
-        existing = {row[1] for row in result.fetchall()}
-        if "ot_costo_id" not in existing:
-            conn.execute(text("ALTER TABLE documentoadjunto ADD COLUMN ot_costo_id INTEGER REFERENCES otcostoadicional(id)"))
-            print("✅ Migración v0.9.1: columna 'ot_costo_id' agregada a tabla 'documentoadjunto'")
-        conn.commit()
-
-
-def _migrate_ordentrabajo_contrato_id():
-    """v0.9.2: Agrega columna 'contrato_id' a la tabla 'ordentrabajo' para RF12."""
-    with engine.connect() as conn:
-        result = conn.execute(text("PRAGMA table_info(ordentrabajo)"))
-        existing = {row[1] for row in result.fetchall()}
-        if "contrato_id" not in existing:
-            conn.execute(text("ALTER TABLE ordentrabajo ADD COLUMN contrato_id INTEGER REFERENCES contrato(id)"))
-            print("✅ Migración v0.9.2: columna 'contrato_id' agregada a tabla 'ordentrabajo'")
-        conn.commit()
-
-
 def create_db_and_tables():
     """Crea las tablas en la base de datos si no existen, y aplica migraciones."""
     SQLModel.metadata.create_all(engine)
@@ -109,8 +92,6 @@ def create_db_and_tables():
     _migrate_documento_herramienta_id()
     _migrate_proveedor_ciudad()
     _migrate_equipo_v090()
-    _migrate_documento_ot_costo_id()
-    _migrate_ordentrabajo_contrato_id()
 
 
 def get_session():
@@ -167,25 +148,17 @@ def seed_database():
                 EstadoEquipo(id=2,  nombre_estado="En mantenimiento",       color="#f39c12"),
                 EstadoEquipo(id=3,  nombre_estado="En reparación",          color="#e74c3c"),
                 EstadoEquipo(id=4,  nombre_estado="Fuera de servicio",      color="#7f8c8d"),
-                EstadoEquipo(id=5,  nombre_estado="En espera/Standby",     color="#3498db"),
-                EstadoEquipo(id=6,  nombre_estado="En calibración",        color="#9b59b6"),
-                EstadoEquipo(id=7,  nombre_estado="En inspección",         color="#1abc9c"),
-                EstadoEquipo(id=8,  nombre_estado="Esp. Repuesto",         color="#e67e22"),
-                EstadoEquipo(id=9,  nombre_estado="Bloqueado/LOTO",        color="#c0392b"),
-                EstadoEquipo(id=10, nombre_estado="En almacén",            color="#95a5a6"),
-                EstadoEquipo(id=11, nombre_estado="Almacén repuestos",     color="#795548"),
-                EstadoEquipo(id=12, nombre_estado="Retirado/Baja",         color="#636e72"),
-                EstadoEquipo(id=13, nombre_estado="En transporte",         color="#0984e3"),
-                EstadoEquipo(id=14, nombre_estado="En préstamo",           color="#6c5ce7"),
-                EstadoEquipo(id=15, nombre_estado="En certificación",      color="#00b894"),
-                EstadoEquipo(id=16, nombre_estado="En modificación",       color="#fdcb6e"),
-                EstadoEquipo(id=17, nombre_estado="Condición crítica",     color="#d63031"),
-                EstadoEquipo(id=18, nombre_estado="Degradado",             color="#e17055"),
-                EstadoEquipo(id=19, nombre_estado="En monitoreo",          color="#00cec9"),
+                EstadoEquipo(id=5,  nombre_estado="En calibración",         color="#9b59b6"),
+                EstadoEquipo(id=6,  nombre_estado="En inspección",          color="#1abc9c"),
+                EstadoEquipo(id=7,  nombre_estado="Esp. Repuesto",          color="#e67e22"),
+                EstadoEquipo(id=8,  nombre_estado="Esp. atención técnica",  color="#c0392b"),
+                EstadoEquipo(id=9,  nombre_estado="Retirado/Baja",          color="#636e72"),
+                EstadoEquipo(id=10, nombre_estado="En Monitoreo",           color="#00cec9"),
+                EstadoEquipo(id=11, nombre_estado="Otro",                   color="#95a5a6"),
             ]
             for estado in estados_equipo:
                 session.add(estado)
-            print("✅ Seed: 19 estados de equipo creados")
+            print("✅ Seed: 11 estados de equipo creados")
 
         # === 3. Seed: Estados de Orden de Trabajo ===
         ot_estado_count = session.exec(select(EstadoOT)).first()

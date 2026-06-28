@@ -1,0 +1,45 @@
+modificaciones en pagina EQUIPOS
+
+en la  tabla EQUIPOS se encuentra el campo estado_id con 19 estados, que debemos cambiar en cantidad a solo:
+
+estado_id
+1. Operativo           
+2. En mantenimiento    
+3. En reparación       
+4. Fuera de servicio   
+6. En calibración      
+7. En inspección       
+8. Esp. Repuesto
+9. Esp atención técnica      
+9. Retirado/Baja      
+10.En Monitoreo           
+11.Otro       
+
+la misma tabla posee el campo ubicacion_actual, por lo cual estos elementos serán retirados
+ya que el usuario puede ponerlos manualmente y es libre de modificarlos, no tienen restricción.
+se eliminaras los elementos
+
+1. En almacenes
+2. Almacén c/repuesto
+3. En transporte
+4. En préstamo
+5. otro
+
+la condición de origen del EQUIPO es excelente, se queda como esta.
+condicion_origen
+Compra, Donacion, Prestamo, Demostracion, Evaluacion, Leasing, Renta, Comodato, Otro
+
+los ESTADOS dentro de equipos no los mesclaremos con garantías o contratos. los estados serán solo los 11 ya definidos mas arriba.
+en este momento la casilla ESTADOS esta mesclando los 11 estados_id con "garantía vencida", no se debe hacer asi. solo los 11 estados 
+indicados mas arriba.
+si y solo si existe un equipo en garantía dentro de la fechas de inicio y final de garantía, este mensaje en color verde "en garantia", se
+mostrara debajo del nombre_corte
+si no existe un equipo que este dentro las fechas de garantía. debajo del nombre_corto no se mostrara nada.
+para esto se creara un nuevo filtro, GARANTIA.
+
+equipos que esten en contrato también tendrán el mismo comportamiento.
+un equipo bajo un contrato dentro de las fechas del contrato, se mostrara debajo del nombre_corto como "en contrato" si y solo si, se encuentra 
+dentro de las fechas del contrato. si este contrato esta fuera de fecha no se mostrara nada. existirá un filtro para "en contrato" "sin contrato"
+
+consulta: el realizar el calculo para cada equipo de si esta dentro de las fechas de contrato o dentro de las fechas de garantía, puede ser complicado si se elige para un gran numero de equipos, pero, se consulta si este valor es mejor se guarde en alguna tabla o en la misma tabla de equipo con un nuevo campo. o en la tabla estadoequipo? como es mejor? 
+

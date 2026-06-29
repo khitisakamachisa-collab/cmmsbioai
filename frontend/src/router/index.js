@@ -12,6 +12,7 @@ import AyudaView from '../views/AyudaView.vue'
 import ConfiguracionView from '../views/ConfiguracionView.vue'
 import ProveedoresView from '../views/ProveedoresView.vue'
 import ContratosView from '../views/ContratosView.vue'
+import PlanificacionView from '../views/PlanificacionView.vue'  // v0.9.13
 
 
 const routes = [
@@ -49,6 +50,11 @@ const routes = [
     path: '/preventivo',
     name: 'preventivo',
     component: PreventivoView
+  },
+  {
+    path: '/planificacion',
+    name: 'planificacion',
+    component: PlanificacionView
   },
   {
     path: '/historial',

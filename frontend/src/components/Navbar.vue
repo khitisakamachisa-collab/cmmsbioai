@@ -15,6 +15,7 @@ const navLinks = [
   { path: '/contratos', label: 'Contratos' },
   { path: '/ordenes', label: 'Ordenes' },
   { path: '/preventivo', label: 'Preventivo' },
+  { path: '/planificacion', label: 'Planificación' },
   { path: '/historial', label: 'Historial' },
   { path: '/reportes', label: 'Reportes' },
   { path: '/usuarios', label: 'Usuarios' },

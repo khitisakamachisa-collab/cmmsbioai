@@ -14,6 +14,7 @@ class Repuesto(SQLModel, table=True):
     ubicacion_almacen: Optional[str] = None
     nivel_stock_minimo: Optional[int] = None
     proveedor_ultimo: Optional[str] = None
+    proveedor_ultimo_id: Optional[int] = Field(default=None, foreign_key="proveedor.id")  # v0.9.14
     fecha_ultima_entrada: Optional[date_type] = None
     precio_referencia: Optional[float] = None
     imagen_ruta: Optional[str] = None  # Ruta relativa a imagen (ej: INVENTARIO/I0001_xxx/I0001_xxx.jpg)

@@ -11,6 +11,63 @@ import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'
 const activeTab = ref('repuestos')
 
 // =============================================
+// v0.9.14: PROVEEDORES (compartido por Repuestos y Herramientas)
+// =============================================
+const proveedores = ref([])
+const showNuevoProveedorModal = ref(false)
+const nuevoProveedorNombre = ref('')
+const creandoProveedor = ref(false)
+// Para saber a qué formulario regresar el proveedor creado ('repuesto' o 'herramienta')
+const proveedorModalContext = ref('repuesto')
+
+const fetchProveedores = async () => {
+  try {
+    const res = await apiClient.get('/proveedores/')
+    proveedores.value = Array.isArray(res.data) ? res.data : []
+  } catch (e) {
+    console.error('Error cargando proveedores:', e)
+  }
+}
+
+const getProveedorName = (id) => {
+  if (!id) return ''
+  const p = proveedores.value.find(p => p.id === id)
+  return p ? p.nombre_empresa : ''
+}
+
+const abrirModalNuevoProveedor = (contexto) => {
+  proveedorModalContext.value = contexto  // 'repuesto' o 'herramienta'
+  nuevoProveedorNombre.value = ''
+  showNuevoProveedorModal.value = true
+}
+
+const crearProveedorAlVuelo = async () => {
+  const nombre = nuevoProveedorNombre.value.trim()
+  if (!nombre) {
+    alert('El nombre del proveedor es obligatorio')
+    return
+  }
+  creandoProveedor.value = true
+  try {
+    const res = await apiClient.post('/proveedores/', { nombre_empresa: nombre })
+    await fetchProveedores()
+    // Asignar al formulario correspondiente
+    if (proveedorModalContext.value === 'repuesto') {
+      formData.value.proveedor_ultimo_id = res.data.id
+    } else {
+      herrFormData.value.proveedor_ultimo_id = res.data.id
+    }
+    showNuevoProveedorModal.value = false
+    alert(`Proveedor "${nombre}" creado. Podrás completar sus datos en la página de Proveedores.`)
+  } catch (error) {
+    const msg = error.response?.data?.detail || 'Error al crear el proveedor'
+    alert(typeof msg === 'string' ? msg : JSON.stringify(msg))
+  } finally {
+    creandoProveedor.value = false
+  }
+}
+
+// =============================================
 // REPUESTOS - Variables & Logic
 // =============================================
 const repuestos = ref([])
@@ -53,6 +110,7 @@ const emptyForm = () => ({
   ubicacion_almacen: '',
   nivel_stock_minimo: null,
   proveedor_ultimo: '',
+  proveedor_ultimo_id: null,  // v0.9.14
   fecha_ultima_entrada: '',
   precio_referencia: null,
   imagen_ruta: ''
@@ -208,6 +266,7 @@ const openEditModal = (rep) => {
     ubicacion_almacen: rep.ubicacion_almacen || '',
     nivel_stock_minimo: rep.nivel_stock_minimo ?? null,
     proveedor_ultimo: rep.proveedor_ultimo || '',
+    proveedor_ultimo_id: rep.proveedor_ultimo_id ?? null,  // v0.9.14
     fecha_ultima_entrada: rep.fecha_ultima_entrada ? rep.fecha_ultima_entrada.substring(0, 10) : '',
     precio_referencia: rep.precio_referencia ?? null,
     imagen_ruta: rep.imagen_ruta || ''
@@ -241,6 +300,7 @@ const saveRepuesto = async () => {
     if (payload.nivel_stock_minimo === '') payload.nivel_stock_minimo = null
     if (payload.fecha_ultima_entrada === '') payload.fecha_ultima_entrada = null
     if (payload.precio_referencia === '' || payload.precio_referencia === 0) payload.precio_referencia = null
+    if (payload.proveedor_ultimo_id === '' ) payload.proveedor_ultimo_id = null  // v0.9.14
 
     let repId;
     if (isEditing.value) {
@@ -439,6 +499,7 @@ const herrEmptyForm = () => ({
   costo_adquisicion: null,
   fecha_adquisicion: '',
   proveedor_ultimo: '',
+  proveedor_ultimo_id: null,  // v0.9.14
   observaciones: ''
 })
 
@@ -598,6 +659,7 @@ const herrOpenEditModal = (h) => {
     costo_adquisicion: h.costo_adquisicion ?? null,
     fecha_adquisicion: h.fecha_adquisicion ? h.fecha_adquisicion.substring(0, 10) : '',
     proveedor_ultimo: h.proveedor_ultimo || '',
+    proveedor_ultimo_id: h.proveedor_ultimo_id ?? null,  // v0.9.14
     observaciones: h.observaciones || ''
   }
   herrImagenFile.value = null
@@ -628,6 +690,7 @@ const herrSaveHerramienta = async () => {
 
     if (payload.costo_adquisicion === '' || payload.costo_adquisicion === 0) payload.costo_adquisicion = null
     if (payload.fecha_adquisicion === '') payload.fecha_adquisicion = null
+    if (payload.proveedor_ultimo_id === '') payload.proveedor_ultimo_id = null  // v0.9.14
 
     let herrId;
     if (herrIsEditing.value) {
@@ -767,6 +830,7 @@ const herrResetImport = () => {
 onMounted(() => {
   fetchRepuestos()
   fetchHerramientas()
+  fetchProveedores()  // v0.9.14
 })
 </script>
 
@@ -859,23 +923,23 @@ onMounted(() => {
                 <td>{{ rep.ubicacion_almacen || 'Sin ubicar' }}</td>
                 <td>{{ formatPrecio(rep.precio_referencia) }}</td>
                 <td class="actions-cell">
-                  <button type="button" class="btn-icon" title="Ver detalles" @click="openDetailModal(rep)">
+                  <button type="button" class="btn-icon btn-view" title="Ver detalles" @click="openDetailModal(rep)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
                     </svg>
                   </button>
-                  <button type="button" class="btn-icon" title="Editar" @click="openEditModal(rep)">
+                  <button type="button" class="btn-icon btn-edit" title="Editar" @click="openEditModal(rep)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
                     </svg>
                   </button>
-                  <button type="button" class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteRepuesto(rep.id)">
+                  <button type="button" class="btn-icon btn-delete" title="Eliminar" @click="deleteRepuesto(rep.id)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
                       <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
                     </svg>
                   </button>
-                  <button type="button" class="btn-icon btn-doc-icon" title="Documentos Adjuntos" @click="openDocsModal(rep)">
+                  <button type="button" class="btn-icon btn-doc" title="Documentos Adjuntos" @click="openDocsModal(rep)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
                     </svg>
@@ -974,23 +1038,23 @@ onMounted(() => {
                 <td>{{ h.ubicacion_almacen || 'Sin ubicar' }}</td>
                 <td>{{ formatPrecio(h.costo_adquisicion) }}</td>
                 <td class="actions-cell">
-                  <button type="button" class="btn-icon" title="Ver detalles" @click="herrOpenDetailModal(h)">
+                  <button type="button" class="btn-icon btn-view" title="Ver detalles" @click="herrOpenDetailModal(h)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
                     </svg>
                   </button>
-                  <button type="button" class="btn-icon" title="Editar" @click="herrOpenEditModal(h)">
+                  <button type="button" class="btn-icon btn-edit" title="Editar" @click="herrOpenEditModal(h)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
                     </svg>
                   </button>
-                  <button type="button" class="btn-icon btn-danger-icon" title="Eliminar" @click="herrDeleteHerramienta(h.id)">
+                  <button type="button" class="btn-icon btn-delete" title="Eliminar" @click="herrDeleteHerramienta(h.id)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
                       <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
                     </svg>
                   </button>
-                  <button type="button" class="btn-icon btn-doc-icon" title="Documentos Adjuntos" @click="herrOpenDocsModal(h)">
+                  <button type="button" class="btn-icon btn-doc" title="Documentos Adjuntos" @click="herrOpenDocsModal(h)">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
                     </svg>
@@ -1162,7 +1226,19 @@ onMounted(() => {
           <div class="form-row">
             <div class="form-group">
               <label>Proveedor Ultimo</label>
-              <input v-model="formData.proveedor_ultimo" type="text" placeholder="Nombre del ultimo proveedor">
+              <div class="proveedor-row">
+                <select v-model="formData.proveedor_ultimo_id" class="proveedor-select">
+                  <option :value="null">— Sin proveedor —</option>
+                  <option v-for="p in proveedores" :key="p.id" :value="p.id">
+                    {{ p.nombre_empresa }}{{ p.ciudad ? ' (' + p.ciudad + ')' : '' }}
+                  </option>
+                </select>
+                <button type="button" class="btn-add-proveedor" @click="abrirModalNuevoProveedor('repuesto')" title="Crear nuevo proveedor">
+                  + Nuevo
+                </button>
+              </div>
+              <!-- v0.9.14: campo de texto legacy oculto, se mantiene para compatibilidad -->
+              <input type="hidden" v-model="formData.proveedor_ultimo">
             </div>
             <div class="form-group">
               <label>Fecha Ultima Entrada</label>
@@ -1204,7 +1280,7 @@ onMounted(() => {
               </span>
             </p>
             <p><strong>Stock minimo:</strong> {{ selectedRepuesto.nivel_stock_minimo ?? 'No definido' }}</p>
-            <p><strong>Proveedor ultimo:</strong> {{ selectedRepuesto.proveedor_ultimo || 'N/A' }}</p>
+            <p><strong>Proveedor ultimo:</strong> {{ getProveedorName(selectedRepuesto.proveedor_ultimo_id) || selectedRepuesto.proveedor_ultimo || 'N/A' }}</p>
             <p><strong>Fecha ultima entrada:</strong> {{ selectedRepuesto.fecha_ultima_entrada || 'N/A' }}</p>
             <p><strong>Precio referencia:</strong> {{ formatPrecio(selectedRepuesto.precio_referencia) }}</p>
           </div>
@@ -1393,7 +1469,18 @@ onMounted(() => {
           <div class="form-row">
             <div class="form-group">
               <label>Proveedor Ultimo</label>
-              <input v-model="herrFormData.proveedor_ultimo" type="text" placeholder="Nombre del ultimo proveedor">
+              <div class="proveedor-row">
+                <select v-model="herrFormData.proveedor_ultimo_id" class="proveedor-select">
+                  <option :value="null">— Sin proveedor —</option>
+                  <option v-for="p in proveedores" :key="p.id" :value="p.id">
+                    {{ p.nombre_empresa }}{{ p.ciudad ? ' (' + p.ciudad + ')' : '' }}
+                  </option>
+                </select>
+                <button type="button" class="btn-add-proveedor" @click="abrirModalNuevoProveedor('herramienta')" title="Crear nuevo proveedor">
+                  + Nuevo
+                </button>
+              </div>
+              <input type="hidden" v-model="herrFormData.proveedor_ultimo">
             </div>
           </div>
           <div class="form-group">
@@ -1434,7 +1521,7 @@ onMounted(() => {
             </p>
             <p><strong>Costo adquisicion:</strong> {{ formatPrecio(herrSelected.costo_adquisicion) }}</p>
             <p><strong>Fecha adquisicion:</strong> {{ herrSelected.fecha_adquisicion || 'N/A' }}</p>
-            <p><strong>Proveedor ultimo:</strong> {{ herrSelected.proveedor_ultimo || 'N/A' }}</p>
+            <p><strong>Proveedor ultimo:</strong> {{ getProveedorName(herrSelected.proveedor_ultimo_id) || herrSelected.proveedor_ultimo || 'N/A' }}</p>
           </div>
         </div>
         <div v-if="herrSelected.descripcion" class="detail-full">
@@ -1463,6 +1550,29 @@ onMounted(() => {
         <div class="modal-actions">
           <button class="btn-secondary" @click="herrShowDocsModal = false">Cerrar</button>
         </div>
+      </div>
+    </div>
+
+    <!-- v0.9.14: Modal Crear Proveedor al vuelo (compartido por Repuestos y Herramientas) -->
+    <div v-if="showNuevoProveedorModal" class="modal-overlay" @click.self="showNuevoProveedorModal = false">
+      <div class="modal" style="width: 420px;">
+        <h3>Crear Nuevo Proveedor</h3>
+        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1rem;">
+          Ingrese solo el nombre de la empresa. Los demás datos (ciudad, dirección, contactos)
+          podrá completarlos después desde la página de Proveedores.
+        </p>
+        <form @submit.prevent="crearProveedorAlVuelo">
+          <div class="form-group">
+            <label>Nombre de la Empresa *</label>
+            <input v-model="nuevoProveedorNombre" type="text" required placeholder="Ej: TechMed Bolivia SRL" autofocus>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" @click="showNuevoProveedorModal = false">Cancelar</button>
+            <button type="submit" class="btn-primary" :disabled="creandoProveedor">
+              {{ creandoProveedor ? 'Creando...' : 'Crear Proveedor' }}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -1590,13 +1700,30 @@ th { background-color: #f8f9fa; font-weight: bold; }
 
 .actions-cell { display: flex; gap: 0.5rem; align-items: center; }
 .btn-icon {
-  background: #f0f2f5; border: none; padding: 8px; border-radius: 6px;
+  background: #f0f2f5; color: #555;
+  border: none; padding: 8px; border-radius: 6px;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
-  color: #555; transition: all 0.2s;
+  transition: all 0.2s;
 }
-.btn-icon:hover { background: #dfe2e6; color: #000; }
-.btn-danger-icon:hover { background: #fee2e2; color: #c0392b; }
-.btn-doc-icon:hover { background: #ebf5fb; color: #3498db; }
+/* v0.9.14: Iconos estilo Equipos — gris por defecto, color solo en hover */
+.btn-view:hover { background: #16a34a; color: #ffffff; }
+.btn-edit:hover { background: #2563eb; color: #ffffff; }
+.btn-delete:hover { background: #dc2626; color: #ffffff; }
+.btn-doc:hover { background: #0891b2; color: #ffffff; }
+
+/* v0.9.14: Dropdown de proveedor con botón "+ Nuevo" */
+.proveedor-row { display: flex; gap: 0.5rem; align-items: center; }
+.proveedor-select {
+  flex: 1; padding: 0.5rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 6px;
+  font-size: 0.9rem; background: #fff; box-sizing: border-box; font-family: inherit;
+}
+.proveedor-select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+.btn-add-proveedor {
+  background-color: #f59e0b; color: white; border: none;
+  padding: 0.5rem 0.85rem; border-radius: 6px; cursor: pointer;
+  font-weight: 600; font-size: 0.85rem; white-space: nowrap; transition: background 0.2s;
+}
+.btn-add-proveedor:hover { background-color: #d97706; }
 
 /* Imagen upload */
 .imagen-upload-container { display: flex; flex-direction: column; gap: 0.4rem; }

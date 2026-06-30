@@ -44,10 +44,6 @@ def _migrate_documento_herramienta_id():
         if "herramienta_id" not in existing:
             conn.execute(text("ALTER TABLE documentoadjunto ADD COLUMN herramienta_id INTEGER REFERENCES herramienta(id)"))
             print("✅ Migración: columna 'herramienta_id' agregada a tabla 'documentoadjunto'")
-        # v0.9.12: agregar contrato_id a documentoadjunto
-        if "contrato_id" not in existing:
-            conn.execute(text("ALTER TABLE documentoadjunto ADD COLUMN contrato_id INTEGER REFERENCES contrato(id)"))
-            print("✅ Migración v0.9.12: columna 'contrato_id' agregada a tabla 'documentoadjunto'")
         conn.commit()
 
 
@@ -96,6 +92,25 @@ def create_db_and_tables():
     _migrate_documento_herramienta_id()
     _migrate_proveedor_ciudad()
     _migrate_equipo_v090()
+    _migrate_proveedor_ultimo_id()  # v0.9.14
+
+
+def _migrate_proveedor_ultimo_id():
+    """v0.9.14: Agrega columna proveedor_ultimo_id a 'repuesto' y 'herramienta'."""
+    with engine.connect() as conn:
+        # Repuesto
+        result = conn.execute(text("PRAGMA table_info(repuesto)"))
+        existing = {row[1] for row in result.fetchall()}
+        if "proveedor_ultimo_id" not in existing:
+            conn.execute(text("ALTER TABLE repuesto ADD COLUMN proveedor_ultimo_id INTEGER REFERENCES proveedor(id)"))
+            print("✅ Migración v0.9.14: columna 'proveedor_ultimo_id' agregada a tabla 'repuesto'")
+        # Herramienta
+        result = conn.execute(text("PRAGMA table_info(herramienta)"))
+        existing = {row[1] for row in result.fetchall()}
+        if "proveedor_ultimo_id" not in existing:
+            conn.execute(text("ALTER TABLE herramienta ADD COLUMN proveedor_ultimo_id INTEGER REFERENCES proveedor(id)"))
+            print("✅ Migración v0.9.14: columna 'proveedor_ultimo_id' agregada a tabla 'herramienta'")
+        conn.commit()
 
 
 def get_session():

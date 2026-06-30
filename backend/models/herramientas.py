@@ -24,4 +24,5 @@ class Herramienta(SQLModel, table=True):
     costo_adquisicion: Optional[float] = None
     fecha_adquisicion: Optional[date_type] = None
     proveedor_ultimo: Optional[str] = None
+    proveedor_ultimo_id: Optional[int] = Field(default=None, foreign_key="proveedor.id")  # v0.9.14
     observaciones: Optional[str] = None

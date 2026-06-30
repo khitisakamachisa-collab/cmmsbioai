@@ -13,6 +13,7 @@ class RepuestoCreate(BaseModel):
     ubicacion_almacen: Optional[str] = None
     nivel_stock_minimo: Optional[int] = None
     proveedor_ultimo: Optional[str] = None
+    proveedor_ultimo_id: Optional[int] = None  # v0.9.14
     fecha_ultima_entrada: Optional[date_type] = None
     precio_referencia: Optional[float] = None
 
@@ -28,6 +29,7 @@ class RepuestoRead(BaseModel):
     ubicacion_almacen: Optional[str] = None
     nivel_stock_minimo: Optional[int] = None
     proveedor_ultimo: Optional[str] = None
+    proveedor_ultimo_id: Optional[int] = None  # v0.9.14
     fecha_ultima_entrada: Optional[date_type] = None
     precio_referencia: Optional[float] = None
     imagen_ruta: Optional[str] = None
@@ -47,6 +49,7 @@ class RepuestoUpdate(BaseModel):
     ubicacion_almacen: Optional[str] = None
     nivel_stock_minimo: Optional[int] = None
     proveedor_ultimo: Optional[str] = None
+    proveedor_ultimo_id: Optional[int] = None  # v0.9.14
     fecha_ultima_entrada: Optional[date_type] = None
     precio_referencia: Optional[float] = None
     imagen_ruta: Optional[str] = None

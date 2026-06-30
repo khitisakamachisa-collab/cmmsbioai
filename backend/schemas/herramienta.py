@@ -15,6 +15,7 @@ class HerramientaCreate(BaseModel):
     costo_adquisicion: Optional[float] = None
     fecha_adquisicion: Optional[date_type] = None
     proveedor_ultimo: Optional[str] = None
+    proveedor_ultimo_id: Optional[int] = None  # v0.9.14
     observaciones: Optional[str] = None
 
 
@@ -32,6 +33,7 @@ class HerramientaRead(BaseModel):
     costo_adquisicion: Optional[float] = None
     fecha_adquisicion: Optional[date_type] = None
     proveedor_ultimo: Optional[str] = None
+    proveedor_ultimo_id: Optional[int] = None  # v0.9.14
     observaciones: Optional[str] = None
 
     class Config:
@@ -51,4 +53,5 @@ class HerramientaUpdate(BaseModel):
     costo_adquisicion: Optional[float] = None
     fecha_adquisicion: Optional[date_type] = None
     proveedor_ultimo: Optional[str] = None
+    proveedor_ultimo_id: Optional[int] = None  # v0.9.14
     observaciones: Optional[str] = None

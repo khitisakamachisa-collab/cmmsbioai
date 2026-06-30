@@ -136,3 +136,14 @@ en EQUIPOS en los iconos cuando se pasa el mouse sobre ellos no cambian de color
 en CONTRATOS debemos adicionar DOCUMENTACION, ya que los contratos tienen documentación. etc.
 en CONTRATOS, los Equipos Asociados en ver deben tener un fondo de color mas llamativo. y todo su texto en negro.
 en CONTRATOS, en editar los chips pueden ser de cualquier color que sugieras pero las letras deben ser en negro no en blanco. para facilidad de lectura.
+
+
+hola, ahora revisaremos la pagina de REPUESTOS.
+esta pagina, tiene 2 paginas dentro REPUESTOS Y HERRAMIENTAS.
+ambas tienen campos "Proveedor Ultimo" estos deben ligarse con los "proveedores" que ya tenemos.
+es decir deben aparecer la lista de los proveedores al momento de crear o editar una herramienta o un repuesto
+también, así como lo hicimos en EQUIPOS debemos tener la opción de "+ Nuevo" cuando un proveedor no existe, para luego completar los datos del proveedor.
+adicionalmente, los iconos de ojo, lápiz, basurero documentación. deben tener colores de fondo iguales a los de EQUIPOS.
+CONSULTA: esta forma de obtener los nombres de los proveedores esta bien? planteaste alguna vez un tipo de búsqueda. que tal si los proveedores sean muchos?
+talvez la lista como hasta ahora esta sea demasiado larga, o aun sigue siendo una buena oopcion.. analizar lo optimo
+VAMOS HAGAMOSLO!!!

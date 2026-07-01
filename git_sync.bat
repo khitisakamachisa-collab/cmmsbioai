@@ -13,7 +13,7 @@ echo ==============================
 echo 2. Subiendo cambios locales...
 echo ==============================
 git add .
-git commit -m "v0.9.14 — REPUESTOS + HERRAMIENTAS"
+git commit -m "v0.9.16 — Restauracion de mejoras perdidas + v0.9.15 preservada"
 git push origin main
 
 echo ==============================

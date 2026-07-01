@@ -10,7 +10,7 @@ TIPOS_CONTRATO = {
     'Leasing', 'Garantía Extendida', 'Soporte Técnico', 'Servicio Integral', 'Otro'
 }
 PERIODICIDADES = {'Único', 'Mensual', 'Trimestral', 'Semestral', 'Anual'}
-MONEDAS = {'USD', 'EUR', 'BOB', 'MXN', 'ARS', 'CLP', 'COP', 'PEN', 'BRL', 'Otro'}
+MONEDAS = {'BOB'}  # v0.9.15: solo Bolivianos para todo el proyecto
 
 
 class ContratoCreate(BaseModel):
@@ -21,7 +21,7 @@ class ContratoCreate(BaseModel):
     costo_total: Optional[float] = None
     costo_periodico: Optional[float] = None
     periodicidad_costo: str = "Único"
-    moneda: str = "USD"
+    moneda: str = "BOB"  # v0.9.15: solo BOB
     cobertura_detalle: Optional[str] = None
     tiempo_respuesta: Optional[str] = None
     horario_servicio: Optional[str] = None

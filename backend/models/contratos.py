@@ -30,7 +30,7 @@ class Contrato(SQLModel, table=True):
     costo_total: Optional[float] = None
     costo_periodico: Optional[float] = None
     periodicidad_costo: str = "Único"  # enum: Único, Mensual, Trimestral, Semestral, Anual
-    moneda: str = "USD"  # enum: USD, EUR, BOB, MXN, ARS, CLP, COP, PEN, BRL, Otro
+    moneda: str = "BOB"  # v0.9.15: solo Bolivianos para todo el proyecto
 
     # Detalles del servicio
     cobertura_detalle: Optional[str] = None

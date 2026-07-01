@@ -37,7 +37,7 @@ const tiposContrato = [
   'Leasing', 'Garantía Extendida', 'Soporte Técnico', 'Servicio Integral', 'Otro'
 ]
 const periodicidades = ['Único', 'Mensual', 'Trimestral', 'Semestral', 'Anual']
-const monedas = ['USD', 'EUR', 'BOB', 'MXN', 'ARS', 'CLP', 'COP', 'PEN', 'BRL', 'Otro']
+const monedas = ['BOB']  // v0.9.15: solo Bolivianos para todo el proyecto
 
 // --- Modal Crear/Editar ---
 const showModal = ref(false)
@@ -186,7 +186,7 @@ function resetForm() {
     costo_total: '',
     costo_periodico: '',
     periodicidad_costo: 'Único',
-    moneda: 'USD',
+    moneda: 'BOB',  // v0.9.15: solo BOB
     cobertura_detalle: '',
     tiempo_respuesta: '',
     horario_servicio: '',
@@ -213,7 +213,7 @@ function abrirEditar(c) {
     costo_total: c.costo_total ?? '',
     costo_periodico: c.costo_periodico ?? '',
     periodicidad_costo: c.periodicidad_costo || 'Único',
-    moneda: c.moneda || 'USD',
+    moneda: 'BOB',  // v0.9.15: forzar BOB al editar (ignorar valor anterior)
     cobertura_detalle: c.cobertura_detalle ?? '',
     tiempo_respuesta: c.tiempo_respuesta ?? '',
     horario_servicio: c.horario_servicio ?? '',
@@ -599,7 +599,6 @@ onMounted(async () => {
               <th>Vigencia</th>
               <th>Estado</th>
               <th>Costo</th>
-              <th>Equipos</th>
               <th class="acciones-col">Acciones</th>
             </tr>
           </thead>
@@ -611,7 +610,7 @@ onMounted(async () => {
               <td>
                 <div class="vigencia-cell">
                   <div>{{ formatFecha(c.fecha_inicio) }}</div>
-                  <div class="text-muted">→ {{ formatFecha(c.fecha_fin) }}</div>
+                  <div class="vigencia-fin">→ {{ formatFecha(c.fecha_fin) }}</div>
                 </div>
               </td>
               <td>
@@ -624,12 +623,6 @@ onMounted(async () => {
                 <div v-else-if="c.costo_periodico !== null && c.costo_periodico !== undefined" class="text-muted">
                   {{ formatMoneda(c.costo_periodico, c.moneda) }} / {{ c.periodicidad_costo }}
                 </div>
-                <span v-else class="text-muted">—</span>
-              </td>
-              <td>
-                <span v-if="c.equipos && c.equipos.length" class="equipos-count">
-                  {{ c.equipos.length }} equipo(s)
-                </span>
                 <span v-else class="text-muted">—</span>
               </td>
               <td class="acciones-col actions-cell">
@@ -718,9 +711,7 @@ onMounted(async () => {
             </div>
             <div class="form-group">
               <label>Moneda</label>
-              <select v-model="formData.moneda" class="input">
-                <option v-for="m in monedas" :key="m" :value="m">{{ m }}</option>
-              </select>
+              <input v-model="formData.moneda" type="text" class="input input-readonly" readonly title="El sistema opera únicamente en Bolivianos (BOB)" />
             </div>
             <div class="form-group">
               <label>Tiempo de Respuesta</label>
@@ -1122,18 +1113,60 @@ onMounted(async () => {
 
 .input {
   width: 100%;
-  padding: 0.45rem 0.6rem;
+  padding: 0.5rem 0.7rem;
   border: 1px solid #cbd5e1;
   border-radius: 4px;
   font-size: 0.9rem;
   font-family: inherit;
   background: white;
+  box-sizing: border-box;
+  min-height: 38px;
+  line-height: 1.4;
+  color: #1e293b;
 }
 
 .input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* v0.9.15: Normalizar altura de selects, dates y numbers para que coincidan */
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23475569' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 14px;
+  padding-right: 2rem;
+}
+
+input.input[type="date"],
+input.input[type="number"],
+input.input[type="text"],
+input.input[type="email"],
+input.input[type="search"] {
+  height: 38px;
+}
+
+input.input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+textarea.input {
+  min-height: 60px;
+  height: auto;
+  resize: vertical;
+}
+
+/* v0.9.15: input de solo lectura (ej: Moneda fija en BOB) */
+.input-readonly {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  cursor: not-allowed;
+  font-weight: 600;
 }
 
 .table-card {
@@ -1192,6 +1225,11 @@ onMounted(async () => {
 .vigencia-cell {
   font-size: 0.82rem;
   line-height: 1.3;
+}
+
+.vigencia-fin {
+  font-weight: 600;
+  color: #1e293b;
 }
 
 .text-muted {
@@ -1609,12 +1647,6 @@ onMounted(async () => {
 }
 
 .req { color: #ef4444; }
-
-textarea.input {
-  resize: vertical;
-  min-height: 50px;
-  font-family: inherit;
-}
 
 /* Detalle */
 .detalle-grid {

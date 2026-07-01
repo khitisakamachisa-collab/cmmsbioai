@@ -336,7 +336,7 @@ const entidades = [
       { nombre: 'costo_total', tipo: 'REAL', rf: true, impl: true, oblig: false, desc: 'Costo total del contrato (si periodicidad = Unico)' },
       { nombre: 'costo_periodico', tipo: 'REAL', rf: true, impl: true, oblig: false, desc: 'Costo periodico (si periodicidad != Unico)' },
       { nombre: 'periodicidad_costo', tipo: 'TEXT (enum)', rf: true, impl: true, oblig: false, desc: 'Enum: Unico, Mensual, Trimestral, Semestral, Anual' },
-      { nombre: 'moneda', tipo: 'TEXT (enum)', rf: true, impl: true, oblig: false, desc: 'Enum: USD, EUR, BOB, MXN, ARS, CLP, COP, PEN, BRL, Otro' },
+      { nombre: 'moneda', tipo: 'TEXT (enum)', rf: true, impl: true, oblig: false, desc: 'v0.9.15: Solo BOB (Bolivianos) para todo el proyecto' },
       { nombre: 'cobertura_detalle', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Descripcion de lo que cubre el contrato' },
       { nombre: 'tiempo_respuesta', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Tiempo maximo de respuesta del proveedor (ej: 24 hs)' },
       { nombre: 'horario_servicio', tipo: 'TEXT', rf: true, impl: true, oblig: false, desc: 'Horario de servicio acordado (ej: Lun-Vie 8-18hs)' },

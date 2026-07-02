@@ -370,8 +370,8 @@ const modulos = [
   },
   {
     emoji: '🔧', nombre: 'Ordenes de Trabajo', ruta: '/ordenes',
-    descripcion: 'Gestion de OTs para mantenimiento correctivo y preventivo con descuento automatico de stock.',
-    funcionalidades: ['CRUD completo', '5 estados de OT', '4 niveles de prioridad', 'Repuestos utilizados con descuento automatico', 'Evento automatico en Historial al completar', 'Documentos adjuntos por OT']
+    descripcion: 'Gestion de OTs para mantenimiento correctivo y preventivo con descuento automatico de stock. v0.9.18: modales Nuevo y Editar unificados. v0.9.19: repuestos se asocian al crear OT. v0.9.20: filtros y ordenamiento.',
+    funcionalidades: ['CRUD completo', '5 estados de OT', '4 niveles de prioridad', '16 tipos de OT (Correctivo, Preventivo, Calibracion, etc.)', 'Repuestos utilizados con descuento automatico de stock (al crear y al editar)', 'Evento automatico en Historial al completar', 'Documentos adjuntos por OT', 'v0.9.18: Modales Nuevo y Editar con los mismos campos (Equipo, Estado, Prioridad, Tecnico, Titulo, Falla, Tiempo, Acciones, Costos, Repuestos)', 'v0.9.18: Equipo, Titulo y Falla editables en modal Editar', 'v0.9.19: Repuestos se guardan correctamente al crear OT nueva (antes solo se guardaban al editar)', 'v0.9.19: Iconos de Acciones con hover de color (verde/azul/rojo/cian) igual que Equipos', 'v0.9.19: Lista de repuestos con fondo amarillo en Crear y Editar', 'v0.9.19: Modal Ver redimensionado (600px) sin scroll horizontal innecesario', 'v0.9.19: Repuestos en modal Ver con fondo amarillo', 'v0.9.20: Filtros por Tipo, Prioridad y Estado', 'v0.9.20: Ordenamiento ascendente/descendente (nuevas primero por defecto)', 'v0.9.20: En modal Ver, repuestos muestran nombre (cantidad x nombre_repuesto)', 'v0.9.20: En modal Ver, Acciones Realizadas con color de texto normal']
   },
   {
     emoji: '🔩', nombre: 'Inventario (Repuestos + Herramientas)', ruta: '/inventario',

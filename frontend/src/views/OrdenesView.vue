@@ -18,6 +18,12 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const searchQuery = ref('')
 
+// v0.9.20: filtros adicionales
+const filterTipo = ref('')
+const filterPrioridad = ref('')
+const filterEstado = ref('')
+const sortOrder = ref('desc')  // 'desc' = más nuevas primero, 'asc' = más viejas primero
+
 // Tipos de OT para el menú de selección de Título
 const tiposOT = [
   'Correctivo',
@@ -40,14 +46,37 @@ const tiposOT = [
 
 const filteredOrdenes = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return ordenes.value
-  return ordenes.value.filter((ot) => {
-    const titulo = String(ot.titulo ?? '').toLowerCase()
-    const falla = String(ot.descripcion_falla ?? '').toLowerCase()
-    const id = String(ot.id ?? '')
-    const equipo = getEquipoNombre(ot.equipo_id).toLowerCase()
-    return titulo.includes(q) || falla.includes(q) || id.includes(q) || equipo.includes(q)
+  let result = ordenes.value
+
+  // Búsqueda libre
+  if (q) {
+    result = result.filter((ot) => {
+      const titulo = String(ot.titulo ?? '').toLowerCase()
+      const falla = String(ot.descripcion_falla ?? '').toLowerCase()
+      const id = String(ot.id ?? '')
+      const equipo = getEquipoNombre(ot.equipo_id).toLowerCase()
+      return titulo.includes(q) || falla.includes(q) || id.includes(q) || equipo.includes(q)
+    })
+  }
+
+  // v0.9.20: filtros por Tipo, Prioridad, Estado
+  if (filterTipo.value) {
+    result = result.filter(ot => ot.titulo === filterTipo.value)
+  }
+  if (filterPrioridad.value) {
+    result = result.filter(ot => ot.prioridad === filterPrioridad.value)
+  }
+  if (filterEstado.value) {
+    result = result.filter(ot => String(ot.estado_id) === String(filterEstado.value))
+  }
+
+  // v0.9.20: ordenamiento por ID (asc = viejas primero, desc = nuevas primero)
+  result = [...result].sort((a, b) => {
+    if (sortOrder.value === 'desc') return b.id - a.id
+    return a.id - b.id
   })
+
+  return result
 })
 
 const paginatedOrdenes = computed(() => {
@@ -67,7 +96,7 @@ watch(
   }
 )
 
-watch(searchQuery, () => {
+watch([searchQuery, filterTipo, filterPrioridad, filterEstado, sortOrder], () => {
   currentPage.value = 1
 })
 
@@ -103,17 +132,24 @@ const formData = ref({
   titulo: '',
   descripcion_falla: '',
   tecnico_asignado_id: null,
-  unidad_tiempo: 'horas'
+  unidad_tiempo: 'horas',
+  tiempo_real_invertido: null,
+  acciones_realizadas: '',
+  costo_adicional: null,
+  costos_adicionales: null
 })
 
 // Formulario Editar
 const editFormData = ref({
+  equipo_id: '',
   estado_id: '',
   prioridad: 'Media',
-  acciones_realizadas: '',
-  tiempo_real_invertido: null,
-  unidad_tiempo: 'horas',
+  titulo: '',
+  descripcion_falla: '',
   tecnico_asignado_id: null,
+  unidad_tiempo: 'horas',
+  tiempo_real_invertido: null,
+  acciones_realizadas: '',
   costo_adicional: null,
   costos_adicionales: null
 })
@@ -139,12 +175,35 @@ const fetchData = async () => {
   }
 }
 
+// v0.9.18: Abrir modal Crear — cargar repuestos y resetear estado
+const openCreateModal = async () => {
+  formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', tiempo_real_invertido: null, acciones_realizadas: '', costo_adicional: null, costos_adicionales: null }
+  repuestosSeleccionados.value = []
+  selectedRepuestoId.value = null
+  selectedCantidad.value = 1
+  // Cargar repuestos para el selector
+  try {
+    const resRep = await apiClient.get('/repuestos/')
+    listaRepuestos.value = resRep.data
+  } catch (e) {
+    console.error('Error cargando repuestos:', e)
+  }
+  showModal.value = true
+}
+
 const saveOrden = async () => {
   try {
-    await apiClient.post('/ordenes/', formData.value)
+    const payload = { ...formData.value, repuestos_utilizados: repuestosSeleccionados.value }
+    if (payload.tiempo_real_invertido === "" || payload.tiempo_real_invertido === null) {
+      payload.tiempo_real_invertido = null
+    } else {
+      payload.tiempo_real_invertido = parseFloat(payload.tiempo_real_invertido)
+    }
+    await apiClient.post('/ordenes/', payload)
     alert('Orden creada')
     showModal.value = false
-    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas' }
+    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', tiempo_real_invertido: null, acciones_realizadas: '', costo_adicional: null, costos_adicionales: null }
+    repuestosSeleccionados.value = []
     fetchData() 
   } catch (error) {
     alert('Error al crear OT')
@@ -157,10 +216,26 @@ const openViewModal = async (ot) => {
   try {
     const res = await apiClient.get(`/ordenes/${ot.id}`)
     selectedOT.value = res.data
+    // v0.9.20: cargar lista de repuestos para resolver nombres en el modal Ver
+    if (!listaRepuestos.value.length) {
+      try {
+        const resRep = await apiClient.get('/repuestos/')
+        listaRepuestos.value = resRep.data
+      } catch (e) {
+        console.warn('No se pudieron cargar repuestos para el detalle', e)
+      }
+    }
     showViewModal.value = true
   } catch (e) {
     alert("Error al cargar detalles")
   }
+}
+
+// v0.9.20: helper para obtener el nombre de un repuesto por su ID
+const getRepuestoNombre = (id) => {
+  if (!id) return ''
+  const rep = listaRepuestos.value.find(r => r.id === id)
+  return rep ? rep.nombre_repuesto : `Repuesto #${id}`
 }
 
 // --- NUEVO: Abrir Modal Editar (Lápiz) ---
@@ -178,12 +253,15 @@ const openEditModal = async (ot) => {
     
     // 3. Llenar formulario de edición
     editFormData.value = {
+      equipo_id: fullOt.equipo_id,
       estado_id: fullOt.estado_id,
       prioridad: fullOt.prioridad || 'Media',
-      acciones_realizadas: fullOt.acciones_realizadas || '',
-      tiempo_real_invertido: fullOt.tiempo_real_invertido || null,
-      unidad_tiempo: fullOt.unidad_tiempo || 'horas',
+      titulo: fullOt.titulo || '',
+      descripcion_falla: fullOt.descripcion_falla || '',
       tecnico_asignado_id: fullOt.tecnico_asignado_id || null,
+      unidad_tiempo: fullOt.unidad_tiempo || 'horas',
+      tiempo_real_invertido: fullOt.tiempo_real_invertido || null,
+      acciones_realizadas: fullOt.acciones_realizadas || '',
       costo_adicional: fullOt.costo_adicional || null,
       costos_adicionales: fullOt.costos_adicionales || null
     }
@@ -335,8 +413,46 @@ onMounted(() => {
               autocomplete="off"
             >
           </div>
-          <button class="btn-primary" @click="showModal = true">+ Nueva Orden</button>
+          <button class="btn-primary" @click="openCreateModal">+ Nueva Orden</button>
         </div>
+      </div>
+
+      <!-- v0.9.20: Barra de filtros -->
+      <div class="filter-bar">
+        <div class="filter-group">
+          <label class="filter-label">Tipo:</label>
+          <select v-model="filterTipo" class="filter-select">
+            <option value="">Todos</option>
+            <option v-for="t in tiposOT" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Prioridad:</label>
+          <select v-model="filterPrioridad" class="filter-select">
+            <option value="">Todas</option>
+            <option>Urgente</option>
+            <option>Alta</option>
+            <option>Media</option>
+            <option>Baja</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Estado:</label>
+          <select v-model="filterEstado" class="filter-select">
+            <option value="">Todos</option>
+            <option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Orden:</label>
+          <select v-model="sortOrder" class="filter-select">
+            <option value="desc">↓ Nuevas primero</option>
+            <option value="asc">↑ Viejas primero</option>
+          </select>
+        </div>
+        <button v-if="filterTipo || filterPrioridad || filterEstado" class="btn-clear-filters" @click="filterTipo = ''; filterPrioridad = ''; filterEstado = ''">
+          Limpiar filtros
+        </button>
       </div>
 
       <div v-if="loading">Cargando...</div>
@@ -377,21 +493,21 @@ onMounted(() => {
             </td>
             <td class="actions-cell">
               <!-- Ojo: Ver Detalle -->
-              <button class="btn-icon" title="Ver Detalles" @click="openViewModal(ot)">
+              <button class="btn-icon btn-view" title="Ver Detalles" @click="openViewModal(ot)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
                 </svg>
               </button>
               
               <!-- Lápiz: Editar -->
-              <button class="btn-icon btn-edit-icon" title="Editar / Cerrar" @click="openEditModal(ot)">
+              <button class="btn-icon btn-edit" title="Editar / Cerrar" @click="openEditModal(ot)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10z"/>
                 </svg>
               </button>
 
               <!-- Papelera: Eliminar -->
-              <button class="btn-icon btn-danger-icon" title="Eliminar" @click="deleteOrden(ot.id)">
+              <button class="btn-icon btn-delete" title="Eliminar" @click="deleteOrden(ot.id)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
                   <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
@@ -399,7 +515,7 @@ onMounted(() => {
               </button>
 
               <!-- Cuaderno: Documentos -->
-              <button class="btn-icon btn-doc-icon" title="Documentos Adjuntos" @click="openDocsModal(ot)">
+              <button class="btn-icon btn-doc" title="Documentos Adjuntos" @click="openDocsModal(ot)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
                 </svg>
@@ -439,7 +555,7 @@ onMounted(() => {
 
     <!-- Modal Crear OT -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal">
+      <div class="modal" style="width: 700px;">
         <h3>Nueva Orden de Trabajo</h3>
         <form @submit.prevent="saveOrden">
           <div class="form-group"><label>Equipo Afectado *</label><select v-model="formData.equipo_id" required><option value="" disabled>Seleccione...</option><option v-for="eq in equipos" :key="eq.id" :value="eq.id">{{ eq.nombre_corto || eq.modelo }}</option></select></div>
@@ -449,7 +565,48 @@ onMounted(() => {
           </div>
           <div class="form-group"><label>Técnico Asignado</label><select v-model="formData.tecnico_asignado_id"><option :value="null">-- Sin Asignar --</option><option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">{{ tec.full_name || tec.username }}</option></select></div>
           <div class="form-group"><label>Título / Tipo de OT *</label><select v-model="formData.titulo" required><option value="" disabled>Seleccione tipo...</option><option v-for="t in tiposOT" :key="t" :value="t">{{ t }}</option></select></div>
-          <div class="form-group"><label>Descripción</label><textarea v-model="formData.descripcion_falla" required></textarea></div>
+          <div class="form-group"><label>Descripción / Falla *</label><textarea v-model="formData.descripcion_falla" required></textarea></div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Tiempo Invertido</label>
+              <div style="display: flex; gap: 8px;">
+                <input v-model="formData.tiempo_real_invertido" type="number" step="0.5" min="0" placeholder="Ej: 1.5" style="flex: 1;">
+                <select v-model="formData.unidad_tiempo" style="width: 110px;">
+                  <option value="horas">Horas</option>
+                  <option value="dias">Días</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Acciones Realizadas</label>
+            <textarea v-model="formData.acciones_realizadas" rows="3" placeholder="Describa la reparación..."></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Costo General (Bs.)</label>
+              <input v-model="formData.costo_adicional" type="number" step="0.01" min="0" placeholder="Costos directos de la OT">
+            </div>
+            <div class="form-group">
+              <label>Costos Adicionales (Bs.)</label>
+              <input v-model="formData.costos_adicionales" type="number" step="0.01" min="0" placeholder="Externos, transporte, etc.">
+            </div>
+          </div>
+
+          <hr>
+          <h4>Repuestos Utilizados</h4>
+          <div class="repuesto-selector">
+            <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
+            <input type="number" v-model="selectedCantidad" min="1" style="width: 80px">
+            <button type="button" class="btn-sm" @click="addRepuestoToOT">Agregar</button>
+          </div>
+          <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
+            <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">{{ item.cantidad }} x {{ item.nombre }}</li>
+          </ul>
+
           <div class="modal-actions"><button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button><button type="submit" class="btn-primary">Crear</button></div>
         </form>
       </div>
@@ -457,7 +614,7 @@ onMounted(() => {
 
     <!-- MODAL VER (Solo Lectura) -->
     <div v-if="showViewModal" class="modal-overlay" @click.self="showViewModal = false">
-      <div class="modal" style="width: 700px;">
+      <div class="modal" style="width: 600px; max-width: 95vw;">
         <h3>Detalle de Orden #{{ selectedOT.id }}</h3>
         <div class="detail-grid-view">
           <div class="detail-column">
@@ -487,17 +644,17 @@ onMounted(() => {
         </div>
         <div class="detail-full-view">
           <h4>Descripción de Falla</h4>
-          <div class="description-box">{{ selectedOT.descripcion_falla }}</div>
+          <div class="description-box" style="max-height: 120px; overflow-y: auto; word-wrap: break-word; white-space: pre-wrap;">{{ selectedOT.descripcion_falla }}</div>
         </div>
         <div class="detail-full-view" v-if="selectedOT.acciones_realizadas">
           <h4>Acciones Realizadas</h4>
-          <div class="description-box" style="color: #27ae60;">{{ selectedOT.acciones_realizadas }}</div>
+          <div class="description-box" style="max-height: 120px; overflow-y: auto; word-wrap: break-word; white-space: pre-wrap;">{{ selectedOT.acciones_realizadas }}</div>
         </div>
         <div class="detail-full-view">
           <h4>Repuestos Utilizados</h4>
-          <ul v-if="selectedOT.repuestos_usados && selectedOT.repuestos_usados.length" class="repuesto-detail-list">
+          <ul v-if="selectedOT.repuestos_usados && selectedOT.repuestos_usados.length" class="repuesto-detail-list repuesto-detail-yellow">
             <li v-for="rep in selectedOT.repuestos_usados" :key="rep.repuesto_id">
-              {{ rep.cantidad_utilizada }} x Repuesto #{{ rep.repuesto_id }}
+              {{ rep.cantidad_utilizada }} x {{ getRepuestoNombre(rep.repuesto_id) }}
             </li>
           </ul>
           <p v-else style="color: #888;"><em>Sin repuestos registrados.</em></p>
@@ -512,15 +669,17 @@ onMounted(() => {
     <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
       <div class="modal" style="width: 700px;">
         <h3>Editar / Cerrar OT #{{ selectedOT.id }}</h3>
-        
-        <!-- Información de la OT (solo lectura) -->
-        <div class="ot-details">
-          <p><strong>Equipo:</strong> {{ getEquipoNombre(selectedOT.equipo_id) }}</p>
-          <p><strong>Título:</strong> {{ selectedOT.titulo }}</p>
-          <p><strong>Falla:</strong> {{ selectedOT.descripcion_falla }}</p>
-        </div>
 
         <form @submit.prevent="updateOrden">
+          <!-- v0.9.18: Equipo, Título y Falla ahora editables (antes eran solo lectura) -->
+          <div class="form-group">
+            <label>Equipo Afectado *</label>
+            <select v-model="editFormData.equipo_id" required>
+              <option value="" disabled>Seleccione...</option>
+              <option v-for="eq in equipos" :key="eq.id" :value="eq.id">{{ eq.nombre_corto || eq.modelo }}</option>
+            </select>
+          </div>
+
           <!-- Estado y Prioridad lado a lado -->
           <div class="form-row">
             <div class="form-group">
@@ -537,22 +696,36 @@ onMounted(() => {
             </div>
           </div>
 
+          <div class="form-group">
+            <label>Técnico Asignado</label>
+            <select v-model="editFormData.tecnico_asignado_id">
+              <option :value="null">-- Sin Asignar --</option>
+              <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
+                {{ tec.full_name || tec.username }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Título / Tipo de OT *</label>
+            <select v-model="editFormData.titulo" required>
+              <option value="" disabled>Seleccione tipo...</option>
+              <option v-for="t in tiposOT" :key="t" :value="t">{{ t }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Descripción / Falla *</label>
+            <textarea v-model="editFormData.descripcion_falla" required></textarea>
+          </div>
+
           <!-- Técnico y Tiempo lado a lado (con unidad_tiempo) -->
           <div class="form-row">
-            <div class="form-group">
-              <label>Técnico Asignado</label>
-              <select v-model="editFormData.tecnico_asignado_id">
-                <option :value="null">-- Sin Asignar --</option>
-                <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
-                  {{ tec.full_name || tec.username }}
-                </option>
-              </select>
-            </div>
             <div class="form-group">
               <label>Tiempo Invertido</label>
               <div style="display: flex; gap: 8px;">
                 <input v-model="editFormData.tiempo_real_invertido" type="number" step="0.5" min="0" placeholder="Ej: 1.5" style="flex: 1;">
-                <select v-model="editFormData.unidad_tiempo" style="width: 100px;">
+                <select v-model="editFormData.unidad_tiempo" style="width: 110px;">
                   <option value="horas">Horas</option>
                   <option value="dias">Días</option>
                 </select>
@@ -582,7 +755,7 @@ onMounted(() => {
           <h4>Repuestos Utilizados</h4>
           <div class="repuesto-selector">
             <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
-            <input type="number" v-model="selectedCantidad" min="1" style="width: 60px">
+            <input type="number" v-model="selectedCantidad" min="1" style="width: 80px">
             <button type="button" class="btn-sm" @click="addRepuestoToOT">Agregar</button>
           </div>
           <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
@@ -649,6 +822,27 @@ th { background-color: #f8f9fa; }
 }
 .search-input::placeholder { color: #94a3b8; }
 .search-input:focus { outline: none; border-color: #3498db; box-shadow: 0 0 0 2px rgba(52,152,219,0.2); }
+
+/* v0.9.20: Barra de filtros */
+.filter-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem;
+  margin-bottom: 1rem; padding: 0.75rem 1rem;
+  background: white; border-radius: 8px; border: 1px solid #e2e8f0;
+}
+.filter-group { display: flex; align-items: center; gap: 0.35rem; }
+.filter-label { font-size: 0.82rem; font-weight: 600; color: #64748b; white-space: nowrap; }
+.filter-select {
+  padding: 0.35rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px;
+  font-size: 0.82rem; background: #fff; color: #334155; min-width: 130px; max-width: 200px;
+}
+.filter-select:focus { outline: none; border-color: #3498db; }
+.btn-clear-filters {
+  display: flex; align-items: center; gap: 0.3rem;
+  padding: 0.35rem 0.7rem; border: 1px solid #fecaca; border-radius: 6px;
+  background: #fef2f2; color: #dc2626;
+  font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.btn-clear-filters:hover { background: #fee2e2; }
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; }
 .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
 .badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; color: white; font-weight: bold; }
@@ -663,21 +857,29 @@ th { background-color: #f8f9fa; }
 .detail-column { flex: 1; }
 .detail-column h4 { margin-bottom: 0.8rem; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 0.3rem; }
 .detail-column p { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #555; }
-.detail-full-view { width: 100%; background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
+.detail-full-view { width: 100%; background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; box-sizing: border-box; overflow-x: hidden; }
 .detail-full-view h4 { margin-top: 0; margin-bottom: 0.5rem; color: #2c3e50; }
 .description-box {
   background: white; padding: 0.8rem; border: 1px solid #e0e0e0; border-radius: 4px;
   min-height: 40px; color: #444; font-size: 0.9rem;
   word-break: break-word; overflow-y: auto; max-height: 150px; white-space: pre-wrap;
+  box-sizing: border-box;
 }
 .repuesto-detail-list { list-style: none; padding: 0; margin: 0; }
 .repuesto-detail-list li { padding: 4px 0; font-size: 0.9rem; color: #555; border-bottom: 1px solid #eee; }
+/* v0.9.19: repuestos en modal Ver con fondo amarillo */
+.repuesto-detail-yellow { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; padding: 0.5rem 1rem; }
+.repuesto-detail-yellow li { padding: 6px 0; color: #1e293b; font-weight: 500; border-bottom: 1px solid #fde68a; }
+.repuesto-detail-yellow li:last-child { border-bottom: none; }
 
 /* Iconos */
 .actions-cell { display: flex; gap: 0.5rem; }
-.btn-icon { background: #f0f2f5; border: none; padding: 8px; border-radius: 6px; cursor: pointer; color: #555; }
-.btn-icon:hover { background: #dfe2e6; }
-.btn-edit-icon:hover { background: #fff3cd; color: #856404; }
+.btn-icon { background: #f0f2f5; border: none; padding: 8px; border-radius: 6px; cursor: pointer; color: #555; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; }
+/* v0.9.19: hover de color como en Equipos */
+.btn-view:hover { background: #16a34a; color: #ffffff; }
+.btn-edit:hover { background: #2563eb; color: #ffffff; }
+.btn-delete:hover { background: #dc2626; color: #ffffff; }
+.btn-doc:hover { background: #0891b2; color: #ffffff; }
 .btn-danger-icon:hover { background: #fee2e2; color: #c0392b; }
 .btn-doc-icon:hover { background: #e8f4fd; color: #2563eb; }
 
@@ -695,8 +897,11 @@ th { background-color: #f8f9fa; }
 .detail-box p { margin: 0.5rem 0; }
 .ot-details { background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
 .repuesto-selector { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
-.repuesto-lista { list-style: none; padding: 0; background: #f9f9f9; border: 1px solid #eee; }
-.repuesto-lista li { padding: 8px; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+.repuesto-selector select { flex: 1; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+.repuesto-selector input { padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+.repuesto-lista { list-style: none; padding: 0; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; margin-top: 8px; }
+.repuesto-lista li { padding: 8px 12px; border-bottom: 1px solid #fde68a; font-size: 0.9rem; color: #1e293b; font-weight: 500; }
+.repuesto-lista li:last-child { border-bottom: none; }
 
 .table-pagination {
   display: flex;

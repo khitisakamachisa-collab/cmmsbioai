@@ -28,10 +28,38 @@ def listar_estados_ot(session: Session = Depends(get_session)):
 # Endpoint para CREAR una OT
 @router.post("/", response_model=OrdenTrabajoRead)
 def crear_orden(orden: OrdenTrabajoCreate, session: Session = Depends(get_session)):
-    db_orden = OrdenTrabajo(**orden.model_dump())
+    # v0.9.19: extraer repuestos_utilizados antes de crear la OT
+    orden_dict = orden.model_dump()
+    repuestos_recibidos = orden_dict.pop("repuestos_utilizados", None)
+
+    db_orden = OrdenTrabajo(**orden_dict)
     session.add(db_orden)
     session.commit()
     session.refresh(db_orden)
+
+    # v0.9.19: procesar repuestos utilizados al crear (igual que en PUT)
+    if repuestos_recibidos:
+        for item in repuestos_recibidos:
+            rep_id = item.get('repuesto_id')
+            cant = item.get('cantidad')
+            if not rep_id or not cant:
+                continue
+            db_rep = session.get(Repuesto, rep_id)
+            if not db_rep:
+                raise HTTPException(status_code=404, detail=f"Repuesto ID {rep_id} no encontrado")
+            if db_rep.cantidad_disponible < cant:
+                raise HTTPException(status_code=400, detail=f"Stock insuficiente de {db_rep.nombre_repuesto}")
+            db_rep.cantidad_disponible -= cant
+            session.add(db_rep)
+            uso = OtRepuestoUtilizado(
+                orden_trabajo_id=db_orden.id,
+                repuesto_id=rep_id,
+                cantidad_utilizada=cant
+            )
+            session.add(uso)
+        session.commit()
+        session.refresh(db_orden)
+
     return db_orden
 
 # Endpoint para LISTAR OTs

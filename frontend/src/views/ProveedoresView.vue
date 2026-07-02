@@ -215,10 +215,26 @@ const deleteProveedor = async (id) => {
   }
 }
 
-// --- Detalle (ver contactos) ---
-const openDetailModal = (prov) => {
+// --- Detalle (ver contactos y equipos) ---
+const detalleEquipos = ref([])  // v0.9.17: equipos asociados al proveedor en el modal de detalle
+const detalleCargandoEquipos = ref(false)
+
+const openDetailModal = async (prov) => {
   selectedProveedor.value = prov
+  detalleEquipos.value = []
+  detalleCargandoEquipos.value = true
   showDetailModal.value = true
+  // v0.9.17: cargar equipos asociados al proveedor para mostrarlos en el detalle
+  try {
+    const res = await apiClient.get(`/proveedores/${prov.id}/equipos`)
+    if (Array.isArray(res.data)) {
+      detalleEquipos.value = res.data
+    }
+  } catch (e) {
+    console.error('Error cargando equipos del proveedor en detalle:', e)
+  } finally {
+    detalleCargandoEquipos.value = false
+  }
 }
 
 // --- CRUD Contactos ---
@@ -761,6 +777,58 @@ onMounted(() => {
                 <div v-if="c.notas_contacto" class="contacto-notas">{{ c.notas_contacto }}</div>
               </div>
               <!-- v0.9.6: detalle es SOLO LECTURA, sin acciones de editar/eliminar contactos -->
+            </div>
+          </div>
+        </div>
+
+        <!-- v0.9.17: Sección Equipos Asociados (solo lectura, igual que contactos en el ojo) -->
+        <hr class="detail-separator">
+
+        <div class="contactos-section">
+          <div class="contactos-header">
+            <h4>Equipos Asociados ({{ detalleEquipos.length }})</h4>
+          </div>
+
+          <div v-if="detalleCargandoEquipos" class="empty-contactos">
+            Cargando equipos...
+          </div>
+          <div v-else-if="!detalleEquipos.length" class="empty-contactos">
+            Este proveedor no tiene equipos asociados.
+          </div>
+
+          <div v-else class="contactos-list">
+            <div v-for="eq in detalleEquipos" :key="eq.id" class="contacto-card">
+              <div class="contacto-info">
+                <div class="contacto-nombre">
+                  <strong>{{ eq.nombre_corto || eq.modelo }}</strong>
+                </div>
+                <div class="contacto-datos">
+                  <span v-if="eq.marca">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
+                    </svg>
+                    {{ eq.marca }}
+                  </span>
+                  <span v-if="eq.modelo">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
+                    </svg>
+                    {{ eq.modelo }}
+                  </span>
+                  <span v-if="eq.numero_serie">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M5.5 0a.5.5 0 0 1 .5.5V1h.5a.5.5 0 0 1 .5.5V2h.5a.5.5 0 0 1 .5.5V3H8V.5a.5.5 0 0 1 1 0V3h.5a.5.5 0 0 1 .5.5V4h.5a.5.5 0 0 1 .5.5V5h.5a.5.5 0 0 1 .5.5V6h-1v-.5h-1V4h-1V2.5h-1V1h-1V.5a.5.5 0 0 1 .5-.5h1z"/>
+                    </svg>
+                    SN: {{ eq.numero_serie }}
+                  </span>
+                  <span v-if="eq.ubicacion_actual">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
+                      <path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10zm0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+                    </svg>
+                    {{ eq.ubicacion_actual }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

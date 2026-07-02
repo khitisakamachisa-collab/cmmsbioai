@@ -20,7 +20,10 @@ class OrdenTrabajoBase(BaseModel):
 
 # Esquema para Crear
 class OrdenTrabajoCreate(OrdenTrabajoBase):
-    pass
+    # v0.9.19: permitir recibir repuestos_utilizados al crear la OT
+    repuestos_utilizados: Optional[List[dict]] = None
+    costo_adicional: Optional[float] = None
+    costos_adicionales: Optional[float] = None
 
 # Esquema para Leer (Respuesta)
 class OrdenTrabajoRead(OrdenTrabajoBase):

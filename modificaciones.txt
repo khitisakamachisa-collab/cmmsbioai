@@ -147,3 +147,101 @@ adicionalmente, los iconos de ojo, lápiz, basurero documentación. deben tener 
 CONSULTA: esta forma de obtener los nombres de los proveedores esta bien? planteaste alguna vez un tipo de búsqueda. que tal si los proveedores sean muchos?
 talvez la lista como hasta ahora esta sea demasiado larga, o aun sigue siendo una buena oopcion.. analizar lo optimo
 VAMOS HAGAMOSLO!!!
+
+
+hola, algunas pequeñas modificaciones mas.
+la pagina de "contratos", el campo "Vigencia" tiene una fecha en letras negra y la otra en grises,,, ambas sean en negras.
+en la pagina CONTRATOS, en nuevo contrato o editar contrato.
+los tamaños de los cuadros de texto y de todos en general están des encuadrados, supongo que puedes dimensionar estos cuadros por que si no 
+no se vieran asi,, asi que verifica que esten en un tamaño correcto. corrígelos.
+en las mismas pantalla editar y nuevo el campo "Moneda" solo da la opción de BOB por ahora debe estar todo en esa moneda.
+verifica que la moneda para todo el proyecto sea solo BOB bolivianos.
+vamos hagámoslo.
+
+ok, ahora todo esta ordenado y esta en bolivianos en las pantallas de nuevo y editar
+pero hemos retrocedido en otras cosas que ya habíamos solucionado antes.
+es que volviste atrás en cosas que ya habíamos solucionado
+1.- el cuadro buscador no esta donde debe estar como en las demás paginas, arriba a la derecha, corrige eso.
+2.- en la tabla debajo de "Acciones" no están bien alineadas el ojo, el lapiz, el basurero, y teníamos documentación que ahora no esta. corrige eso.
+3.- los iconos de ojo, lapiz, basurero. documentación no son iguales a las otras paginas, regresaron a ser emojis, corrige eso.
+4.- en la tabla "Equipos" ya no debe estar. corrije eso.
+5.- no tenemos el botón de subir archivos Excel donde tambien teniamos las plantillas, corrige eso.
+6.- En las pantallas de nuevo y editar la forma de búsqueda de los equipos para ponerlos en contrato ya no están es un método antiguo que corregimos
+el que ahora se encuentra... corrige, eso.
+
+lo único bueno es que los cuadros de texto están ordenados y la moneda es bolivianos.
+
+talvez estas leyendo archivos muy antiguos, pero tenemos estos archivos README-v0.9.XX.md
+donde tenemos todo registrado puedes leerlos para ver donde te perdiste o revisar nuevamente la pagina de GitHub...
+a menos que me recomiendes borrar todo y volver a empezar.... no se que es mejor.??? tu que opinas..?
+
+
+
+01/07/2026
+
+bueno retomemos las mejoras en el sistema...
+según el manejo e observado y requiero modificación de:
+la pagina PROOVEDORES "Gestión de Proveedores y Contactos"
+en el ojo, en visualizar no se puede ver los equipos asociados al proveedor.
+en editar puedo modificar "Equipos Asociados" eso esta bien, allí se pueden adicionar eliminar
+pero en el ojo no se ven. deben poder verse.
+debemos corregirlo.
+
+antes de continuar verificar que estemos en la ultima versión corregida v0.9.16 y con la misma información de GitHub
+antes de iniciar las modificaciones.
+si todo esta bien, continuemos
+
+ 
+
+ok, excelente.
+nueva modificaciones
+en ORDENES "Listado de Órdenes de Trabajo" las opciones de nuevo y de editar no son las mismas.
+en nuevo existen menos opciones que en editar. ambas deben tener las mismas opciones.
+el campo "Repuestos Utilizados", tiene un cajon de selección que es mas delgado que el resto de los 
+cajones o cuadros de texto, hay que solucionarlo, debe tener el mismo ancho. esa misma caja de selección hasta un poco mas larga
+para que encuadre con el resto de los elementos cajas de texto que ya están encuadradas.
+otra cosa que en editar no se pueden modificar las cuadros de texto de 
+Equipo:
+Título:
+Falla:
+en editar estos deberían poder modificarse.
+
+bueno solucionemos estos problemas.
+
+
+aun no he subido a GitHub.
+las modificaciones están mejor pero aun faltan. seguimos en ORDENES.
+los colores de los iconos de ojo, lapiz, basurero, documento, no están con los colores de fondo como lo están en EQUIPOS por ejemplo
+para tener la uniformidad de colores.
+otra observación, cuando adicionamos un repuesto al momento de crear, no se adiciona. si se crea la Ot pero no se adiciona a la ot el repuesto.
+en editar si se logra adicionar el repuesto. hay que corregir eso.
+otra observación, cuando elegimos un repuesto y lo adicionamos, esta adición pueda verse con un fondo amarillo. eso resaltara.
+otra observación, en ver se debe redimensionar los cuadros en general esta muy ancho
+al parecer los cuadro "Descripción de Falla", "Acciones Realizadas" están muy largas lo cual activa la barra de desplazamiento horizontal
+sin ser necesario. en esta misma ventana el "Repuestos Utilizados" tenga un fondo amarillo para resaltar a la vista ese repuesto.
+resolvamos esto. por favor.
+
+ok, funciona, ahora crea un nuevo equipo con repuesto.
+pero debemos solucionar varias cosas.
+1.- en el ojo, en la visualización se ve el repuesto en fondo amarillo, pero no se ve, ¿Qué repuesto se adiciono?, tiene que verse el nombre del repuesto. ejemplo: cantidad x nombre_repuesto … solucionar esto.
+2.-en el ojo, en la visualización el cuadro "Acciones Realizadas", las letras están en verde, deben estar en un tono normal al resto.
+3.- vamos a adicionar filtros en la pantalla ordenes:
+Tipo: 
+Prioridad:
+Estado:
+también necesitamos mostrar todos los elementos por ascendente descendente, por que los nuevos OT se muestran al final y eso ocasiona que se tenga
+que avanzar muchas paginas para poder ver el ultimo realizado, con una selección ascendente descendente se pueda listar o el ultimo o el primero.
+4.- Esto es un poco mas delicado. los costos que se pueden crear en un nuevo equipo y en editar. estos costos no se ven en el ojo en la visualización. debe verse. y deben tener un fondo rojo claro.
+sobre el mismo tema, los costos deben adicionarse como se adiciona los contactos en proovedores.
+es decir un OT puede tener varios costos. al adicionar estos costos al momento de crear uno nuevo o al momento de editar, estos costos deben
+adicionarse en un fondo de color rojo claro.
+esto es delicado por que puede redefinir la forma de manejar las tablas y el objetivo es tener un registros de costos para todo el proyecto.
+talvez podemos dejar este punto para mas adelante. este punto 4. por que debemos ver la mejor forma de resolver esto de los costos conforme las 
+tablas existentes en la pagina AYUDA de este proyecto.
+5. con todas las modificaciones realizadas revisar si en la pagina de ayuda se ha cambiado algo y actualizarlo.
+vamos a corregir lo que podamos ahora y si el punto 4 debe dejarse para mas adelante lo haremos,,,
+luego de realizar estos puntos actualizare el GitHub.
+
+vamos....
+
+

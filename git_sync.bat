@@ -13,7 +13,7 @@ echo ==============================
 echo 2. Subiendo cambios locales...
 echo ==============================
 git add .
-git commit -m "v0.9.20 — ORDENES: nombre repuesto + color normal + filtros + ordenamiento + Ayuda"
+git commit -m "v0.9.22 — ORDENES: ajustes visuales (líneas, fondos, orden, títulos"
 git push origin main
 
 echo ==============================

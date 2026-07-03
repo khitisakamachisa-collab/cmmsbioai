@@ -124,6 +124,87 @@ const selectedRepuestoId = ref(null)
 const selectedCantidad = ref(1)
 const repuestosSeleccionados = ref([])
 
+// v0.9.21: Variables para Costos Adicionales (RF11 - OtCostoAdicional)
+const tiposCosto = [
+  'Transporte', 'Servicio Externo', 'Repuesto No Inventariado',
+  'Herramienta Renta', 'Honorarios / Mano de Obra',
+  'Insumos / Materiales', 'Viáticos', 'Otro'
+]
+const costosAdicionales = ref([])        // lista de costos (para modal crear)
+const editCostosAdicionales = ref([])    // lista de costos (para modal editar)
+const detalleCostos = ref([])            // lista de costos (para modal ver)
+const costoForm = ref({ tipo_costo: 'Transporte', descripcion_costo: '', monto_costo: null })
+const editCostoForm = ref({ tipo_costo: 'Transporte', descripcion_costo: '', monto_costo: null })
+
+const totalCostos = computed(() => costosAdicionales.value.reduce((s, c) => s + (Number(c.monto_costo) || 0), 0))
+const totalEditCostos = computed(() => editCostosAdicionales.value.reduce((s, c) => s + (Number(c.monto_costo) || 0), 0))
+const totalDetalleCostos = computed(() => detalleCostos.value.reduce((s, c) => s + (Number(c.monto_costo) || 0), 0))
+
+const addCostoToOT = () => {
+  if (!costoForm.value.descripcion_costo || !costoForm.value.monto_costo) {
+    alert('Complete descripción y monto del costo')
+    return
+  }
+  costosAdicionales.value.push({ ...costoForm.value, monto_costo: Number(costoForm.value.monto_costo) })
+  costoForm.value = { tipo_costo: 'Transporte', descripcion_costo: '', monto_costo: null }
+}
+
+const removeCostoFromOT = (idx) => {
+  costosAdicionales.value.splice(idx, 1)
+}
+
+const addEditCostoToOT = () => {
+  if (!editCostoForm.value.descripcion_costo || !editCostoForm.value.monto_costo) {
+    alert('Complete descripción y monto del costo')
+    return
+  }
+  editCostosAdicionales.value.push({ ...editCostoForm.value, monto_costo: Number(editCostoForm.value.monto_costo) })
+  editCostoForm.value = { tipo_costo: 'Transporte', descripcion_costo: '', monto_costo: null }
+}
+
+const removeEditCostoFromOT = (idx) => {
+  editCostosAdicionales.value.splice(idx, 1)
+}
+
+// v0.9.21: Sincronizar costos de una OT con el backend
+// - costosNuevos: los que están en el formulario pero no tienen id (crear)
+// - costosExistentes: los que tienen id (mantener)
+// - costosEliminar: los que están en BD pero no en el formulario (eliminar)
+async function sincronizarCostosOT(otId, costosFormulario) {
+  // costosFormulario: array de {id?, tipo_costo, descripcion_costo, monto_costo}
+  // 1. Obtener costos actuales de la OT desde el backend
+  const res = await apiClient.get(`/costos/?orden_trabajo_id=${otId}`)
+  const costosBD = res.data
+  const idsFormulario = costosFormulario.filter(c => c.id).map(c => c.id)
+
+  // 2. Eliminar los que están en BD pero no en el formulario
+  for (const cBD of costosBD) {
+    if (!idsFormulario.includes(cBD.id)) {
+      await apiClient.delete(`/costos/${cBD.id}`)
+    }
+  }
+
+  // 3. Crear los nuevos (sin id) y actualizar los existentes (con id)
+  for (const c of costosFormulario) {
+    if (c.id) {
+      // Actualizar existente
+      await apiClient.put(`/costos/${c.id}`, {
+        tipo_costo: c.tipo_costo,
+        descripcion_costo: c.descripcion_costo,
+        monto_costo: c.monto_costo
+      })
+    } else {
+      // Crear nuevo
+      await apiClient.post('/costos/', {
+        orden_trabajo_id: otId,
+        tipo_costo: c.tipo_costo,
+        descripcion_costo: c.descripcion_costo,
+        monto_costo: c.monto_costo
+      })
+    }
+  }
+}
+
 // Formulario Crear
 const formData = ref({
   equipo_id: '',
@@ -134,9 +215,7 @@ const formData = ref({
   tecnico_asignado_id: null,
   unidad_tiempo: 'horas',
   tiempo_real_invertido: null,
-  acciones_realizadas: '',
-  costo_adicional: null,
-  costos_adicionales: null
+  acciones_realizadas: ''
 })
 
 // Formulario Editar
@@ -149,9 +228,7 @@ const editFormData = ref({
   tecnico_asignado_id: null,
   unidad_tiempo: 'horas',
   tiempo_real_invertido: null,
-  acciones_realizadas: '',
-  costo_adicional: null,
-  costos_adicionales: null
+  acciones_realizadas: ''
 })
 
 // --- Funciones de Datos ---
@@ -177,10 +254,13 @@ const fetchData = async () => {
 
 // v0.9.18: Abrir modal Crear — cargar repuestos y resetear estado
 const openCreateModal = async () => {
-  formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', tiempo_real_invertido: null, acciones_realizadas: '', costo_adicional: null, costos_adicionales: null }
+  formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', tiempo_real_invertido: null, acciones_realizadas: '' }
   repuestosSeleccionados.value = []
   selectedRepuestoId.value = null
   selectedCantidad.value = 1
+  // v0.9.21: resetear costos
+  costosAdicionales.value = []
+  costoForm.value = { tipo_costo: 'Transporte', descripcion_costo: '', monto_costo: null }
   // Cargar repuestos para el selector
   try {
     const resRep = await apiClient.get('/repuestos/')
@@ -199,11 +279,17 @@ const saveOrden = async () => {
     } else {
       payload.tiempo_real_invertido = parseFloat(payload.tiempo_real_invertido)
     }
-    await apiClient.post('/ordenes/', payload)
+    const res = await apiClient.post('/ordenes/', payload)
+    const nuevaOTId = res.data.id
+    // v0.9.21: guardar costos adicionales
+    if (costosAdicionales.value.length > 0) {
+      await sincronizarCostosOT(nuevaOTId, costosAdicionales.value)
+    }
     alert('Orden creada')
     showModal.value = false
-    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', tiempo_real_invertido: null, acciones_realizadas: '', costo_adicional: null, costos_adicionales: null }
+    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', tiempo_real_invertido: null, acciones_realizadas: '' }
     repuestosSeleccionados.value = []
+    costosAdicionales.value = []
     fetchData() 
   } catch (error) {
     alert('Error al crear OT')
@@ -224,6 +310,14 @@ const openViewModal = async (ot) => {
       } catch (e) {
         console.warn('No se pudieron cargar repuestos para el detalle', e)
       }
+    }
+    // v0.9.21: cargar costos adicionales de la OT
+    try {
+      const resCostos = await apiClient.get(`/costos/?orden_trabajo_id=${ot.id}`)
+      detalleCostos.value = resCostos.data
+    } catch (e) {
+      console.warn('No se pudieron cargar costos', e)
+      detalleCostos.value = []
     }
     showViewModal.value = true
   } catch (e) {
@@ -261,10 +355,22 @@ const openEditModal = async (ot) => {
       tecnico_asignado_id: fullOt.tecnico_asignado_id || null,
       unidad_tiempo: fullOt.unidad_tiempo || 'horas',
       tiempo_real_invertido: fullOt.tiempo_real_invertido || null,
-      acciones_realizadas: fullOt.acciones_realizadas || '',
-      costo_adicional: fullOt.costo_adicional || null,
-      costos_adicionales: fullOt.costos_adicionales || null
+      acciones_realizadas: fullOt.acciones_realizadas || ''
     }
+
+    // v0.9.21: cargar costos adicionales existentes
+    try {
+      const resCostos = await apiClient.get(`/costos/?orden_trabajo_id=${ot.id}`)
+      editCostosAdicionales.value = resCostos.data.map(c => ({
+        id: c.id,
+        tipo_costo: c.tipo_costo,
+        descripcion_costo: c.descripcion_costo,
+        monto_costo: c.monto_costo
+      }))
+    } catch (e) {
+      editCostosAdicionales.value = []
+    }
+    editCostoForm.value = { tipo_costo: 'Transporte', descripcion_costo: '', monto_costo: null }
     
     // 4. Pre-llenar repuestos existentes de la OT
     repuestosSeleccionados.value = []
@@ -337,6 +443,8 @@ const updateOrden = async () => {
     }
 
     await apiClient.put(`/ordenes/${selectedOT.value.id}`, payload)
+    // v0.9.21: sincronizar costos adicionales
+    await sincronizarCostosOT(selectedOT.value.id, editCostosAdicionales.value)
     alert('Orden actualizada')
     showEditModal.value = false
     fetchData() 
@@ -585,27 +693,55 @@ onMounted(() => {
             <textarea v-model="formData.acciones_realizadas" rows="3" placeholder="Describa la reparación..."></textarea>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label>Costo General (Bs.)</label>
-              <input v-model="formData.costo_adicional" type="number" step="0.01" min="0" placeholder="Costos directos de la OT">
+          <!-- v0.9.21: Costos Adicionales (RF11 - OtCostoAdicional) con fondo rojo claro -->
+          <h4 class="section-title">Costos Adicionales</h4>
+          <div class="costos-section">
+            <div class="costo-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Tipo de Costo</label>
+                  <select v-model="costoForm.tipo_costo">
+                    <option v-for="t in tiposCosto" :key="t" :value="t">{{ t }}</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Monto (Bs.)</label>
+                  <input v-model="costoForm.monto_costo" type="number" step="0.01" min="0" placeholder="0.00">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Descripción</label>
+                <input v-model="costoForm.descripcion_costo" type="text" placeholder="Ej: Transporte al hospital remoto">
+              </div>
+              <button type="button" class="btn-sm btn-add-costo" @click="addCostoToOT">+ Agregar Costo</button>
             </div>
-            <div class="form-group">
-              <label>Costos Adicionales (Bs.)</label>
-              <input v-model="formData.costos_adicionales" type="number" step="0.01" min="0" placeholder="Externos, transporte, etc.">
-            </div>
+            <ul class="costo-lista" v-if="costosAdicionales.length">
+              <li v-for="(c, idx) in costosAdicionales" :key="idx">
+                <span class="costo-tipo">{{ c.tipo_costo }}</span>
+                <span class="costo-desc">{{ c.descripcion_costo }}</span>
+                <span class="costo-monto">Bs. {{ Number(c.monto_costo).toFixed(2) }}</span>
+                <button type="button" class="costo-remove" @click="removeCostoFromOT(idx)" title="Quitar costo">×</button>
+              </li>
+              <li class="costo-total">
+                <span>Total:</span>
+                <span class="costo-monto-total">Bs. {{ totalCostos.toFixed(2) }}</span>
+              </li>
+            </ul>
+            <p v-else class="costo-empty">No hay costos agregados.</p>
           </div>
 
-          <hr>
-          <h4>Repuestos Utilizados</h4>
-          <div class="repuesto-selector">
-            <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
-            <input type="number" v-model="selectedCantidad" min="1" style="width: 80px">
-            <button type="button" class="btn-sm" @click="addRepuestoToOT">Agregar</button>
+          <h4 class="section-title">Repuestos Utilizados</h4>
+          <div class="repuestos-section">
+            <div class="repuesto-selector">
+              <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
+              <input type="number" v-model="selectedCantidad" min="1" style="width: 80px">
+              <button type="button" class="btn-sm" @click="addRepuestoToOT">Agregar</button>
+            </div>
+            <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
+              <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">{{ item.cantidad }} x {{ item.nombre }}</li>
+            </ul>
+            <p v-else class="repuesto-empty">No hay repuestos agregados.</p>
           </div>
-          <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
-            <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">{{ item.cantidad }} x {{ item.nombre }}</li>
-          </ul>
 
           <div class="modal-actions"><button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button><button type="submit" class="btn-primary">Crear</button></div>
         </form>
@@ -638,8 +774,6 @@ onMounted(() => {
             <p><strong>Técnico:</strong> {{ getTecnicoNombre(selectedOT.tecnico_asignado_id) }}</p>
             <p><strong>Fecha Creación:</strong> {{ selectedOT.fecha_creacion ? new Date(selectedOT.fecha_creacion).toLocaleDateString('es-BO') : 'N/A' }}</p>
             <p><strong>Tiempo Invertido:</strong> {{ selectedOT.tiempo_real_invertido || 0 }} {{ selectedOT.unidad_tiempo === 'dias' ? 'días' : 'horas' }}</p>
-            <p><strong>Costo General:</strong> {{ selectedOT.costo_adicional ? 'Bs. ' + Number(selectedOT.costo_adicional).toFixed(2) : '-' }}</p>
-            <p><strong>Costos Adicionales:</strong> {{ selectedOT.costos_adicionales ? 'Bs. ' + Number(selectedOT.costos_adicionales).toFixed(2) : '-' }}</p>
           </div>
         </div>
         <div class="detail-full-view">
@@ -650,14 +784,30 @@ onMounted(() => {
           <h4>Acciones Realizadas</h4>
           <div class="description-box" style="max-height: 120px; overflow-y: auto; word-wrap: break-word; white-space: pre-wrap;">{{ selectedOT.acciones_realizadas }}</div>
         </div>
-        <div class="detail-full-view">
-          <h4>Repuestos Utilizados</h4>
+        <!-- v0.9.21: Sección Costos Adicionales con fondo rojo claro (encima de Repuestos) -->
+        <h4 class="section-title">Costos Adicionales ({{ detalleCostos.length }})</h4>
+        <div class="detail-full-view costos-detail-view">
+          <ul v-if="detalleCostos.length" class="costo-lista costo-lista-readonly">
+            <li v-for="c in detalleCostos" :key="c.id">
+              <span class="costo-tipo">{{ c.tipo_costo }}</span>
+              <span class="costo-desc">{{ c.descripcion_costo }}</span>
+              <span class="costo-monto">Bs. {{ Number(c.monto_costo).toFixed(2) }}</span>
+            </li>
+            <li class="costo-total">
+              <span>Total:</span>
+              <span class="costo-monto-total">Bs. {{ totalDetalleCostos.toFixed(2) }}</span>
+            </li>
+          </ul>
+          <p v-else class="costo-empty">Sin costos registrados.</p>
+        </div>
+        <h4 class="section-title">Repuestos Utilizados</h4>
+        <div class="detail-full-view repuestos-detail-view">
           <ul v-if="selectedOT.repuestos_usados && selectedOT.repuestos_usados.length" class="repuesto-detail-list repuesto-detail-yellow">
             <li v-for="rep in selectedOT.repuestos_usados" :key="rep.repuesto_id">
               {{ rep.cantidad_utilizada }} x {{ getRepuestoNombre(rep.repuesto_id) }}
             </li>
           </ul>
-          <p v-else style="color: #888;"><em>Sin repuestos registrados.</em></p>
+          <p v-else class="repuesto-empty">Sin repuestos registrados.</p>
         </div>
         <div class="modal-actions">
           <button class="btn-secondary" @click="showViewModal = false">Cerrar</button>
@@ -739,28 +889,55 @@ onMounted(() => {
             <textarea v-model="editFormData.acciones_realizadas" rows="3" placeholder="Describa la reparación..."></textarea>
           </div>
 
-          <!-- Costos lado a lado -->
-          <div class="form-row">
-            <div class="form-group">
-              <label>Costo General (Bs.)</label>
-              <input v-model="editFormData.costo_adicional" type="number" step="0.01" min="0" placeholder="Costos directos de la OT">
+          <!-- v0.9.21: Costos Adicionales (RF11 - OtCostoAdicional) con fondo rojo claro -->
+          <h4 class="section-title">Costos Adicionales</h4>
+          <div class="costos-section">
+            <div class="costo-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Tipo de Costo</label>
+                  <select v-model="editCostoForm.tipo_costo">
+                    <option v-for="t in tiposCosto" :key="t" :value="t">{{ t }}</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Monto (Bs.)</label>
+                  <input v-model="editCostoForm.monto_costo" type="number" step="0.01" min="0" placeholder="0.00">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Descripción</label>
+                <input v-model="editCostoForm.descripcion_costo" type="text" placeholder="Ej: Transporte al hospital remoto">
+              </div>
+              <button type="button" class="btn-sm btn-add-costo" @click="addEditCostoToOT">+ Agregar Costo</button>
             </div>
-            <div class="form-group">
-              <label>Costos Adicionales (Bs.)</label>
-              <input v-model="editFormData.costos_adicionales" type="number" step="0.01" min="0" placeholder="Externos, transporte, etc.">
-            </div>
+            <ul class="costo-lista" v-if="editCostosAdicionales.length">
+              <li v-for="(c, idx) in editCostosAdicionales" :key="idx">
+                <span class="costo-tipo">{{ c.tipo_costo }}</span>
+                <span class="costo-desc">{{ c.descripcion_costo }}</span>
+                <span class="costo-monto">Bs. {{ Number(c.monto_costo).toFixed(2) }}</span>
+                <button type="button" class="costo-remove" @click="removeEditCostoFromOT(idx)" title="Quitar costo">×</button>
+              </li>
+              <li class="costo-total">
+                <span>Total:</span>
+                <span class="costo-monto-total">Bs. {{ totalEditCostos.toFixed(2) }}</span>
+              </li>
+            </ul>
+            <p v-else class="costo-empty">No hay costos agregados.</p>
           </div>
 
-          <hr>
-          <h4>Repuestos Utilizados</h4>
-          <div class="repuesto-selector">
-            <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
-            <input type="number" v-model="selectedCantidad" min="1" style="width: 80px">
-            <button type="button" class="btn-sm" @click="addRepuestoToOT">Agregar</button>
+          <h4 class="section-title">Repuestos Utilizados</h4>
+          <div class="repuestos-section">
+            <div class="repuesto-selector">
+              <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
+              <input type="number" v-model="selectedCantidad" min="1" style="width: 80px">
+              <button type="button" class="btn-sm" @click="addRepuestoToOT">Agregar</button>
+            </div>
+            <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
+              <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">{{ item.cantidad }} x {{ item.nombre }}</li>
+            </ul>
+            <p v-else class="repuesto-empty">No hay repuestos agregados.</p>
           </div>
-          <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
-            <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">{{ item.cantidad }} x {{ item.nombre }}</li>
-          </ul>
 
           <div class="modal-actions">
             <button type="button" class="btn-secondary" @click="showEditModal = false">Cancelar</button>
@@ -902,6 +1079,42 @@ th { background-color: #f8f9fa; }
 .repuesto-lista { list-style: none; padding: 0; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; margin-top: 8px; }
 .repuesto-lista li { padding: 8px 12px; border-bottom: 1px solid #fde68a; font-size: 0.9rem; color: #1e293b; font-weight: 500; }
 .repuesto-lista li:last-child { border-bottom: none; }
+
+/* v0.9.22: Títulos de sección fuera del cuadro, uniformes */
+.section-title {
+  margin: 1rem 0 0.5rem 0;
+  padding: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+  border: none;
+  background: none;
+}
+
+/* v0.9.22: Sección Repuestos Utilizados con fondo amarillo claro (igual que Costos en rojo) */
+.repuestos-section { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 1rem; margin-top: 0.5rem; }
+.repuestos-detail-view { background: #fef3c7 !important; border: 1px solid #fcd34d; }
+.repuesto-empty { color: #92400e; font-style: italic; font-size: 0.85rem; margin: 0.5rem 0 0 0; }
+
+/* v0.9.21: Costos Adicionales (RF11) con fondo rojo claro */
+.costos-section { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 1rem; margin-top: 0.5rem; }
+.costo-form { background: #fff5f5; padding: 0.75rem; border-radius: 4px; border: 1px dashed #fca5a5; margin-bottom: 0.75rem; }
+.costo-form .form-row { gap: 0.5rem; }
+.btn-add-costo { background: #dc2626; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; margin-top: 0.25rem; }
+.btn-add-costo:hover { background: #b91c1c; }
+.costo-lista { list-style: none; padding: 0; margin: 0; }
+.costo-lista li { display: flex; align-items: center; gap: 0.5rem; padding: 6px 10px; background: #fee2e2; border: 1px solid #fecaca; border-radius: 4px; margin-bottom: 4px; font-size: 0.85rem; color: #1e293b; flex-wrap: wrap; }
+.costo-tipo { background: #dc2626; color: white; padding: 1px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+.costo-desc { flex: 1; min-width: 100px; }
+.costo-monto { font-weight: 700; color: #991b1b; white-space: nowrap; }
+.costo-remove { background: #dc2626; color: white; border: none; cursor: pointer; font-size: 0.85rem; line-height: 1; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; padding: 0; transition: all 0.15s; flex-shrink: 0; }
+.costo-remove:hover { background: #991b1b; }
+.costo-total { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px !important; background: #fecaca !important; border: 1px solid #fca5a5 !important; font-weight: 700; margin-top: 6px !important; }
+.costo-monto-total { color: #991b1b; font-size: 1rem !important; }
+.costo-empty { color: #b91c1c; font-style: italic; font-size: 0.85rem; margin: 0.5rem 0 0 0; }
+/* Costos en modal Ver (solo lectura) */
+.costos-detail-view { background: #fef2f2 !important; border: 1px solid #fecaca; }
+.costo-lista-readonly li { background: #fee2e2; border: 1px solid #fecaca; }
 
 .table-pagination {
   display: flex;

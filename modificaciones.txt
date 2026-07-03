@@ -245,3 +245,37 @@ luego de realizar estos puntos actualizare el GitHub.
 vamos....
 
 
+
+hola, ahora tenemos unas modificaciones a realizar en CONTRATOS.
+sobre lo que te mencionaba anteriormente. existen costos en algunas OT o si se usan mantenimientos preventivos estos se asocian a contratos 
+que también tienen costo. todo esto sirve para saber cuanto se le ha invertido a un equipo. asi como el costo de repuestos.
+entendiendo eso. hay que hacer que los costos sean de forma muy parecida a los contactos en proovedores, es decir
+que pueden existir varios costos para un OT no solo 1 no solo 2... sino n. 
+según recuerdo ya hemos solucionado esto, pero al parecer en las siguientes modificaciones se han perdido... 
+por lo cual usaremos de referencia la ayuda del programa y en especial:
+ENTIDADES
+OtCostoAdicional, otcostoadicional, RF11 v0.9.1
+también buscaremos alguna información entre las versiones cerca.
+al final estos costos serán en un fondo color rojo claro en los formularios cuando se cree un nuevo OT o se realice alguna modificación.
+vamos intentemos comprender como debería ser y hagamoslo para ver como queda.
+adelante.!!!
+
+
+esta bien. 
+pero seguiremos corrigiendo. 
+en ORDENES donde estamos trabajando.
+en crear nuevo y editar,  existe unas líneas para separar "Costos Adicionales" y "Repuestos Utilizados",  hay que eliminarlas
+en crear nuevo y editar, los costos adicionales están en rojo claro todo el cuadro esta en la gama de ese color, esta bien. se queda, pero
+ahora lo mismo debe ocurrir para el cuadro "Repuestos Utilizados" en el color amarillo claro y la gama de ellos.
+en ojo visualizar esta desordenado. "Costos Adicionales" debe estar encima de "Repuestos Utilizados" para que visualmente sea igual que editar y crear.
+si te das cuanta, estas modificaciones son visuales, es decir posiciones en distintos lugares, formas distintas, colores distintos, así también
+verificar uniformidad de títulos dentro de cuadros o fuera... de preferencia los títulos "Costos Adicionales" y "Repuestos Utilizados" estén fuera del cuadro.
+
+
+
+
+
+
+
+
+

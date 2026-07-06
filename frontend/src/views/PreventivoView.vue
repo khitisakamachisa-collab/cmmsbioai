@@ -146,14 +146,19 @@ watch([searchQuery, filterEquipo, filterUbicacion, filterUsuario, filterEstado],
 // --- Acciones CRUD ---
 const openCreateModal = async () => {
   isEditing.value = false
+  // v0.9.23: Título siempre es "Preventivo" (bloqueado), frecuencia default 90
+  const ahora = new Date()
+  const fechaSistema = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`
   formData.value = {
     equipo_id: '',
     responsable_id: null,
-    titulo: '',
+    titulo: 'Preventivo',
     frecuencia_dias: 90,
-    ultima_fecha: null,
-    proxima_fecha: ''  // v0.9.0: fecha REAL programada por el usuario (editable)
+    ultima_fecha: fechaSistema,  // fecha del sistema por defecto (date)
+    proxima_fecha: ''  // se calculará automáticamente
   }
+  // v0.9.23: calcular próxima fecha automáticamente: ultima_fecha + frecuencia
+  calcularProximaFecha()
   repuestosSeleccionados.value = []
   selectedRepuestoId.value = null
   selectedCantidad.value = 1
@@ -176,7 +181,7 @@ const openEditModal = async (tarea) => {
       fetchInventario()
     ])
     const fullTarea = resTarea.data
-    formData.value = { ...fullTarea }
+    formData.value = { ...fullTarea, titulo: 'Preventivo' }  // v0.9.23: título bloqueado
     if (fullTarea.ultima_fecha) {
       formData.value.ultima_fecha = fullTarea.ultima_fecha.substring(0, 10)
     }
@@ -223,11 +228,11 @@ const buildPayload = () => {
   const payload = {
     equipo_id: formData.value.equipo_id,
     responsable_id: formData.value.responsable_id,
-    titulo: formData.value.titulo,
+    titulo: 'Preventivo',  // v0.9.23: siempre "Preventivo", no se envía desde formulario
     descripcion: formData.value.descripcion || null,
     frecuencia_dias: Number(formData.value.frecuencia_dias),
-    ultima_fecha: formData.value.ultima_fecha || null,
-    proxima_fecha: formData.value.proxima_fecha || null,  // v0.9.0: fecha REAL programada
+    ultima_fecha: formData.value.ultima_fecha ? formData.value.ultima_fecha.substring(0, 10) : null,
+    proxima_fecha: formData.value.proxima_fecha || null,
     repuestos: repuestosSeleccionados.value.map((r) => ({
       repuesto_id: r.repuesto_id,
       cantidad_requerida: Number(r.cantidad)
@@ -235,26 +240,45 @@ const buildPayload = () => {
   }
   if (isEditing.value) {
     return {
-      titulo: payload.titulo,
+      titulo: 'Preventivo',  // v0.9.23: siempre "Preventivo"
       descripcion: payload.descripcion,
       frecuencia_dias: payload.frecuencia_dias,
       responsable_id: payload.responsable_id,
       ultima_fecha: payload.ultima_fecha,
-      proxima_fecha: payload.proxima_fecha,  // v0.9.0
+      proxima_fecha: payload.proxima_fecha,
       repuestos: payload.repuestos
     }
   }
   return payload
 }
 
-// v0.9.0: Sugerir proxima_fecha basada en ultima_fecha + frecuencia_dias
-// (el usuario puede modificarla libremente)
-const sugerirProximaFecha = () => {
+// v0.9.23: Eliminado sugerirProximaFecha. Ahora se usa watch para calcular automáticamente.
+// La lógica es: si cambia ultima_fecha o frecuencia_dias → recalcular proxima_fecha
+// Si cambia proxima_fecha manualmente → recalcular frecuencia_dias
+let recalculandoDesdeFrecuencia = false
+let recalculandoDesdeProxima = false
+
+const calcularProximaFecha = () => {
   if (formData.value.ultima_fecha && formData.value.frecuencia_dias) {
+    recalculandoDesdeFrecuencia = true
     const ultima = new Date(formData.value.ultima_fecha)
     const proxima = new Date(ultima)
     proxima.setDate(proxima.getDate() + Number(formData.value.frecuencia_dias))
     formData.value.proxima_fecha = proxima.toISOString().substring(0, 10)
+    setTimeout(() => { recalculandoDesdeFrecuencia = false }, 0)
+  }
+}
+
+const calcularFrecuenciaDesdeProxima = () => {
+  if (formData.value.ultima_fecha && formData.value.proxima_fecha) {
+    recalculandoDesdeProxima = true
+    const ultima = new Date(formData.value.ultima_fecha)
+    const proxima = new Date(formData.value.proxima_fecha)
+    const diffDias = Math.round((proxima - ultima) / (1000 * 60 * 60 * 24))
+    if (diffDias > 0) {
+      formData.value.frecuencia_dias = diffDias
+    }
+    setTimeout(() => { recalculandoDesdeProxima = false }, 0)
   }
 }
 
@@ -296,7 +320,8 @@ const openGenerarOTModal = (tarea) => {
     equipo: getEquipoNombre(tarea.equipo_id),
     prioridad: 'Media',
     tecnico_asignado_id: tarea.responsable_id || null,
-    fecha_vencimiento: tarea.proxima_fecha ? tarea.proxima_fecha.substring(0, 10) : null
+    // v0.9.23: usar fecha_creacion (proxima_fecha) en vez de fecha_vencimiento
+    fecha_creacion: tarea.proxima_fecha ? toDatetimeLocalMP(tarea.proxima_fecha) : null
   }
   showGenerarOTModal.value = true
 }
@@ -307,7 +332,7 @@ const generarOT = async () => {
     const payload = {
       prioridad: generarOTData.value.prioridad,
       tecnico_asignado_id: generarOTData.value.tecnico_asignado_id || null,
-      fecha_vencimiento: generarOTData.value.fecha_vencimiento || null
+      fecha_creacion: generarOTData.value.fecha_creacion || null
     }
     const res = await apiClient.post(`/preventivo/${generarOTData.value.tarea_id}/generar-ot`, payload)
     const otId = res.data.id
@@ -538,6 +563,31 @@ const resumenCalendario = computed(() => {
   const hoyCount = activas.filter(t => getStatusClass(t.proxima_fecha) === 'status-due-today').length
   const proximas = activas.filter(t => getStatusClass(t.proxima_fecha) === 'status-upcoming').length
   return { total, vencidas, hoy: hoyCount, proximas }
+})
+
+// v0.9.23: Helper para convertir fecha string a datetime-local
+const toDatetimeLocalMP = (fechaStr) => {
+  if (!fechaStr) return ''
+  const d = new Date(fechaStr)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const min = String(d.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${day}T${h}:${min}`
+}
+
+// v0.9.23: Watchers para enlazar frecuencia_dias <-> proxima_fecha
+watch(() => formData.value.ultima_fecha, () => {
+  if (!recalculandoDesdeProxima) calcularProximaFecha()
+})
+watch(() => formData.value.frecuencia_dias, () => {
+  if (!recalculandoDesdeProxima) calcularProximaFecha()
+})
+watch(() => formData.value.proxima_fecha, () => {
+  if (!recalculandoDesdeFrecuencia && formData.value.ultima_fecha) {
+    calcularFrecuenciaDesdeProxima()
+  }
 })
 
 onMounted(() => {
@@ -880,33 +930,29 @@ onMounted(() => {
             </select>
           </div>
 
-          <div class="form-group">
-            <label>Titulo de la Tarea *</label>
-            <input v-model="formData.titulo" placeholder="Ej: Calibracion Anual" required>
-          </div>
-
+          <!-- Fila: Título de la Tarea + Frecuencia (días) -->
           <div class="form-row">
             <div class="form-group">
-              <label>Frecuencia (dias) <span class="hint">sugerencia</span></label>
-              <input v-model="formData.frecuencia_dias" type="number" min="1" required>
+              <label>Titulo de la Tarea</label>
+              <input value="Preventivo" disabled style="background: #f1f5f9; color: #64748b; cursor: not-allowed;">
+              <small class="form-help">Mantenimiento preventivo.</small>
             </div>
+            <div class="form-group">
+              <label>Frecuencia (dias)</label>
+              <input v-model.number="formData.frecuencia_dias" type="number" min="1" required>
+            </div>
+          </div>
+
+          <!-- Fila: Última Fecha Realizada + Próxima Fecha Programada -->
+          <div class="form-row">
             <div class="form-group">
               <label>Ultima Fecha Realizada</label>
-              <input v-model="formData.ultima_fecha" type="date" @change="sugerirProximaFecha">
+              <input v-model="formData.ultima_fecha" type="date">
             </div>
-          </div>
-
-          <!-- v0.9.0: proxima_fecha editable (fecha REAL programada, no auto-calculada) -->
-          <div class="form-row">
             <div class="form-group">
-              <label>Próxima Fecha Programada <span class="hint">fecha real para el calendario</span></label>
+              <label>Proxima Fecha Programada</label>
               <input v-model="formData.proxima_fecha" type="date">
-              <small class="form-help">Esta es la fecha que aparece en el calendario. La frecuencia es solo una sugerencia.</small>
-            </div>
-            <div class="form-group">
-              <button type="button" class="btn-sugerir" @click="sugerirProximaFecha" title="Calcular sugerencia basada en última fecha + frecuencia">
-                📅 Sugerir fecha
-              </button>
+              <small class="form-help">Ultima Fecha + Frecuencia (dias).</small>
             </div>
           </div>
 
@@ -994,15 +1040,15 @@ onMounted(() => {
           </div>
 
           <div class="form-group">
-            <label>Fecha de Vencimiento</label>
-            <input v-model="generarOTData.fecha_vencimiento" type="date">
+            <label>Fecha y Hora Programada</label>
+            <input v-model="generarOTData.fecha_creacion" type="datetime-local">
           </div>
 
           <div class="generar-ot-hint">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
               <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8 4a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 4zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/>
             </svg>
-            <span>Se creara una OT vinculada a esta tarea preventiva. Los repuestos del kit se sugeriran al editar la OT.</span>
+            <span>Se creara una OT tipo "Preventivo" vinculada a esta tarea. El Responsable pasa como Tecnico Asignado.</span>
           </div>
 
           <div class="modal-actions">
@@ -1666,22 +1712,5 @@ th { background-color: #f8f9fa; font-weight: bold; }
   font-size: 0.75rem;
   color: #64748b;
   margin-top: 0.25rem;
-}
-.btn-sugerir {
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
-  padding: 0.5rem 0.85rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.82rem;
-  white-space: nowrap;
-  transition: all 0.2s;
-  margin-top: 1.5rem;
-}
-.btn-sugerir:hover {
-  background: #dbeafe;
-  border-color: #93c5fd;
 }
 </style>

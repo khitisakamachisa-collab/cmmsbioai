@@ -32,6 +32,11 @@ def crear_orden(orden: OrdenTrabajoCreate, session: Session = Depends(get_sessio
     orden_dict = orden.model_dump()
     repuestos_recibidos = orden_dict.pop("repuestos_utilizados", None)
 
+    # v0.9.23: fecha_creacion viene como datetime completo (desde input datetime-local)
+    # Si no se envía, se usa la fecha/hora actual por defecto en el modelo
+    if "fecha_creacion" not in orden_dict or orden_dict["fecha_creacion"] is None:
+        orden_dict.pop("fecha_creacion", None)  # que use default_factory del modelo
+
     db_orden = OrdenTrabajo(**orden_dict)
     session.add(db_orden)
     session.commit()
@@ -100,7 +105,10 @@ def actualizar_orden(ot_id: int, ot_data: OrdenTrabajoUpdate, session: Session =
     
     ot_data_dict = ot_data.model_dump(exclude_unset=True)
     repuestos_recibidos = ot_data_dict.pop("repuestos_utilizados", None)
-    
+
+    # v0.9.23: fecha_creacion viene como datetime completo (desde input datetime-local)
+    # Se aplica directamente sin transformación adicional
+
     # Actualizar campos simples
     for key, value in ot_data_dict.items():
         setattr(db_ot, key, value)

@@ -205,6 +205,22 @@ async function sincronizarCostosOT(otId, costosFormulario) {
   }
 }
 
+// v0.9.23: Helpers datetime-local (DEBEN estar antes de formData por hoisting de const)
+const toLocalDatetimeString = (date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  return `${y}-${m}-${d}T${h}:${min}`
+}
+
+const toDatetimeLocal = (isoStr) => {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  return toLocalDatetimeString(d)
+}
+
 // Formulario Crear
 const formData = ref({
   equipo_id: '',
@@ -215,7 +231,8 @@ const formData = ref({
   tecnico_asignado_id: null,
   unidad_tiempo: 'horas',
   tiempo_real_invertido: null,
-  acciones_realizadas: ''
+  acciones_realizadas: '',
+  fecha_creacion: toLocalDatetimeString(new Date())  // v0.9.23: datetime-local default now
 })
 
 // Formulario Editar
@@ -228,7 +245,8 @@ const editFormData = ref({
   tecnico_asignado_id: null,
   unidad_tiempo: 'horas',
   tiempo_real_invertido: null,
-  acciones_realizadas: ''
+  acciones_realizadas: '',
+  fecha_creacion: ''
 })
 
 // --- Funciones de Datos ---
@@ -254,7 +272,7 @@ const fetchData = async () => {
 
 // v0.9.18: Abrir modal Crear — cargar repuestos y resetear estado
 const openCreateModal = async () => {
-  formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', tiempo_real_invertido: null, acciones_realizadas: '' }
+  formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', tiempo_real_invertido: null, acciones_realizadas: '', fecha_creacion: toLocalDatetimeString(new Date()) }
   repuestosSeleccionados.value = []
   selectedRepuestoId.value = null
   selectedCantidad.value = 1
@@ -287,7 +305,7 @@ const saveOrden = async () => {
     }
     alert('Orden creada')
     showModal.value = false
-    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', tiempo_real_invertido: null, acciones_realizadas: '' }
+    formData.value = { equipo_id: '', estado_id: '', prioridad: 'Media', titulo: '', descripcion_falla: '', tecnico_asignado_id: null, unidad_tiempo: 'horas', tiempo_real_invertido: null, acciones_realizadas: '', fecha_creacion: toLocalDatetimeString(new Date()) }
     repuestosSeleccionados.value = []
     costosAdicionales.value = []
     fetchData() 
@@ -355,7 +373,8 @@ const openEditModal = async (ot) => {
       tecnico_asignado_id: fullOt.tecnico_asignado_id || null,
       unidad_tiempo: fullOt.unidad_tiempo || 'horas',
       tiempo_real_invertido: fullOt.tiempo_real_invertido || null,
-      acciones_realizadas: fullOt.acciones_realizadas || ''
+      acciones_realizadas: fullOt.acciones_realizadas || '',
+      fecha_creacion: toDatetimeLocal(fullOt.fecha_creacion)
     }
 
     // v0.9.21: cargar costos adicionales existentes
@@ -490,6 +509,25 @@ const getEstadoColor = (id) => {
   return state && state.color ? state.color : '#95a5a6'
 }
 
+// v0.9.23: Icono de origen (opción B: icono en título)
+const getOrigenIcon = (ot) => {
+  if (ot.orden_preventiva_id) return '🛡️'
+  return ''
+}
+const getOrigenTitle = (ot) => {
+  if (ot.orden_preventiva_id) return `Preventivo #${ot.orden_preventiva_id}`
+  return 'Correctivo manual'
+}
+
+// v0.9.23: Formatear fecha y hora de creación para la tabla
+const formatFechaHora = (ot) => {
+  if (!ot.fecha_creacion) return 'N/A'
+  const d = new Date(ot.fecha_creacion)
+  const fecha = d.toLocaleDateString('es-BO')
+  const hora = d.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })
+  return `${fecha} ${hora}`
+}
+
 // --- Función para abrir Modal Documentos ---
 const openDocsModal = (ot) => {
   docsOT.value = ot
@@ -573,7 +611,7 @@ onMounted(() => {
             <th>Título</th>
             <th>Prioridad</th>
             <th>Estado</th>
-            <th>Origen</th>
+            <th>Fecha / Hora</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -582,7 +620,7 @@ onMounted(() => {
             <td>#{{ ot.id }}</td>
             <td>{{ getEquipoNombre(ot.equipo_id) }}</td>
             <td>
-              <strong>{{ ot.titulo }}</strong><br>
+              <strong>{{ getOrigenIcon(ot) }} {{ ot.titulo }}</strong><br>
               <small>{{ ot.descripcion_falla.substring(0, 30) }}...</small>
             </td>
             <td>
@@ -594,10 +632,7 @@ onMounted(() => {
                </span>
             </td>
             <td>
-              <span v-if="ot.orden_preventiva_id" class="badge badge-preventivo" title="Generada desde tarea preventiva">
-                Preventivo #{{ ot.orden_preventiva_id }}
-              </span>
-              <span v-else class="badge badge-correctivo">Correctivo</span>
+              <small>{{ formatFechaHora(ot) }}</small>
             </td>
             <td class="actions-cell">
               <!-- Ojo: Ver Detalle -->
@@ -671,16 +706,26 @@ onMounted(() => {
             <div class="form-group"><label>Estado *</label><select v-model="formData.estado_id" required><option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option></select></div>
             <div class="form-group"><label>Prioridad</label><select v-model="formData.prioridad"><option>Urgente</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
           </div>
-          <div class="form-group"><label>Técnico Asignado</label><select v-model="formData.tecnico_asignado_id"><option :value="null">-- Sin Asignar --</option><option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">{{ tec.full_name || tec.username }}</option></select></div>
-          <div class="form-group"><label>Título / Tipo de OT *</label><select v-model="formData.titulo" required><option value="" disabled>Seleccione tipo...</option><option v-for="t in tiposOT" :key="t" :value="t">{{ t }}</option></select></div>
-          <div class="form-group"><label>Descripción / Falla *</label><textarea v-model="formData.descripcion_falla" required></textarea></div>
-
           <div class="form-row">
+            <div class="form-group"><label>Técnico Asignado</label><select v-model="formData.tecnico_asignado_id"><option :value="null">-- Sin Asignar --</option><option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">{{ tec.full_name || tec.username }}</option></select></div>
+            <div class="form-group"><label>Título / Tipo de OT *</label><select v-model="formData.titulo" required><option value="" disabled>Seleccione tipo...</option><option v-for="t in tiposOT" :key="t" :value="t">{{ t }}</option></select></div>
+          </div>
+          <div class="form-group">
+            <label>Descripción / Falla *</label>
+            <textarea v-model="formData.descripcion_falla" required></textarea>
+          </div>
+
+          <!-- v0.9.23: Fecha/Hora y Tiempo en una sola fila -->
+          <div class="form-row">
+            <div class="form-group">
+              <label>Fecha y Hora de Creación</label>
+              <input v-model="formData.fecha_creacion" type="datetime-local">
+            </div>
             <div class="form-group">
               <label>Tiempo Invertido</label>
               <div style="display: flex; gap: 8px;">
                 <input v-model="formData.tiempo_real_invertido" type="number" step="0.5" min="0" placeholder="Ej: 1.5" style="flex: 1;">
-                <select v-model="formData.unidad_tiempo" style="width: 110px;">
+                <select v-model="formData.unidad_tiempo" style="width: 100px;">
                   <option value="horas">Horas</option>
                   <option value="dias">Días</option>
                 </select>
@@ -697,6 +742,10 @@ onMounted(() => {
           <h4 class="section-title">Costos Adicionales</h4>
           <div class="costos-section">
             <div class="costo-form">
+              <div class="form-group">
+                <label>Descripción</label>
+                <input v-model="costoForm.descripcion_costo" type="text" placeholder="Ej: Transporte al hospital remoto">
+              </div>
               <div class="form-row">
                 <div class="form-group">
                   <label>Tipo de Costo</label>
@@ -708,12 +757,10 @@ onMounted(() => {
                   <label>Monto (Bs.)</label>
                   <input v-model="costoForm.monto_costo" type="number" step="0.01" min="0" placeholder="0.00">
                 </div>
+                <div class="form-group" style="display: flex; align-items: flex-end;">
+                  <button type="button" class="btn-sm btn-add-costo" @click="addCostoToOT" style="width: 100%;">+ Agregar Costo</button>
+                </div>
               </div>
-              <div class="form-group">
-                <label>Descripción</label>
-                <input v-model="costoForm.descripcion_costo" type="text" placeholder="Ej: Transporte al hospital remoto">
-              </div>
-              <button type="button" class="btn-sm btn-add-costo" @click="addCostoToOT">+ Agregar Costo</button>
             </div>
             <ul class="costo-lista" v-if="costosAdicionales.length">
               <li v-for="(c, idx) in costosAdicionales" :key="idx">
@@ -735,7 +782,7 @@ onMounted(() => {
             <div class="repuesto-selector">
               <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
               <input type="number" v-model="selectedCantidad" min="1" style="width: 80px">
-              <button type="button" class="btn-sm" @click="addRepuestoToOT">Agregar</button>
+              <button type="button" class="btn-sm btn-add-repuesto" @click="addRepuestoToOT">Agregar</button>
             </div>
             <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
               <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">{{ item.cantidad }} x {{ item.nombre }}</li>
@@ -772,21 +819,24 @@ onMounted(() => {
           <div class="detail-column">
             <h4>Asignación y Tiempos</h4>
             <p><strong>Técnico:</strong> {{ getTecnicoNombre(selectedOT.tecnico_asignado_id) }}</p>
-            <p><strong>Fecha Creación:</strong> {{ selectedOT.fecha_creacion ? new Date(selectedOT.fecha_creacion).toLocaleDateString('es-BO') : 'N/A' }}</p>
+            <!-- v0.9.23: Fecha y Hora de creación -->
+            <p><strong>Fecha Creación:</strong> {{ selectedOT.fecha_creacion ? formatFechaHora(selectedOT) : 'N/A' }}</p>
             <p><strong>Tiempo Invertido:</strong> {{ selectedOT.tiempo_real_invertido || 0 }} {{ selectedOT.unidad_tiempo === 'dias' ? 'días' : 'horas' }}</p>
           </div>
         </div>
-        <div class="detail-full-view">
+        <!-- v0.9.23: Descripción de Falla sin cuadro exterior -->
+        <div class="detail-no-box">
           <h4>Descripción de Falla</h4>
-          <div class="description-box" style="max-height: 120px; overflow-y: auto; word-wrap: break-word; white-space: pre-wrap;">{{ selectedOT.descripcion_falla }}</div>
+          <div class="description-text" style="max-height: 120px; overflow-y: auto; word-wrap: break-word; white-space: pre-wrap;">{{ selectedOT.descripcion_falla }}</div>
         </div>
-        <div class="detail-full-view" v-if="selectedOT.acciones_realizadas">
+        <!-- v0.9.23: Acciones Realizadas sin cuadro exterior -->
+        <div class="detail-no-box" v-if="selectedOT.acciones_realizadas">
           <h4>Acciones Realizadas</h4>
-          <div class="description-box" style="max-height: 120px; overflow-y: auto; word-wrap: break-word; white-space: pre-wrap;">{{ selectedOT.acciones_realizadas }}</div>
+          <div class="description-text" style="max-height: 120px; overflow-y: auto; word-wrap: break-word; white-space: pre-wrap;">{{ selectedOT.acciones_realizadas }}</div>
         </div>
-        <!-- v0.9.21: Sección Costos Adicionales con fondo rojo claro (encima de Repuestos) -->
+        <!-- v0.9.21: Sección Costos Adicionales -->
         <h4 class="section-title">Costos Adicionales ({{ detalleCostos.length }})</h4>
-        <div class="detail-full-view costos-detail-view">
+        <div class="detail-no-box">
           <ul v-if="detalleCostos.length" class="costo-lista costo-lista-readonly">
             <li v-for="c in detalleCostos" :key="c.id">
               <span class="costo-tipo">{{ c.tipo_costo }}</span>
@@ -801,7 +851,7 @@ onMounted(() => {
           <p v-else class="costo-empty">Sin costos registrados.</p>
         </div>
         <h4 class="section-title">Repuestos Utilizados</h4>
-        <div class="detail-full-view repuestos-detail-view">
+        <div class="detail-no-box">
           <ul v-if="selectedOT.repuestos_usados && selectedOT.repuestos_usados.length" class="repuesto-detail-list repuesto-detail-yellow">
             <li v-for="rep in selectedOT.repuestos_usados" :key="rep.repuesto_id">
               {{ rep.cantidad_utilizada }} x {{ getRepuestoNombre(rep.repuesto_id) }}
@@ -846,22 +896,27 @@ onMounted(() => {
             </div>
           </div>
 
-          <div class="form-group">
-            <label>Técnico Asignado</label>
-            <select v-model="editFormData.tecnico_asignado_id">
-              <option :value="null">-- Sin Asignar --</option>
-              <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
-                {{ tec.full_name || tec.username }}
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label>Título / Tipo de OT *</label>
-            <select v-model="editFormData.titulo" required>
-              <option value="" disabled>Seleccione tipo...</option>
-              <option v-for="t in tiposOT" :key="t" :value="t">{{ t }}</option>
-            </select>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Técnico Asignado</label>
+              <select v-model="editFormData.tecnico_asignado_id">
+                <option :value="null">-- Sin Asignar --</option>
+                <option v-for="tec in tecnicos" :key="tec.id" :value="tec.id">
+                  {{ tec.full_name || tec.username }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Título / Tipo de OT</label>
+              <!-- v0.9.23: si viene de preventivo, título bloqueado -->
+              <select v-if="selectedOT.orden_preventiva_id" disabled style="background: #f1f5f9; color: #64748b; cursor: not-allowed;">
+                <option value="Preventivo" selected>Preventivo</option>
+              </select>
+              <select v-else v-model="editFormData.titulo" required>
+                <option value="" disabled>Seleccione tipo...</option>
+                <option v-for="t in tiposOT" :key="t" :value="t">{{ t }}</option>
+              </select>
+            </div>
           </div>
 
           <div class="form-group">
@@ -869,13 +924,17 @@ onMounted(() => {
             <textarea v-model="editFormData.descripcion_falla" required></textarea>
           </div>
 
-          <!-- Técnico y Tiempo lado a lado (con unidad_tiempo) -->
+          <!-- v0.9.23: Fecha/Hora y Tiempo en una sola fila -->
           <div class="form-row">
+            <div class="form-group">
+              <label>Fecha y Hora de Creación</label>
+              <input v-model="editFormData.fecha_creacion" type="datetime-local">
+            </div>
             <div class="form-group">
               <label>Tiempo Invertido</label>
               <div style="display: flex; gap: 8px;">
                 <input v-model="editFormData.tiempo_real_invertido" type="number" step="0.5" min="0" placeholder="Ej: 1.5" style="flex: 1;">
-                <select v-model="editFormData.unidad_tiempo" style="width: 110px;">
+                <select v-model="editFormData.unidad_tiempo" style="width: 100px;">
                   <option value="horas">Horas</option>
                   <option value="dias">Días</option>
                 </select>
@@ -889,10 +948,14 @@ onMounted(() => {
             <textarea v-model="editFormData.acciones_realizadas" rows="3" placeholder="Describa la reparación..."></textarea>
           </div>
 
-          <!-- v0.9.21: Costos Adicionales (RF11 - OtCostoAdicional) con fondo rojo claro -->
+          <!-- v0.9.21: Costos Adicionales (RF11 - OtCostoAdicional) -->
           <h4 class="section-title">Costos Adicionales</h4>
           <div class="costos-section">
             <div class="costo-form">
+              <div class="form-group">
+                <label>Descripción</label>
+                <input v-model="editCostoForm.descripcion_costo" type="text" placeholder="Ej: Transporte al hospital remoto">
+              </div>
               <div class="form-row">
                 <div class="form-group">
                   <label>Tipo de Costo</label>
@@ -904,12 +967,10 @@ onMounted(() => {
                   <label>Monto (Bs.)</label>
                   <input v-model="editCostoForm.monto_costo" type="number" step="0.01" min="0" placeholder="0.00">
                 </div>
+                <div class="form-group" style="display: flex; align-items: flex-end;">
+                  <button type="button" class="btn-sm btn-add-costo" @click="addEditCostoToOT" style="width: 100%;">+ Agregar Costo</button>
+                </div>
               </div>
-              <div class="form-group">
-                <label>Descripción</label>
-                <input v-model="editCostoForm.descripcion_costo" type="text" placeholder="Ej: Transporte al hospital remoto">
-              </div>
-              <button type="button" class="btn-sm btn-add-costo" @click="addEditCostoToOT">+ Agregar Costo</button>
             </div>
             <ul class="costo-lista" v-if="editCostosAdicionales.length">
               <li v-for="(c, idx) in editCostosAdicionales" :key="idx">
@@ -931,7 +992,7 @@ onMounted(() => {
             <div class="repuesto-selector">
               <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
               <input type="number" v-model="selectedCantidad" min="1" style="width: 80px">
-              <button type="button" class="btn-sm" @click="addRepuestoToOT">Agregar</button>
+              <button type="button" class="btn-sm btn-add-repuesto" @click="addRepuestoToOT">Agregar</button>
             </div>
             <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
               <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">{{ item.cantidad }} x {{ item.nombre }}</li>
@@ -1036,17 +1097,21 @@ th { background-color: #f8f9fa; }
 .detail-column p { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #555; }
 .detail-full-view { width: 100%; background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; box-sizing: border-box; overflow-x: hidden; }
 .detail-full-view h4 { margin-top: 0; margin-bottom: 0.5rem; color: #2c3e50; }
+/* v0.9.23: Contenedor sin cuadro exterior para secciones de detalle */
+.detail-no-box { width: 100%; margin-bottom: 1rem; box-sizing: border-box; overflow-x: hidden; }
+.detail-no-box h4 { margin-top: 0; margin-bottom: 0.5rem; color: #2c3e50; }
+.description-text { color: #444; font-size: 0.9rem; min-height: 40px; }
 .description-box {
-  background: white; padding: 0.8rem; border: 1px solid #e0e0e0; border-radius: 4px;
+  background: white; padding: 0.8rem; border-radius: 4px;
   min-height: 40px; color: #444; font-size: 0.9rem;
   word-break: break-word; overflow-y: auto; max-height: 150px; white-space: pre-wrap;
   box-sizing: border-box;
 }
 .repuesto-detail-list { list-style: none; padding: 0; margin: 0; }
 .repuesto-detail-list li { padding: 4px 0; font-size: 0.9rem; color: #555; border-bottom: 1px solid #eee; }
-/* v0.9.19: repuestos en modal Ver con fondo amarillo */
-.repuesto-detail-yellow { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; padding: 0.5rem 1rem; }
-.repuesto-detail-yellow li { padding: 6px 0; color: #1e293b; font-weight: 500; border-bottom: 1px solid #fde68a; }
+/* v0.9.23: Repuestos en detalle con estilo profesional amber suave */
+.repuesto-detail-yellow { background: #fffbf0; border-left: 3px solid #d97706; border-radius: 4px; padding: 0.5rem 1rem; }
+.repuesto-detail-yellow li { padding: 6px 0; color: #1e293b; font-weight: 500; border-bottom: 1px solid #fef3c7; }
 .repuesto-detail-yellow li:last-child { border-bottom: none; }
 
 /* Iconos */
@@ -1076,8 +1141,11 @@ th { background-color: #f8f9fa; }
 .repuesto-selector { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
 .repuesto-selector select { flex: 1; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
 .repuesto-selector input { padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-.repuesto-lista { list-style: none; padding: 0; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; margin-top: 8px; }
-.repuesto-lista li { padding: 8px 12px; border-bottom: 1px solid #fde68a; font-size: 0.9rem; color: #1e293b; font-weight: 500; }
+.btn-add-repuesto { background: #d97706; color: white; border: none; padding: 0.6rem; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; white-space: nowrap; }
+.btn-add-repuesto:hover { background: #b45309; }
+/* v0.9.23: Lista repuestos - estilo profesional sin borde exterior */
+.repuesto-lista { list-style: none; padding: 0; margin-top: 8px; }
+.repuesto-lista li { padding: 8px 12px; background: #fffbf0; border-left: 3px solid #d97706; border-bottom: 1px solid #fef3c7; font-size: 0.9rem; color: #1e293b; font-weight: 500; }
 .repuesto-lista li:last-child { border-bottom: none; }
 
 /* v0.9.22: Títulos de sección fuera del cuadro, uniformes */
@@ -1091,30 +1159,30 @@ th { background-color: #f8f9fa; }
   background: none;
 }
 
-/* v0.9.22: Sección Repuestos Utilizados con fondo amarillo claro (igual que Costos en rojo) */
-.repuestos-section { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 1rem; margin-top: 0.5rem; }
-.repuestos-detail-view { background: #fef3c7 !important; border: 1px solid #fcd34d; }
-.repuesto-empty { color: #92400e; font-style: italic; font-size: 0.85rem; margin: 0.5rem 0 0 0; }
+/* v0.9.23: Repuestos - sin cuadro exterior, solo items con borde lateral */
+.repuestos-section { padding: 0; margin-top: 0.5rem; }
+.repuestos-detail-view { background: transparent !important; border: none; }
+.repuesto-empty { color: #78716c; font-style: italic; font-size: 0.85rem; margin: 0.5rem 0 0 0; }
 
-/* v0.9.21: Costos Adicionales (RF11) con fondo rojo claro */
-.costos-section { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 1rem; margin-top: 0.5rem; }
-.costo-form { background: #fff5f5; padding: 0.75rem; border-radius: 4px; border: 1px dashed #fca5a5; margin-bottom: 0.75rem; }
+/* v0.9.23: Costos Adicionales - sin cuadro exterior, solo items con borde lateral */
+.costos-section { padding: 0; margin-top: 0.5rem; }
+.costo-form { background: #faf5ff; padding: 0.75rem; border-radius: 4px; border: 1px dashed #c4b5fd; margin-bottom: 0.75rem; }
 .costo-form .form-row { gap: 0.5rem; }
-.btn-add-costo { background: #dc2626; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; margin-top: 0.25rem; }
-.btn-add-costo:hover { background: #b91c1c; }
+.btn-add-costo { background: #7c3aed; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; margin-top: 0.25rem; }
+.btn-add-costo:hover { background: #6d28d9; }
 .costo-lista { list-style: none; padding: 0; margin: 0; }
-.costo-lista li { display: flex; align-items: center; gap: 0.5rem; padding: 6px 10px; background: #fee2e2; border: 1px solid #fecaca; border-radius: 4px; margin-bottom: 4px; font-size: 0.85rem; color: #1e293b; flex-wrap: wrap; }
-.costo-tipo { background: #dc2626; color: white; padding: 1px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+.costo-lista li { display: flex; align-items: center; gap: 0.5rem; padding: 6px 10px; background: #faf5ff; border-left: 3px solid #7c3aed; border-radius: 4px; margin-bottom: 4px; font-size: 0.85rem; color: #1e293b; flex-wrap: wrap; }
+.costo-tipo { background: #7c3aed; color: white; padding: 1px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
 .costo-desc { flex: 1; min-width: 100px; }
-.costo-monto { font-weight: 700; color: #991b1b; white-space: nowrap; }
-.costo-remove { background: #dc2626; color: white; border: none; cursor: pointer; font-size: 0.85rem; line-height: 1; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; padding: 0; transition: all 0.15s; flex-shrink: 0; }
-.costo-remove:hover { background: #991b1b; }
-.costo-total { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px !important; background: #fecaca !important; border: 1px solid #fca5a5 !important; font-weight: 700; margin-top: 6px !important; }
-.costo-monto-total { color: #991b1b; font-size: 1rem !important; }
-.costo-empty { color: #b91c1c; font-style: italic; font-size: 0.85rem; margin: 0.5rem 0 0 0; }
+.costo-monto { font-weight: 700; color: #5b21b6; white-space: nowrap; }
+.costo-remove { background: #a78bfa; color: white; border: none; cursor: pointer; font-size: 0.85rem; line-height: 1; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; padding: 0; transition: all 0.15s; flex-shrink: 0; }
+.costo-remove:hover { background: #7c3aed; }
+.costo-total { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px !important; background: #ede9fe !important; border-left: 3px solid #7c3aed !important; font-weight: 700; margin-top: 6px !important; }
+.costo-monto-total { color: #5b21b6; font-size: 1rem !important; }
+.costo-empty { color: #78716c; font-style: italic; font-size: 0.85rem; margin: 0.5rem 0 0 0; }
 /* Costos en modal Ver (solo lectura) */
-.costos-detail-view { background: #fef2f2 !important; border: 1px solid #fecaca; }
-.costo-lista-readonly li { background: #fee2e2; border: 1px solid #fecaca; }
+.costos-detail-view { background: transparent !important; border: none; }
+.costo-lista-readonly li { background: #faf5ff; border-left: 3px solid #7c3aed; border-radius: 4px; }
 
 .table-pagination {
   display: flex;

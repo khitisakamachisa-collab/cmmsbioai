@@ -1426,21 +1426,21 @@ def cargar_datos_test():
             estado_ot_completada = session.get(EstadoOT, 4)  # Completada
 
             ots_test = [
-                # (titulo, equipo_serie, estado_id, prioridad, descripcion, tecnico_id)
-                ("Correctivo", "MIC-OLY-001", 1, "Media", "Microscopio no enfoca correctamente en objetivo 40x", tech_id),
-                ("Mantenimiento Preventivo", "CEN-EPP-002", 2, "Baja", "Mantenimiento preventivo trimestral", tech_id),
-                ("Correctivo", "MON-MIN-005", 3, "Alta", "Sensor SpO2 no responde, requiere repuesto", tech_id),
-                ("Calibración", "BAL-SAR-008", 4, "Media", "Calibración anual de balanza analítica", tech_id),
-                ("Inspección", "DES-ZOL-009", 1, "Urgente", "Desfibrilador no enciende, revisar fuente de poder", tech_id),
+                # (titulo, equipo_serie, estado_id, prioridad, descripcion, tecnico_id, fecha_creacion)
+                ("Correctivo", "MIC-OLY-001", 1, "Media", "Microscopio no enfoca correctamente en objetivo 40x", tech_id, datetime(2025, 6, 10, 8, 30)),
+                ("Mantenimiento Preventivo", "CEN-EPP-002", 2, "Baja", "Mantenimiento preventivo trimestral", tech_id, datetime(2025, 6, 15, 9, 0)),
+                ("Correctivo", "MON-MIN-005", 3, "Alta", "Sensor SpO2 no responde, requiere repuesto", tech_id, datetime(2025, 6, 20, 14, 15)),
+                ("Calibración", "BAL-SAR-008", 4, "Media", "Calibración anual de balanza analítica", tech_id, datetime(2025, 7, 1, 10, 0)),
+                ("Inspección", "DES-ZOL-009", 1, "Urgente", "Desfibrilador no enciende, revisar fuente de poder", tech_id, datetime(2025, 7, 5, 16, 45)),
             ]
-            for titulo, serie, est_id, prioridad, desc, tec_id in ots_test:
+            for titulo, serie, est_id, prioridad, desc, tec_id, f_crea in ots_test:
                 eq_id = equipos_ids.get(serie)
                 if not eq_id:
                     continue
                 session.add(OrdenTrabajo(
                     equipo_id=eq_id, estado_id=est_id, prioridad=prioridad,
                     tecnico_asignado_id=tec_id, titulo=titulo, descripcion_falla=desc,
-                    fecha_creacion=datetime.now()
+                    fecha_creacion=f_crea
                 ))
                 resumen["ots"] += 1
 

@@ -93,6 +93,8 @@ def create_db_and_tables():
     _migrate_proveedor_ciudad()
     _migrate_equipo_v090()
     _migrate_proveedor_ultimo_id()  # v0.9.14
+    # v0.9.23: hora_creacion fue eliminada. fecha_creacion (DATETIME) se usa como campo editable.
+    # Si la columna hora_creacion existe en BD anterior, se ignora (SQLModel no la lee si no está en el modelo).
 
 
 def _migrate_proveedor_ultimo_id():

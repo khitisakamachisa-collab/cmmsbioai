@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 from database import get_session
 from models.preventivo import TareaPreventiva, TareaRepuesto
 from models.ordenes import OrdenTrabajo, EstadoOT
@@ -79,7 +79,7 @@ class GenerarOTRequest(BaseModel):
     """Schema para generar OT desde preventivo"""
     prioridad: str = "Media"
     tecnico_asignado_id: Optional[int] = None
-    fecha_vencimiento: Optional[date] = None
+    fecha_creacion: Optional[datetime] = None  # v0.9.23: fecha/hora programada para la OT
 
 @router.post("/{tarea_id}/generar-ot")
 def generar_ot_desde_preventivo(tarea_id: int, req: GenerarOTRequest, session: Session = Depends(get_session)):
@@ -132,9 +132,9 @@ def generar_ot_desde_preventivo(tarea_id: int, req: GenerarOTRequest, session: S
         estado_id=estado_abierta.id,
         prioridad=req.prioridad,
         tecnico_asignado_id=tecnico_id,
-        titulo=f"[Preventivo] {tarea.titulo}",
-        descripcion_falla=f"Orden generada automáticamente desde tarea preventiva #{tarea_id}: {tarea.titulo}",
-        fecha_vencimiento=req.fecha_vencimiento or tarea.proxima_fecha,
+        titulo="Preventivo",  # v0.9.23: siempre "Preventivo"
+        descripcion_falla=f"Orden generada desde tarea preventiva #{tarea_id}: {tarea.titulo}",
+        fecha_creacion=req.fecha_creacion or datetime.now(),  # v0.9.23: fecha programada
         orden_preventiva_id=tarea_id
     )
     session.add(nueva_ot)

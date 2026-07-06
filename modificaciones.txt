@@ -274,8 +274,128 @@ verificar uniformidad de títulos dentro de cuadros o fuera... de preferencia lo
 
 
 
+hola, nuevas modificaciones.
+en ORDENES
+1.-
+en crear o en editar, no existe la opción de "fecha y hora". debe existir para poder generar el calendario y-o reprogramar.
+habilitar esta opcion de fecha que se encuentra en la entidad. y-o indicame si se necesita crear un campo en la tabla "ordentrabajo" el campo "hora".
+
+2.-
+en visualizar editar y nuevo:
+a) algunos colores en los cuadros no son visualmente profesionales (no se ve bien), utilizaremos tu criterio bajo ciertos margenes.
+hablo de los cuadros con colores rojos y amarillos en: 
+Costos Adicionales y Repuestos Utilizados (que deben ser resaltantes del resto)
+cambialos a tu criterio pero que resalten.
+b)Costos Adicionales y Repuestos Utilizados tienen cuadros, quita solo el cuadro exterior despues de los titulos.
+
+3.-
+en visualizacion.
+en el ojo los cuadros: Descripción de Falla y Acciones Realizadas estan en cuadros de color claro. que no tengan cuadros.
+en editar y nuevo estos campos no tienen un cuadro que les rodee. en visualizacion que no tengan cuadros alrededor.
+
+4.-
+en la lista de ORDENES
+existe el campo origen, analiza el codigo, explicame que hace. 
+analizaremos el retirarlo o reemplazarlo de alguna manera.
+sugiere opciones.
+
+
+ademas si se haran modificaciones no olvides documentarlas en el programa en la pagina AYUDA. si se cambian las tablas. 
+
+vamos.
+
+
+
+espera antes de que yo pueda cambiar el codigo en mi pc. algunas observaciones.
+(v0.9.23)
+
+1.-
+el campo "fecha vencimiento", esta se asocia a una "Orden generada automáticamente desde tarea preventiva: PREVENTIVO"
+asi que no podemos usarla. (la analizaremos luego)
+existe un campo "fecha_creacion" esta es la que debemos permitir editar cuando sea necesario y en crear tambien pueda ser editable, aunque por defecto usara la fecha y hora para la creacion.
+la "hora de creacion" es la que no existe y debes crearla.
+observa tambien que tenemos un modo DATOS TEST en condifuracion.
+ya qeu el dato "hora de creacion" sera creado, debes de implementarlo en esta opcion.
+yo, cuando tenga el codigo, iniciare con la base de datos en blanco,, y luego usare el MODO TEST.
+estamos probando el funcionamiento del programa.
+
+corrige todo y vuelve a realizar las acciones
+
+2.-
+sobre la opción que me das en el campo ORIGEN
+escojo la B y la E ambas.
+
+3.-
+para que yo pueda probar en mi pc, debes juntar todos los archivos que se modificaron comprimirlos y dármelos para descargar
+yo descargare y reemplazare en mi carpeta y realizare las pruebas....
+
+
+vamos, con estas aclaraciones ,, volvamos a hacer.
+
+
+
+esta bien, pero olvidaste crear el archivo readme v0.9.23.
+esto es necesario para mantener la documentación y el historial del sistema
+por ahora no hay problema, realizaras ese archivo ahora junto a otras modificaciones que haremos ahora.
+1.-
+observo que, en la tabla "orden trabajo" tiene "fecha de creación" que tiene también la hora.
+entonces la consulta es la siguiente.
+si en ese solo campo "fecha de creacion" también se puede modificar la hora, no necesitamos tener una hora aparte en "hora creacion"
+si es así lo quitaremos y solo mantendremos "fecha de creacion"
+
+2.- 
+cuando un equipo llega de "preventivo" y le aplicamos  🛡️ junto al título en OTs.
+le podemos modificar la fecha y hora de creación y esta fecha y hora deba aparecer en el calendario. como MP
+esto no ocurre ahora, debemos implementarlo.
+
+hagamos estas modificaciones.
 
 
 
 
+esta mucho mejor.
+funciona
+pero vamos a modificar algunas cosas en:
+nuevo y en editar. vamos a reorganizar algunos elementos
+1.-
+"Técnico Asignado" y "Título / Tipo de OT" deben ir en una sola fila.
+2.-
+"Fecha y Hora de Creación" y "Tiempo Invertido" asi como las opciones de "hora o dia", estas 3 deben ir en una sola fila.
+3.-
+en el campo "Repuestos Utilizados" esta bien solo debemos modificar el botón AGREGAR, es distinto en tamaño a los otros botones y no se ve bien.
+que sea del mismo tamaño que los otros botones y que sea del color en el cual resalta el campo repuesto utilizado cuando se elige
+4.-
+en "Costos Adicionales" el campo "Descripción" ira primero arriba, luego en una sola fila iran "Tipo de Costo" "Monto (Bs.)" y el botón "+ Agregar Costo". se mantendrán los colores existentes.
 
+arreglemos esto.
+
+
+
+ok ahora vamos a relacionar los preventivos con las ordenes de trabajo
+
+cuando hacemos una MP mantenimiento preventivo
+
+1.-
+seleccionamos el "Titulo de la Tarea", para este caso, siempre será la opción "preventivo" tal cual esta en la selección de ordenes "Título / Tipo de OT"
+la razón es por que es esa su naturaleza. MP por lo que este campo estará predefinido con ese nombre y el usuario no podrá cambiarlo
+entonces al crear nuevo o editar, este campo se vera pero no se podrá cambiar.
+entonces cuando el usuario decida hacer el OT este campo "Titulo de la Tarea" = "preventivo" pasara a ORDENES al campo "Título / Tipo de OT"
+y en ORDENES tampoco se podrá cambiar por que viene de MP, MANTENIMIENTO PREVENTIVO.
+MANEJAREMOS ESA LOGICA.
+
+2.-
+ahora al crear un nuevo MP, asumiremos que el usuario quiere asignar el mantenimiento a la fecha del sistema
+por lo que la fecha y hora del sistema irán al campo "Ultima Fecha Realizada". el usuario podrá modificar esta fecha.
+cuando se cree o modifique el MP este se reflejara en el calendario como un MP no realizado hasta que este MP pase a un OT.
+
+3.-
+en el campo "Frecuencia (dias)", tendremos la frecuencia en días que modificara al campo "Próxima Fecha Programada".
+como en el punto 2 ya tenemos la "Ultima Fecha Realizada" sumando los XX días del campo  "Frecuencia (dias)" tendremos la "Próxima Fecha Programada"
+los XX días del campo "Frecuencia (dias)" son por defecto 60, pero si el usuario cambia este campo se cambiara la "Próxima Fecha Programada"
+y si el usuario cambia la "Próxima Fecha Programada" cambiara la "Frecuencia (dias)"
+(esta es la lógica por ahora)
+entones el botón sugerir fecha será eliminado, la "próxima fecha programada" quedara en el calendario como un MP programado.
+
+4.-
+cuando el usuario configure al "Responsable"
+este dato pasara al OT al campo correspondiente. el usuario luego podrá modificar este campo.

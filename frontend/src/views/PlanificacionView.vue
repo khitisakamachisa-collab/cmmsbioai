@@ -89,8 +89,9 @@ const eventosUnificados = computed(() => {
   // Procesar OTs
   if (filterTipo.value !== 'mp') {
     ordenes.value.forEach(ot => {
-      // Usar fecha_creacion como fecha del evento (o fecha_vencimiento si existe)
-      const fecha = ot.fecha_vencimiento || ot.fecha_creacion
+      // v0.9.23: Usar siempre fecha_creacion (editable) como fecha del evento en el calendario
+      // Esto permite que al editar la fecha/hora de una OT preventiva, se refleje en el calendario
+      const fecha = ot.fecha_creacion
       if (!fecha) return
 
       eventos.push({
@@ -114,52 +115,77 @@ const eventosUnificados = computed(() => {
     })
   }
 
-  // Procesar MPs
+  // Procesar MPs: dos eventos por tarea (ultima_fecha y proxima_fecha)
   if (filterTipo.value !== 'ot') {
     tareasMP.value.forEach(tarea => {
-      if (!tarea.proxima_fecha) return
-
       // Verificar si tiene OT activa
       const tieneOt = ordenes.value.some(ot =>
         ot.orden_preventiva_id === tarea.id &&
         (ot.estado_id === 1 || ot.estado_id === 2 || ot.estado_id === 3)
       )
 
-      let color = '#eab308'  // amarillo por defecto (recordatorio)
-      let estadoLabel = 'Recordatorio'
-      if (tieneOt) {
-        color = '#16a34a'  // verde (programada)
-        estadoLabel = 'Programada'
-      } else {
-        const today = new Date().setHours(0, 0, 0, 0)
-        const dueDate = new Date(tarea.proxima_fecha).setHours(0, 0, 0, 0)
-        if (dueDate < today) {
-          color = '#ef4444'  // rojo (vencida)
-          estadoLabel = 'Vencida'
-        } else if (dueDate === today) {
-          color = '#f97316'  // naranja (hoy)
-          estadoLabel = 'Hoy'
-        }
+      // --- Evento 1: Última Fecha Realizada (No Realizado) ---
+      if (tarea.ultima_fecha) {
+        eventos.push({
+          id: `mp-ult-${tarea.id}`,
+          tipo: 'mp',
+          tipoLabel: 'MP',
+          fecha: tarea.ultima_fecha.substring(0, 10),
+          titulo: tarea.titulo,
+          equipo_id: tarea.equipo_id,
+          equipo_nombre: getEquipoNombre(tarea.equipo_id),
+          ubicacion: getEquipoUbicacion(tarea.equipo_id),
+          responsable_id: tarea.responsable_id,
+          responsable_nombre: getUsuarioNombre(tarea.responsable_id),
+          estado: tieneOt ? 'Realizado' : 'No Realizado',
+          estado_color: tieneOt ? '#16a34a' : '#6366f1',  // verde si tiene OT, índigo si no
+          frecuencia_dias: tarea.frecuencia_dias,
+          descripcion: tarea.descripcion,
+          mp_id: tarea.id,
+          tiene_ot: tieneOt,
+          mp_fecha_tipo: 'ultima'
+        })
       }
 
-      eventos.push({
-        id: `mp-${tarea.id}`,
-        tipo: 'mp',
-        tipoLabel: 'MP',
-        fecha: tarea.proxima_fecha.substring(0, 10),
-        titulo: tarea.titulo,
-        equipo_id: tarea.equipo_id,
-        equipo_nombre: getEquipoNombre(tarea.equipo_id),
-        ubicacion: getEquipoUbicacion(tarea.equipo_id),
-        responsable_id: tarea.responsable_id,
-        responsable_nombre: getUsuarioNombre(tarea.responsable_id),
-        estado: estadoLabel,
-        estado_color: color,
-        frecuencia_dias: tarea.frecuencia_dias,
-        descripcion: tarea.descripcion,
-        mp_id: tarea.id,
-        tiene_ot: tieneOt
-      })
+      // --- Evento 2: Próxima Fecha Programada (MP Programado) ---
+      if (tarea.proxima_fecha) {
+        let color = '#eab308'  // amarillo por defecto (recordatorio)
+        let estadoLabel = 'Programado'
+        if (tieneOt) {
+          color = '#16a34a'  // verde (con OT)
+          estadoLabel = 'Con OT'
+        } else {
+          const today = new Date().setHours(0, 0, 0, 0)
+          const dueDate = new Date(tarea.proxima_fecha).setHours(0, 0, 0, 0)
+          if (dueDate < today) {
+            color = '#ef4444'  // rojo (vencida)
+            estadoLabel = 'Vencido'
+          } else if (dueDate === today) {
+            color = '#f97316'  // naranja (hoy)
+            estadoLabel = 'Hoy'
+          }
+        }
+
+        eventos.push({
+          id: `mp-prox-${tarea.id}`,
+          tipo: 'mp',
+          tipoLabel: 'MP',
+          fecha: tarea.proxima_fecha.substring(0, 10),
+          titulo: tarea.titulo,
+          equipo_id: tarea.equipo_id,
+          equipo_nombre: getEquipoNombre(tarea.equipo_id),
+          ubicacion: getEquipoUbicacion(tarea.equipo_id),
+          responsable_id: tarea.responsable_id,
+          responsable_nombre: getUsuarioNombre(tarea.responsable_id),
+          estado: estadoLabel,
+          estado_color: color,
+          frecuencia_dias: tarea.frecuencia_dias,
+          descripcion: tarea.descripcion,
+          mp_id: tarea.id,
+          tiene_ot: tieneOt,
+          mp_fecha_tipo: 'proxima'
+        })
+      }
     })
   }
 
@@ -254,9 +280,10 @@ const resumen = computed(() => {
   const total = eventosFiltrados.value.length
   const ots = eventosFiltrados.value.filter(e => e.tipo === 'ot').length
   const mps = eventosFiltrados.value.filter(e => e.tipo === 'mp').length
-  const mpsVencidos = eventosFiltrados.value.filter(e => e.tipo === 'mp' && e.estado === 'Vencida').length
-  const mpsProgramados = eventosFiltrados.value.filter(e => e.tipo === 'mp' && e.estado === 'Programada').length
-  return { total, ots, mps, mpsVencidos, mpsProgramados }
+  const mpsNoRealizado = eventosFiltrados.value.filter(e => e.tipo === 'mp' && e.mp_fecha_tipo === 'ultima' && e.estado === 'No Realizado').length
+  const mpsVencidos = eventosFiltrados.value.filter(e => e.tipo === 'mp' && e.mp_fecha_tipo === 'proxima' && e.estado === 'Vencido').length
+  const mpsProgramados = eventosFiltrados.value.filter(e => e.tipo === 'mp' && e.mp_fecha_tipo === 'proxima' && (e.estado === 'Programado' || e.estado === 'Con OT')).length
+  return { total, ots, mps, mpsNoRealizado, mpsVencidos, mpsProgramados }
 })
 
 // --- Limpiar filtros ---
@@ -322,6 +349,10 @@ onMounted(() => { fetchData() })
         <div class="resumen-item resumen-mp">
           <span class="resumen-num">{{ resumen.mps }}</span>
           <span class="resumen-label">MPs</span>
+        </div>
+        <div class="resumen-item resumen-no-realizado" v-if="resumen.mpsNoRealizado > 0">
+          <span class="resumen-num">{{ resumen.mpsNoRealizado }}</span>
+          <span class="resumen-label">🟣 No Realizados</span>
         </div>
         <div class="resumen-item resumen-vencido" v-if="resumen.mpsVencidos > 0">
           <span class="resumen-num">{{ resumen.mpsVencidos }}</span>
@@ -399,7 +430,7 @@ onMounted(() => { fetchData() })
               @click="openDetalle(evento)"
               :title="`${evento.tipoLabel}: ${evento.titulo} — ${evento.equipo_nombre}`"
             >
-              <span class="cal-event-badge">{{ evento.tipoLabel }}</span>
+              <span class="cal-event-badge">{{ evento.tipoLabel }}{{ evento.mp_fecha_tipo === 'ultima' ? ' Ult.' : '' }}</span>
               <span class="cal-event-title">{{ evento.titulo }}</span>
             </div>
             <div v-if="celda.eventos.length > 4" class="cal-event-more">
@@ -412,13 +443,16 @@ onMounted(() => { fetchData() })
       <!-- Leyenda -->
       <div class="cal-legend">
         <div class="legend-item">
-          <span class="legend-dot" style="background: #16a34a;"></span> 🟢 MP Programada (OT activa)
+          <span class="legend-dot" style="background: #6366f1;"></span> 🟣 MP No Realizado (Ult. Fecha)
         </div>
         <div class="legend-item">
-          <span class="legend-dot" style="background: #eab308;"></span> 🟡 MP Recordatorio (próxima)
+          <span class="legend-dot" style="background: #16a34a;"></span> 🟢 MP Realizado / Con OT
         </div>
         <div class="legend-item">
-          <span class="legend-dot" style="background: #ef4444;"></span> 🔴 MP Vencida
+          <span class="legend-dot" style="background: #eab308;"></span> 🟡 MP Programado (Prox. Fecha)
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background: #ef4444;"></span> 🔴 MP Vencido
         </div>
         <div class="legend-item">
           <span class="legend-dot" style="background: #3b82f6;"></span> 🔵 OT Abierta
@@ -446,7 +480,7 @@ onMounted(() => { fetchData() })
           <div class="detalle-col">
             <p><strong>Equipo:</strong> {{ detalleEvento.equipo_nombre }}</p>
             <p v-if="detalleEvento.ubicacion"><strong>Ubicación:</strong> {{ detalleEvento.ubicacion }}</p>
-            <p><strong>Fecha:</strong> {{ detalleEvento.fecha }}</p>
+            <p><strong>Fecha:</strong> {{ detalleEvento.fecha }} <span v-if="detalleEvento.mp_fecha_tipo === 'ultima'" class="badge-tipo-fecha">Ult. Realizada</span><span v-else-if="detalleEvento.mp_fecha_tipo === 'proxima'" class="badge-tipo-fecha badge-tipo-proxima">Prox. Programada</span></p>
             <p><strong>Estado:</strong>
               <span class="badge-estado" :style="{ backgroundColor: detalleEvento.estado_color }">
                 {{ detalleEvento.estado }}
@@ -499,6 +533,7 @@ onMounted(() => { fetchData() })
 .resumen-label { font-size: 0.72rem; color: #64748b; }
 .resumen-ot .resumen-num { color: #2563eb; }
 .resumen-mp .resumen-num { color: #f59e0b; }
+.resumen-no-realizado .resumen-num { color: #6366f1; }
 .resumen-vencido .resumen-num { color: #dc2626; }
 .resumen-programado .resumen-num { color: #16a34a; }
 
@@ -552,6 +587,9 @@ onMounted(() => { fetchData() })
 .detalle-desc p { margin: 0.3rem 0 0 0; font-size: 0.85rem; color: #475569; }
 
 .badge-estado { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; color: white; }
+
+.badge-tipo-fecha { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 0.68rem; font-weight: 700; background: #6366f1; color: white; margin-left: 0.35rem; vertical-align: middle; }
+.badge-tipo-proxima { background: #eab308; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
 .btn-primary { background: #3498db; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }

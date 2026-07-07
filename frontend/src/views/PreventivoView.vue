@@ -318,6 +318,7 @@ const openGenerarOTModal = (tarea) => {
     tarea_id: tarea.id,
     titulo: tarea.titulo,
     equipo: getEquipoNombre(tarea.equipo_id),
+    numero_serie: getEquipoNumeroSerie(tarea.equipo_id),
     prioridad: 'Media',
     tecnico_asignado_id: tarea.responsable_id || null,
     // v0.9.23: usar fecha_creacion (proxima_fecha) en vez de fecha_vencimiento
@@ -365,6 +366,26 @@ const getEquipoUbicacion = (id) => {
 const getUsuarioNombre = (id) => {
   const u = usuarios.value.find(u => u.id === id)
   return u ? (u.full_name || u.username) : 'Sin asignar'
+}
+
+const getEquipoNumeroSerie = (id) => {
+  const eq = equipos.value.find(e => e.id === id)
+  return eq ? (eq.numero_serie || '') : ''
+}
+
+const getEquipoModelo = (id) => {
+  const eq = equipos.value.find(e => e.id === id)
+  return eq ? (eq.modelo || '') : ''
+}
+
+// Formato equipo: nombre_corto - modelo - numero_serie
+const getEquipoFullLabel = (id) => {
+  const eq = equipos.value.find(e => e.id === id)
+  if (!eq) return 'N/A'
+  const parts = [eq.nombre_corto || eq.modelo]
+  if (eq.modelo) parts.push(eq.modelo)
+  if (eq.numero_serie) parts.push(eq.numero_serie)
+  return parts.join(' - ')
 }
 
 // Helper para calcular estado visual (Vencido, Proximo, OK)
@@ -926,7 +947,7 @@ onMounted(() => {
             <label>Equipo *</label>
             <select v-model="formData.equipo_id" required>
               <option value="" disabled>Seleccione...</option>
-              <option v-for="eq in equipos" :key="eq.id" :value="eq.id">{{ eq.nombre_corto || eq.modelo }}</option>
+              <option v-for="eq in equipos" :key="eq.id" :value="eq.id">{{ getEquipoFullLabel(eq.id) }}</option>
             </select>
           </div>
 
@@ -985,7 +1006,7 @@ onMounted(() => {
                 class="cantidad-input"
                 placeholder="Cant."
               >
-              <button type="button" class="btn-sm" @click="addRepuesto">Agregar</button>
+              <button type="button" class="btn-add-repuesto" @click="addRepuesto">Agregar</button>
             </div>
             <ul v-if="repuestosSeleccionados.length" class="repuesto-lista">
               <li v-for="(item, idx) in repuestosSeleccionados" :key="item.repuesto_id">
@@ -1018,6 +1039,7 @@ onMounted(() => {
         <div class="generar-ot-info">
           <p><strong>Tarea:</strong> {{ generarOTData.titulo }}</p>
           <p><strong>Equipo:</strong> {{ generarOTData.equipo }}</p>
+          <p v-if="generarOTData.numero_serie"><strong>N. Serie:</strong> {{ generarOTData.numero_serie }}</p>
         </div>
         
         <form @submit.prevent="generarOT">
@@ -1197,9 +1219,9 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .modal { background: white; padding: 2rem; border-radius: 8px; width: 500px; max-width: 90%; max-height: 90vh; overflow-y: auto; }
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
-.form-group input, .form-group select { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; }
-.form-row { display: flex; gap: 1rem; }
-.form-row .form-group { flex: 1; }
+.form-group input, .form-group select { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 0.9rem; }
+.form-row { display: flex; gap: 0.75rem; }
+.form-row .form-group { flex: 1; min-width: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
 
 .table-pagination {
@@ -1251,33 +1273,39 @@ th { background-color: #f8f9fa; font-weight: bold; }
 }
 .repuesto-selector {
   display: flex;
-  gap: 10px;
+  gap: 6px;
   align-items: center;
   margin-bottom: 10px;
 }
 .repuesto-selector select {
   flex: 1;
   min-width: 0;
+  width: auto !important;   /* ← vence a la regla global width: 100% */
 }
 .cantidad-input {
-  width: 80px;
-  padding: 0.6rem;
+  width: 85px !important;   /* ← fijo, sin importar reglas globales */
+  flex: none !important;    /* ← no crece ni se encoge */
+  padding: 0.6rem 0.3rem;
   border: 1px solid #ccc;
   border-radius: 4px;
   box-sizing: border-box;
+  text-align: center;
 }
-.btn-sm {
-  background-color: #3498db;
+.btn-add-repuesto {
+  background-color: #d97706;
   color: white;
   border: none;
-  padding: 0.5rem 0.9rem;
+  padding: 0.6rem;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.85rem;
+  font-weight: 600;
   white-space: nowrap;
+  width: 85px;
+  flex: none; 
 }
-.btn-sm:hover {
-  background-color: #2980b9;
+.btn-add-repuesto:hover {
+  background-color: #b45309;
 }
 .repuesto-lista {
   list-style: none;
@@ -1294,6 +1322,7 @@ th { background-color: #f8f9fa; font-weight: bold; }
   padding: 8px 10px;
   border-bottom: 1px solid #eee;
   font-size: 0.9rem;
+  background: #fef3c7;
 }
 .repuesto-lista li:last-child {
   border-bottom: none;
@@ -1323,8 +1352,19 @@ th { background-color: #f8f9fa; font-weight: bold; }
 }
 .generar-ot-info p {
   margin: 0.25rem 0;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   color: #1e3a5f;
+}
+
+/* Modal Generar OT: igualar anchos de inputs */
+.generar-ot-info + form .form-group input,
+.generar-ot-info + form .form-group select {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.9rem;
+  padding: 0.6rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 .generar-ot-hint {
   display: flex;

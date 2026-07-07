@@ -399,3 +399,65 @@ entones el botón sugerir fecha será eliminado, la "próxima fecha programada" 
 4.-
 cuando el usuario configure al "Responsable"
 este dato pasara al OT al campo correspondiente. el usuario luego podrá modificar este campo.
+
+
+
+
+esta mejor pero una pequeña mejora en PREVENTIVO.
+En nuevo o en editar.
+Titulo de la Tarea y Frecuencia (dias) ocuparan una sola fila
+Ultima Fecha Realizada y Proxima Fecha Programada ocuparan una sola fila
+Ultima Fecha Realizada tendrá la fecha del sistema por defecto y el usuario podrá editarlo
+Frecuencia (dias) será por defecto 90 días y esos días se adicionaran a Proxima Fecha Programada
+la funcionalidad será como habíamos quedado antes.
+ahora estas 2 fechas,  Ultima Fecha Realizada, Proxima Fecha Programada serán anotadas en el calendario de planificación.
+
+modifiquemos esto.
+
+
+
+
+
+esta bien,
+algunas modificaciones mas. seguimos en PREVENTIVO, cuando hacemos un NUEVO.
+1.-
+en Kit de Mantenimiento, el cuadro donde se selecciona  la lista de repuestos es muy pequeña y el cuadro donde se seleccionan la cantidad es muy largo
+en una misma fila estarán de derecha a izquierda el botón de AGREGAR. el cuadro con la cantidad en un largo reducido como para 3 dijitos nada mas, 
+luego seguirá el cuadro de selección de repuestos.
+2.-
+cuando se agrega un repuesto el fondo del cuadro del elemento agregado debe resaltarse en un color, tu elige el color.
+3.-
+entre los cuadro "Titulo de la Tarea" y "Frecuencia (dias)" debe existir un pequeñisitmo espacio, ahora están demasiado juntos ,,están pegados, no deben estarlo.
+4.-
+entre los cuadros "Ultima Fecha Realizada" y "Proxima Fecha Programada" debe existir un pequeñísimo espacio, ahora están pegados no deben estar asi.
+5.-
+en NUEVO o en EDITAR se debe encuadrar los cuadros de textos, algunos son mas largos que los otros.
+6.-
+en la opción de "Generar Orden de Trabajo" el cuadro "Fecha y Hora Programada", es mas largo que los otros cuadros, encuadrar todo.
+en la misma ventana arriba se muestra los datos de 
+Tarea: y Equipo: también debe estar el numero de serie.
+7.-
+en nuevo y en editar al seleccionar el elemento a realizar el mantenimiento, es decir el equipo
+se debe mostrar como se hace ahora el "nombre del equipo" - modelo - numero de serie
+hagamos estos cambios para ver como queda.
+
+
+no olvides documentarlo.
+
+vamos.
+
+
+
+muy bien, solo en una pequeña modificación en NUEVO y en EDITAR.
+En la fila de "Kit de Mantenimiento"
+el primer componente a la izquierda "seleccionar repuesto" debe ser largo en tamaño, tanto como sea posible después de 
+hacer que el cuadro a su derecha "cuadro que incrementa la cantidad" se redusca de tamaño al tamaño a lo largo que tiene el botón AGREGAR 
+que se encuentra a la izquierda.
+
+hagamos esto,,,
+
+
+
+
+
+

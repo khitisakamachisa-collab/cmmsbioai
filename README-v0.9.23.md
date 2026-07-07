@@ -1,8 +1,8 @@
-# CMMS-BioAI v0.9.23 — ORDENES: fecha/hora editable + UI mejorada + calendario
+# CMMS-BioAI v0.9.23 — ORDENES: fecha/hora editable + PREVENTIVO: layout + calendario mejorado
 
 ## Resumen
 
-Se implementó la edición de fecha y hora de creación en Órdenes de Trabajo, mejoras visuales en Costos/Repuestos/Acciones, indicador de origen (preventivo/correctivo) y sincronización con el calendario de Planificación.
+Se implementó la edición de fecha y hora de creación en Órdenes de Trabajo, mejoras visuales en Costos/Repuestos/Acciones, indicador de origen (preventivo/correctivo), sincronización con el calendario de Planificación, y mejoras significativas en el módulo de Preventivo (layout de formulario, select de equipo con datos completos, y calendario de planificación con doble evento por MP).
 
 ## Cambios solicitados y aplicados
 
@@ -103,3 +103,87 @@ Los datos de prueba generan OTs con `fecha_creacion` como `datetime` completo (i
 - El input `datetime-local` de HTML5 envía el valor en formato `YYYY-MM-DDTHH:MM`, que Pydantic parsea automáticamente a `datetime`.
 - Si `fecha_creacion` no se envía al crear una OT, el `default_factory=datetime.now` del modelo SQLModel asigna la fecha/hora actual.
 - La columna `hora_creacion` puede existir en BDs antiguas pero es ignorada completamente por SQLModel (no está en el modelo).
+
+---
+
+## v0.9.23-b — Mejoras en Preventivo y Calendario
+
+### 6. Preventivo: Layout del formulario reorganizado
+
+**Título + Frecuencia en una fila**: Los campos "Título de la Tarea" (bloqueado como "Preventivo") y "Frecuencia (días)" ahora comparten una fila con `form-row`. Gap de 0.75rem entre ellos.
+
+**Última Fecha + Próxima Fecha en una fila**: Los campos "Última Fecha Realizada" y "Próxima Fecha Programada" comparten otra fila con el mismo gap.
+
+**Frecuencia default 90 días**: Cambió de 60 a 90 días como valor por defecto al crear nueva tarea.
+
+**Última Fecha con fecha del sistema**: Al crear, `ultima_fecha` se llena con la fecha actual del sistema en formato `date` (solo fecha, sin hora). El usuario puede editarla.
+
+**Inputs encuadrados**: Todos los inputs y selects de los modales usan `box-sizing: border-box` y `font-size: 0.9rem` uniforme. En `form-row`, cada `form-group` tiene `min-width: 0` para evitar desbordamientos.
+
+### 7. Kit de Mantenimiento: layout mejorado
+
+**Orden visual** (izquierda a derecha): Select de repuestos (flex: 1) → Cantidad (52px fijo, texto centrado) → Botón Agregar (amber #d97706).
+
+**Repuestos agregados con fondo resaltado**: Cada `<li>` en la lista de repuestos tiene fondo `#fef3c7` (ámbar claro) para distinguir los elementos agregados.
+
+**Cantidad reducida**: El input de cantidad tiene `width: 52px` con `text-align: center`, suficiente para 3 dígitos.
+
+### 8. Select de Equipo: nombre - modelo - número de serie
+
+En los modales Nuevo y Editar de Preventivo, el select de equipo muestra:
+```
+nombre_corto - modelo - numero_serie
+```
+
+Se agregó la función helper `getEquipoFullLabel(id)` que construye esta etiqueta combinada. Si algún campo está vacío se omite.
+
+### 9. Modal Generar OT: número de serie + inputs igualados
+
+**Número de serie visible**: Se agrega línea "N. Serie:" debajo de "Equipo:" en la info del modal. Se pasan los datos desde `openGenerarOTModal()` usando `getEquipoNumeroSerie()`.
+
+**Inputs igualados**: Se agregó regla CSS `.generar-ot-info + form .form-group input/select` para que todos los inputs del formulario tengan `width: 100%`, `box-sizing: border-box` y `padding: 0.6rem` consistentes, igualando el campo "Fecha y Hora Programada" con los demás.
+
+### 10. Calendario de Planificación: doble evento por MP
+
+Cada tarea preventiva (MP) ahora genera **2 eventos en el calendario**:
+
+| Evento | Campo | Color | Estado |
+|--------|-------|-------|--------|
+| Última Fecha Realizada | `ultima_fecha` | Índigo `#6366f1` (no realizado) o Verde `#16a34a` (realizado, tiene OT) | "No Realizado" / "Realizado" |
+| Próxima Fecha Programada | `proxima_fecha` | Amarillo `#eab308` / Rojo `#ef4444` / Naranja `#f97316` / Verde `#16a34a` | "Programado" / "Vencido" / "Hoy" / "Con OT" |
+
+**Badge en evento**: Los eventos de última fecha muestran "MP Ult." en el badge, los de próxima fecha muestran "MP".
+
+**Modal de detalle**: Incluye badge indicando "Ult. Realizada" (índigo) o "Prox. Programada" (amarillo) junto a la fecha.
+
+**Resumen actualizado**: Nueva categoría "🟣 No Realizados" contando MPs cuya última fecha no tiene OT asociada.
+
+**Leyenda actualizada**: Incluye entradas para MP No Realizado, MP Realizado/Con OT, MP Programado, y MP Vencido.
+
+## Archivos modificados (9)
+
+| Archivo | Cambios |
+|---------|---------|
+| `backend/models/ordenes.py` | Eliminado campo `hora_creacion` del modelo `OrdenTrabajo` |
+| `backend/schemas/orden_trabajo.py` | `fecha_creacion` cambió a `Optional[datetime]` en Create/Update. Eliminado `hora_creacion` de todos los esquemas |
+| `backend/api/routes/ordenes.py` | Simplificada lógica de fecha: `fecha_creacion` se aplica directo como datetime sin combinación con `hora_creacion` |
+| `backend/api/routes/configuracion.py` | DATOS TEST: OTs usan `datetime(año, mes, dia, hora, min)` directamente en `fecha_creacion` |
+| `backend/database.py` | Eliminada migración `_migrate_hora_creacion()` (campo ya no existe) |
+| `frontend/src/views/OrdenesView.vue` | Input `datetime-local` único, funciones helper, icono `🛡️` en título, columna Fecha/Hora, estilos violeta/amber/no-box |
+| `frontend/src/views/PlanificacionView.vue` | Calendario usa siempre `fecha_creacion` para OTs; MPs generan 2 eventos (ultima_fecha + proxima_fecha); resumen con "No Realizados"; badge tipo fecha en modal |
+| `frontend/src/views/PreventivoView.vue` | Layout formulario (Título+Frecuencia, Fechas en filas); frecuencia default 90; select equipo con nombre-modelo-N serie; kit layout (cantidad 52px, botón amber, fondo #fef3c7); modal Generar OT con N. Serie e inputs igualados |
+| `frontend/src/views/AyudaView.vue` | Actualizada documentación de entidad y módulo: eliminado `hora_creacion`, actualizada descripción de `fecha_creacion` |
+
+## Cómo aplicar
+
+1. Copiar los archivos a tu proyecto reemplazando los existentes.
+2. En la carpeta `backend/`, ejecutar:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Si ya tienes BD con la columna `hora_creacion` de una versión anterior: no es necesario hacer nada. SQLModel ignora columnas que no están en el modelo.
+4. En la carpeta `frontend/`, ejecutar:
+   ```bash
+   npm run build
+   ```
+5. Refrescar el navegador con **Ctrl+F5**.

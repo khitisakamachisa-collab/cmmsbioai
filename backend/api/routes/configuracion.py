@@ -1245,6 +1245,7 @@ def cargar_datos_test():
     from models.preventivo import TareaPreventiva
     from models.historial import EventoHistorial
     from models.estados import EstadoEquipo
+    from models.contratos import Contrato, ContratoEquipo
     import bcrypt
 
     resumen = {
@@ -1257,6 +1258,7 @@ def cargar_datos_test():
         "ots": 0,
         "mps": 0,
         "historial": 0,
+        "contratos": 0,
     }
 
     with Session(engine) as session:
@@ -1493,6 +1495,52 @@ def cargar_datos_test():
                 ))
                 resumen["historial"] += 1
 
+        # === 10. Contratos (3 contratos de ejemplo) ===
+        if proveedores_ids and equipos_ids:
+            contratos_test = [
+                # (proveedor_nombre, tipo, fecha_inicio, fecha_fin, costo_total, costo_periodico, periodicidad, tiempo_resp, horario, cobertura, notas, equipos_series)
+                ("TechMed Bolivia SRL", "Mantenimiento Preventivo",
+                 date(2026, 1, 1), date(2026, 12, 31), 5000.0, None, "Único",
+                 "24h hábil", "L-V 8:00-18:00", "Mantenimiento preventivo trimestral, incluye calibración", "Contrato anual renovable",
+                 ["MIC-OLY-001", "ELE-GEE-006"]),
+                ("MedEquip Bolivia SA", "Soporte Técnico",
+                 date(2026, 3, 1), date(2027, 2, 28), None, 450.0, "Mensual",
+                 "4h hábil", "L-V 8:00-17:00", "Soporte telefónico y on-site, 4 visitas al año", "",
+                 ["AUT-STR-003"]),
+                ("Hospimed Bolivia", "Garantía Extendida",
+                 date(2025, 1, 1), date(2027, 12, 31), 8500.0, None, "Único",
+                 "48h hábil", "L-V 8:00-18:00", "Cobertura total de piezas y mano de obra", "Equipos de UCI y Emergencias",
+                 ["MON-MIN-005", "DES-ZOL-009"]),
+            ]
+            for prov_nombre, tipo, fi, ff, ct, cp, per, tr, hs, cob, notas, series_list in contratos_test:
+                prov_id = proveedores_ids.get(prov_nombre)
+                if not prov_id:
+                    continue
+                # Evitar duplicados
+                existe = session.exec(
+                    select(Contrato).where(
+                        Contrato.proveedor_id == prov_id,
+                        Contrato.tipo_contrato == tipo
+                    )
+                ).first()
+                if existe:
+                    continue
+                nuevo_contrato = Contrato(
+                    proveedor_id=prov_id, tipo_contrato=tipo,
+                    fecha_inicio=datetime.combine(fi, datetime.min.time()),
+                    fecha_fin=datetime.combine(ff, datetime.min.time()),
+                    costo_total=ct, costo_periodico=cp, periodicidad_costo=per,
+                    moneda='BOB', tiempo_respuesta=tr, horario_servicio=hs,
+                    cobertura_detalle=cob, notas=notas
+                )
+                session.add(nuevo_contrato)
+                session.flush()
+                for serie in series_list:
+                    eq_id = equipos_ids.get(serie)
+                    if eq_id:
+                        session.add(ContratoEquipo(contrato_id=nuevo_contrato.id, equipo_id=eq_id))
+                resumen["contratos"] += 1
+
         session.commit()
 
     return {
@@ -1534,6 +1582,8 @@ def limpiar_base_de_datos():
     from models.preventivo import TareaPreventiva, TareaRepuesto
     from models.historial import EventoHistorial
     from models.documentos import DocumentoAdjunto
+    from models.contratos import Contrato, ContratoEquipo
+    from models.costos import OtCostoAdicional
     import shutil
 
     resumen = {}
@@ -1551,6 +1601,9 @@ def limpiar_base_de_datos():
         resumen["contactos_eliminados"] = len(session.exec(select(ContactoProveedor)).all())
         resumen["proveedores_eliminados"] = len(session.exec(select(Proveedor)).all())
         resumen["equipos_eliminados"] = len(session.exec(select(Equipo)).all())
+        resumen["contratos_eliminados"] = len(session.exec(select(Contrato)).all())
+        resumen["contrato_equipo_eliminados"] = len(session.exec(select(ContratoEquipo)).all())
+        resumen["costos_adicionales_eliminados"] = len(session.exec(select(OtCostoAdicional)).all())
 
         # Borrar en orden (respetando FKs)
         # 1. Documentos (pueden referenciar OT, Equipo, Repuesto, Herramienta)
@@ -1565,25 +1618,34 @@ def limpiar_base_de_datos():
         # 4. OtRepuestoUtilizado (referencia OT, Repuesto)
         for oru in session.exec(select(OtRepuestoUtilizado)).all():
             session.delete(oru)
-        # 5. Tareas Preventivas (referencia Equipo, Usuario)
+        # 5. Costos adicionales de OT (referencia OT)
+        for ca in session.exec(select(OtCostoAdicional)).all():
+            session.delete(ca)
+        # 6. Tareas Preventivas (referencia Equipo, Usuario)
         for mp in session.exec(select(TareaPreventiva)).all():
             session.delete(mp)
-        # 6. Órdenes de Trabajo (referencia Equipo, EstadoOT, Usuario)
+        # 7. ContratoEquipo (referencia Contrato, Equipo)
+        for ce in session.exec(select(ContratoEquipo)).all():
+            session.delete(ce)
+        # 8. Contratos (referencia Proveedor)
+        for ct in session.exec(select(Contrato)).all():
+            session.delete(ct)
+        # 9. Órdenes de Trabajo (referencia Equipo, EstadoOT, Usuario)
         for ot in session.exec(select(OrdenTrabajo)).all():
             session.delete(ot)
-        # 7. Herramientas
+        # 10. Herramientas
         for her in session.exec(select(Herramienta)).all():
             session.delete(her)
-        # 8. Repuestos
+        # 11. Repuestos
         for rep in session.exec(select(Repuesto)).all():
             session.delete(rep)
-        # 9. Contactos de proveedores (referencian Proveedor)
+        # 12. Contactos de proveedores (referencian Proveedor)
         for c in session.exec(select(ContactoProveedor)).all():
             session.delete(c)
-        # 10. Proveedores
+        # 13. Proveedores
         for p in session.exec(select(Proveedor)).all():
             session.delete(p)
-        # 11. Equipos (al final, después de borrar sus dependencias)
+        # 14. Equipos (al final, después de borrar sus dependencias)
         for eq in session.exec(select(Equipo)).all():
             session.delete(eq)
 

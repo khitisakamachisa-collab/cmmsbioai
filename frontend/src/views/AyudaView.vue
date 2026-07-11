@@ -506,7 +506,7 @@ const requisitosRF = [
     camposRF: 14, implementados: 14, faltantes: 0, extras: 0,
     detalleFaltantes: [],
     detalleExtras: [],
-    estado: 'Completo v0.9.2'
+    estado: 'Completo v0.9.24'
   },
   {
     id: 'RF13', nombre: 'Exportacion de Datos', entidad: 'Sistema',
@@ -525,12 +525,12 @@ const requisitosRF = [
     estado: 'Completo v0.9.2'
   },
   {
-    id: 'PLAN', nombre: 'Pagina Planificacion v0.9.2', entidad: 'Sistema',
-    descripcion: 'Calendario mensual unificado OT + MP. Filtros: Tipo, Equipo, Ubicacion, Responsable. Colores del ciclo MP + colores de OT por estado. Click en evento abre detalle.',
+    id: 'PLAN', nombre: 'Pagina Planificacion v0.9.24', entidad: 'Sistema',
+    descripcion: 'Calendario unificado OT + MP. v0.9.23: eventos duales MP. v0.9.24: 3 vistas (Mes/Semana/Dia), toggle Lun-Vie/Lun-Dom, resumen centrado, calendario eliminado de Preventivo.',
     camposRF: 0, implementados: 0, faltantes: 0, extras: 0,
     detalleFaltantes: [],
-    detalleExtras: ['Calendario mensual unificado', 'Resumen rapido', 'Leyenda visual', 'Modal detalle con navegacion'],
-    estado: 'Implementado v0.9.2'
+    detalleExtras: ['Vista Mes, Semana y Dia', 'Toggle Lun-Vie / Lun-Dom', 'Timeline 06:00-22:00 en vista Dia', 'Resumen centrado', 'Calendario unico (eliminado de Preventivo)'],
+    estado: 'Completo v0.9.24'
   }
 ]
 
@@ -593,9 +593,10 @@ const rf10Relaciones = [
 ]
 
 const pendientes = [
+  { emoji: '🛡️', nombre: 'MP > OT: Título "Preventivo" bloqueado en OT', prioridad: 'Alta', descripcion: 'Cuando se genera OT desde MP, el titulo pasa como "Preventivo" a la OT y se bloquea (readonly) en el formulario de OTs. El campo orden_preventiva_id ya existe en el modelo.', estado: 'No implementado', rf: 'v0.9.24' },
+  { emoji: '🛡️', nombre: 'MP > OT: Responsable pasa a tecnico_asignado_id', prioridad: 'Alta', descripcion: 'El responsable del MP pasa como tecnico_asignado_id de la OT al generarla. Editable después de la creación.', estado: 'No implementado', rf: 'v0.9.24' },
   { emoji: '🧠', nombre: 'Modulo IA (RF07)', prioridad: 'Alta', descripcion: 'Sugerencias automaticas basadas en descripcion de falla, historial e inventario usando NLP y modelos de clasificacion.', estado: 'No implementado', rf: 'RF07' },
   { emoji: '🔒', nombre: 'Proteccion de rutas por autenticacion', prioridad: 'Alta', descripcion: 'Validar token JWT en endpoints y navigation guards en frontend.', estado: 'No implementado', rf: 'RNF04' },
-  { emoji: '🏢', nombre: 'Gestion de Proveedores (RF10) - Importacion Excel', prioridad: 'Media', descripcion: 'CRUD de proveedores con campo ciudad, contactos asociados (1:N) e importacion masiva Excel/CSV. Pendiente: convertir los campos de texto proveedor_principal (Equipo) y proveedor_ultimo (Repuesto/Herramienta) en FK a Proveedor.id.', estado: 'Implementado', rf: 'RF10' },
   { emoji: '📄', nombre: 'Paginacion en listados', prioridad: 'Media', descripcion: 'Implementar offset/limit en endpoints de listado.', estado: 'No implementado', rf: 'RNF02' },
   { emoji: '🔐', nombre: 'Secret JWT configurable', prioridad: 'Media', descripcion: 'Mover secreto JWT a variable de entorno o config.json.', estado: 'No implementado', rf: 'RNF04' },
   { emoji: '📊', nombre: 'Reporte REP-07: Consumo de Repuestos', prioridad: 'Media', descripcion: 'Reporte detallado de repuestos utilizados por equipo, tecnico o periodo.', estado: 'No implementado', rf: 'RF06' },

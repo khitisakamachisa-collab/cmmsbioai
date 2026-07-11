@@ -13,7 +13,7 @@ echo ==============================
 echo 2. Subiendo cambios locales...
 echo ==============================
 git add .
-git commit -m "v0.9.23 un solo calendario"
+git commit -m "v0.9.23 plantilla y test mode"
 git push origin main
 
 echo ==============================

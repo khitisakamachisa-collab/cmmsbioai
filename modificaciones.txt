@@ -459,5 +459,30 @@ hagamos esto,,,
 
 
 
+si vas a eliminar el calendario dentro de PREVENTIVO, es redundante solo usaremos el calendario en PLANIFICACION.
+pero antes de eliminarlo responde esta consulta.
+en PLANIFICACION el calendario que quedara, ¿este puede permitir que se elijan los días a mostrar?
+me gastaría que pueda elegir que el mes que se visualiza, muestre de lunes a viernes y luego elegir que se muestre todo incluido sábados y domingos.
+también otra opción en la cual se pueda mostrar solo una semana del mes, no todo el mes.
+también me gustaria la opción del dia entero para que pueda ver las horas de trabajo.
 
+adicionalmente, me gustaria que las fichas que están por encima de los filtros esten centreadas
+
+si estas acciones pueden hacerse. hagamosla después de eliminar el calendario dentro de PREVENTIVO que ya no usaremos.
+
+
+excelente,
+nuevas modificaciones
+tenemos en algunas opciones del programa plantillas para cargar al programa.
+una de ellas que ahora no esta funcionando, es CONTRATOS, no se la razón analiza y corrige.
+en el modo test, todas las tablas posibles deben cargarse. para que el usuario pueda analizar el funcionamiento del programa.
+los elementos de las plantillas y del modo test no deben repetirse.
+no necesitamos que sean ampulosos.
+analicemos las plantillas y el modo test,, para que sea funcional.
+una vez que lo hagas, borrare la base de datos para empezar en modo test y luego probare las plantillas 
+vamos.
+no olvides, actualizar las versiones para el seguimiento de los cambios
+además después del análisis, actualiza la ayuda de la pagina, para tener una actualización y control de los cambios y pendientes.
+luego veremos el tema del menú y los pendiente en base a la información que se tiene ahora.
+vamos una vez este punto funcione subiré a GitHub.
 

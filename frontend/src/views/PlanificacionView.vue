@@ -2,7 +2,6 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
-import Navbar from '../components/Navbar.vue'
 
 const router = useRouter()
 
@@ -566,7 +565,6 @@ onMounted(() => { fetchData() })
 
 <template>
   <div class="dashboard-container">
-    <Navbar @logout="$router.push('/')" />
 
     <main class="content">
       <div class="top-bar">

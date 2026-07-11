@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import apiClient from '../services/api.js'
-import Navbar from '../components/Navbar.vue'
 
 // --- Variables Generales ---
 const eventos = ref([])
@@ -202,7 +201,6 @@ onMounted(() => {
 
 <template>
   <div class="dashboard-container">
-    <Navbar @logout="$router.push('/')" />
 
     <main class="content">
       <div class="top-bar">

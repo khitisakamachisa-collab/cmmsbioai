@@ -486,3 +486,12 @@ además después del análisis, actualiza la ayuda de la pagina, para tener una 
 luego veremos el tema del menú y los pendiente en base a la información que se tiene ahora.
 vamos una vez este punto funcione subiré a GitHub.
 
+
+lo voy probando ,,, al parecer esta funcionando,,,,
+una consulta respecto al menu,
+esta arriba en el sentido horizontal. 
+podemos poner este menú que salga a la derecha,
+he visto como muchos programas, Facebook, el mismo Edge, tienen menus a la derecha que se ocultan, incluso tu pagina z.ai tiene esa opción, podemos probar realizando algo asi… me gustaria ver como sale.
+es posible?
+
+

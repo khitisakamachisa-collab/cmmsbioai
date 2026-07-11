@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import apiClient from '../services/api.js'
-import Navbar from '../components/Navbar.vue'
 import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'  // v0.9.12
 import { exportToExcelHTML, exportToCSV } from '../services/export.js'
 
@@ -492,7 +491,6 @@ onMounted(async () => {
 
 <template>
   <div>
-    <Navbar />
     <div class="container">
       <div class="page-header">
         <div>

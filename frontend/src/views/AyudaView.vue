@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed } from 'vue'
-import Navbar from '../components/Navbar.vue'
 
 const seccionActiva = ref('sistema')
 
@@ -673,7 +672,6 @@ function getEstadoClass(estado) {
 
 <template>
   <div class="dashboard-container">
-    <Navbar @logout="$router.push('/')" />
     <main class="content">
       <div class="help-header">
         <h2>Ayuda del Sistema</h2>

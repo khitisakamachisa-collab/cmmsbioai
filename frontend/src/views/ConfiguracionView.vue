@@ -1,6 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import Navbar from '../components/Navbar.vue'
+import { ref, onMounted, computed, inject } from 'vue'
 import apiClient from '../services/api.js'
 
 // ─── Estado general ───
@@ -40,7 +39,7 @@ const cargandoTest = ref(false)
 const limpiandoBD = ref(false)
 const testResultado = ref(null)
 const limpiezaResultado = ref(null)
-const navbarRef = ref(null)
+const verificarModoTest = inject('verificarModoTest', null)
 
 // ─── Tabs ───
 const tabs = [
@@ -314,8 +313,8 @@ async function cargarDatosTest() {
     showToast(`Datos TEST cargados: ${partes.join(', ')}`, 'success')
     await cargarEstadosBD()
     // Actualizar badge MODO TEST en el navbar
-    if (navbarRef.value?.verificarModoTest) {
-      await navbarRef.value.verificarModoTest()
+    if (verificarModoTest) {
+      await verificarModoTest()
     }
   } catch (e) {
     showToast('Error al cargar datos TEST: ' + (e.response?.data?.detail || e.message), 'error')
@@ -356,8 +355,8 @@ async function limpiarBD() {
     escaneoResultado.value = null
     recuperacionResultado.value = null
     // Actualizar badge MODO TEST en el navbar (debería ocultarse)
-    if (navbarRef.value?.verificarModoTest) {
-      await navbarRef.value.verificarModoTest()
+    if (verificarModoTest) {
+      await verificarModoTest()
     }
   } catch (e) {
     showToast('Error al limpiar BD: ' + (e.response?.data?.detail || e.message), 'error')
@@ -382,7 +381,6 @@ const dirLabels = {
 
 <template>
   <div class="dashboard-container">
-    <Navbar ref="navbarRef" @logout="$router.push('/')" />
 
     <main class="content">
       <h2>Configuración del Sistema</h2>

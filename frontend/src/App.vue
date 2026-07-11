@@ -1,7 +1,21 @@
 <script setup>
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import Navbar from './components/Navbar.vue'
+
+const route = useRoute()
+const router = useRouter()
+
+// Mostrar Navbar en todas las rutas excepto login (/)
+const showNavbar = computed(() => route.path !== '/')
+
+function handleLogout() {
+  router.push('/')
+}
 </script>
 
 <template>
+  <Navbar v-if="showNavbar" @logout="handleLogout" />
   <router-view />
 </template>
 

@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
-import Navbar from '../components/Navbar.vue'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js'
 import { Doughnut, Bar } from 'vue-chartjs'
 
@@ -378,7 +377,6 @@ onMounted(() => {
 
 <template>
   <div class="dashboard-container">
-    <Navbar @logout="$router.push('/')" />
 
     <main class="content">
       <div class="home-header">

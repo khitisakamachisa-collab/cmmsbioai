@@ -842,60 +842,56 @@ onMounted(() => {
 
     <!-- ==================== Modal Gestionar Contactos (v0.9.6) ==================== -->
     <div v-if="showContactosModal && proveedorContactos" class="modal-overlay" @click.self="showContactosModal = false">
-      <div class="modal" style="width: 780px;">
+      <div class="modal" style="width: 750px; max-width: 95vw;">
         <h3>Contactos — {{ proveedorContactos.nombre_empresa }}</h3>
 
-        <div class="contactos-section">
-          <div class="contactos-header">
-            <h4>Contactos Asociados ({{ proveedorContactos.contactos?.length || 0 }})</h4>
-            <button class="btn-sm btn-add-contacto" @click="openCreateContacto(proveedorContactos.id)">
-              + Agregar Contacto
-            </button>
-          </div>
-
-          <div v-if="!proveedorContactos.contactos || !proveedorContactos.contactos.length" class="empty-contactos">
-            Este proveedor no tiene contactos asociados. Haga clic en "+ Agregar Contacto" para crear el primero.
-          </div>
-
-          <div v-else class="contactos-list">
-            <div v-for="c in proveedorContactos.contactos" :key="c.id" class="contacto-card">
-              <div class="contacto-info">
-                <div class="contacto-nombre">
-                  <strong>{{ c.nombre_contacto }}</strong>
-                  <span v-if="c.cargo" class="contacto-cargo">{{ c.cargo }}</span>
-                </div>
-                <div class="contacto-datos">
-                  <span v-if="c.telefono_contacto">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.568 17.568 0 0 0 4.168 6.608 17.567 17.567 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.678.678 0 0 0-.58-.122l-2.19.547a1.745 1.745 0 0 1-1.657-.459L5.482 8.062a1.745 1.745 0 0 1-.46-1.657l.548-2.19a.678.678 0 0 0-.122-.58L3.654 1.328zM1.884.511a1.745 1.745 0 0 1 2.612.63L6.29 2.986a1.745 1.745 0 0 1 .162 1.794l-.548 2.19a.37.37 0 0 0 .094.37l1.387 1.387a.37.37 0 0 0 .37.094l2.19-.548a1.745 1.745 0 0 1 1.794.162l1.845 1.794a1.745 1.745 0 0 1-.43 2.838l-1.034.78a3.5 3.5 0 0 1-2.93.519 18.555 18.555 0 0 1-7.04-4.46A18.555 18.555 0 0 1 .965 6.5a3.5 3.5 0 0 1 .519-2.93l.78-1.034z"/>
-                    </svg>
-                    {{ c.telefono_contacto }}
-                  </span>
-                  <span v-if="c.email_contacto">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M.05 3.555A2 2 0 0 1 2 2h12a2 2 0 0 1 1.95 1.555L8 8.414.05 3.555ZM0 4.697v7.104l5.803-3.558L0 4.697ZM6.761 8.83l-6.57 4.027A2 2 0 0 0 2 14h12a2 2 0 0 0 1.808-1.144l-6.57-4.027L8 9.586l-1.239-.757Zm3.436-.586L16 11.801V4.697l-5.803 3.546Z"/>
-                    </svg>
-                    <a :href="'mailto:' + c.email_contacto" class="link-mail">{{ c.email_contacto }}</a>
-                  </span>
-                </div>
-                <div v-if="c.notas_contacto" class="contacto-notas">{{ c.notas_contacto }}</div>
-              </div>
-              <div class="contacto-actions">
-                <button class="btn-icon-sm btn-edit-sm" title="Editar Contacto" @click="openEditContacto(c)">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10z"/>
-                  </svg>
-                </button>
-                <button class="btn-icon-sm btn-delete-sm" title="Eliminar Contacto" @click="deleteContacto(c.id)">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                    <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <div class="detail-section-title" style="margin: 0;">Contactos Asociados ({{ proveedorContactos.contactos?.length || 0 }})</div>
+          <button class="btn-primary btn-sm" @click="openCreateContacto(proveedorContactos.id)">
+            + Agregar Contacto
+          </button>
         </div>
+
+        <div v-if="!proveedorContactos.contactos || !proveedorContactos.contactos.length" class="empty-section">
+          Este proveedor no tiene contactos asociados. Haga clic en "+ Agregar Contacto" para crear el primero.
+        </div>
+
+        <table v-else class="detail-table detail-table-full">
+            <thead>
+              <tr>
+                <th class="detail-th">Nombre</th>
+                <th class="detail-th">Cargo</th>
+                <th class="detail-th">Telefono</th>
+                <th class="detail-th">Email</th>
+                <th class="detail-th">Notas</th>
+                <th class="detail-th" style="width: 80px;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="c in proveedorContactos.contactos" :key="c.id">
+                <td><strong>{{ c.nombre_contacto }}</strong></td>
+                <td><span v-if="c.cargo" class="contacto-cargo">{{ c.cargo }}</span><span v-else class="na-text">N/A</span></td>
+                <td>{{ c.telefono_contacto || 'N/A' }}</td>
+                <td><a v-if="c.email_contacto" :href="'mailto:' + c.email_contacto" class="link-mail">{{ c.email_contacto }}</a><span v-else>N/A</span></td>
+                <td class="notas-cell">{{ c.notas_contacto || '' }}</td>
+                <td>
+                  <div style="display: flex; gap: 0.3rem;">
+                    <button class="btn-icon-sm btn-edit-sm" title="Editar Contacto" @click="openEditContacto(c)">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10z"/>
+                      </svg>
+                    </button>
+                    <button class="btn-icon-sm btn-delete-sm" title="Eliminar Contacto" @click="deleteContacto(c.id)">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
         <div class="modal-actions">
           <button class="btn-secondary" @click="showContactosModal = false">Cerrar</button>
@@ -1130,6 +1126,7 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
 .btn-primary:hover { background-color: #2980b9; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-sm { padding: 0.35rem 0.8rem; font-size: 0.82rem; }
 .btn-secondary { background-color: #95a5a6; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
 .btn-secondary:hover { background-color: #7f8c8d; }
 .btn-edit-detail { background-color: #f59e0b; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }

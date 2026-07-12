@@ -610,14 +610,14 @@ onMounted(() => {
 
     <!-- ==================== Modal Crear/Editar Proveedor ==================== -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal">
+      <div class="modal" style="max-width: 750px;">
         <h3>{{ isEditing ? 'Editar Proveedor' : 'Nuevo Proveedor' }}</h3>
         <form @submit.prevent="saveProveedor">
-          <div class="form-group">
-            <label>Nombre de Empresa *</label>
-            <input v-model="formData.nombre_empresa" type="text" required placeholder="TechMed Bolivia SRL">
-          </div>
-          <div class="form-row">
+          <div class="form-row-3">
+            <div class="form-group">
+              <label>Nombre de Empresa *</label>
+              <input v-model="formData.nombre_empresa" type="text" required placeholder="TechMed Bolivia SRL">
+            </div>
             <div class="form-group">
               <label>Ciudad</label>
               <input v-model="formData.ciudad" type="text" placeholder="Cochabamba, La Paz, Santa Cruz...">
@@ -627,11 +627,11 @@ onMounted(() => {
               <input v-model="formData.telefono_principal" type="text" placeholder="+591 4 4223344">
             </div>
           </div>
-          <div class="form-group">
-            <label>Direccion</label>
-            <input v-model="formData.direccion" type="text" placeholder="Av. Blanco Galindo km 7.5">
-          </div>
-          <div class="form-row">
+          <div class="form-row-3">
+            <div class="form-group">
+              <label>Direccion</label>
+              <input v-model="formData.direccion" type="text" placeholder="Av. Blanco Galindo km 7.5">
+            </div>
             <div class="form-group">
               <label>Email Principal</label>
               <input v-model="formData.email_principal" type="email" placeholder="ventas@empresa.bo">
@@ -712,124 +712,90 @@ onMounted(() => {
 
     <!-- ==================== Modal Detalle (con contactos) ==================== -->
     <div v-if="showDetailModal && selectedProveedor" class="modal-overlay" @click.self="showDetailModal = false">
-      <div class="modal" style="width: 780px;">
+      <div class="modal" style="width: 750px; max-width: 95vw;">
         <h3>{{ selectedProveedor.nombre_empresa }}</h3>
 
-        <div class="detail-grid">
-          <div class="detail-column">
+        <div style="max-width: 480px; margin: 0 auto;">
+          <div class="detail-table-block" style="flex: none;">
             <h4>Datos de la Empresa</h4>
-            <p><strong>ID:</strong> #{{ selectedProveedor.id }}</p>
-            <p v-if="selectedProveedor.ciudad"><strong>Ciudad:</strong> {{ selectedProveedor.ciudad }}</p>
-            <p v-if="selectedProveedor.direccion"><strong>Direccion:</strong> {{ selectedProveedor.direccion }}</p>
-            <p v-if="selectedProveedor.telefono_principal"><strong>Telefono:</strong> {{ selectedProveedor.telefono_principal }}</p>
-            <p v-if="selectedProveedor.email_principal">
-              <strong>Email:</strong>
-              <a :href="'mailto:' + selectedProveedor.email_principal" class="link-mail"> {{ selectedProveedor.email_principal }}</a>
-            </p>
-            <p v-if="selectedProveedor.pagina_web">
-              <strong>Web:</strong>
-              <a :href="selectedProveedor.pagina_web" target="_blank" rel="noopener" class="link-web"> {{ selectedProveedor.pagina_web }}</a>
-            </p>
+            <table class="detail-table">
+              <tbody>
+                <tr><td class="detail-label">ID</td><td>#{{ selectedProveedor.id }}</td></tr>
+                <tr><td class="detail-label">Ciudad</td><td>{{ selectedProveedor.ciudad || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Direccion</td><td>{{ selectedProveedor.direccion || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Telefono</td><td>{{ selectedProveedor.telefono_principal || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Email</td><td><a v-if="selectedProveedor.email_principal" :href="'mailto:' + selectedProveedor.email_principal" class="link-mail">{{ selectedProveedor.email_principal }}</a><span v-else>N/A</span></td></tr>
+                <tr><td class="detail-label">Web</td><td><a v-if="selectedProveedor.pagina_web" :href="selectedProveedor.pagina_web" target="_blank" rel="noopener" class="link-web">{{ selectedProveedor.pagina_web }}</a><span v-else>N/A</span></td></tr>
+              </tbody>
+            </table>
           </div>
-          <div class="detail-column">
-            <h4>Notas</h4>
-            <div class="description-box">
-              {{ selectedProveedor.notas_generales || 'Sin notas adicionales.' }}
-            </div>
+
+          <div v-if="selectedProveedor.notas_generales" class="detail-single-desc">
+            <strong>Notas generales:</strong>
+            <div class="description-box">{{ selectedProveedor.notas_generales }}</div>
           </div>
         </div>
 
         <hr class="detail-separator">
 
-        <div class="contactos-section">
-          <div class="contactos-header">
-            <h4>Contactos Asociados ({{ selectedProveedor.contactos?.length || 0 }})</h4>
-            <!-- v0.9.6: modal de detalle es SOLO LECTURA — sin botón "Agregar Contacto" -->
-          </div>
+        <div class="detail-section-title">Contactos Asociados ({{ selectedProveedor.contactos?.length || 0 }})</div>
 
-          <div v-if="!selectedProveedor.contactos || !selectedProveedor.contactos.length" class="empty-contactos">
-            Este proveedor no tiene contactos asociados.
-          </div>
-
-          <div v-else class="contactos-list">
-            <div v-for="c in selectedProveedor.contactos" :key="c.id" class="contacto-card">
-              <div class="contacto-info">
-                <div class="contacto-nombre">
-                  <strong>{{ c.nombre_contacto }}</strong>
-                  <span v-if="c.cargo" class="contacto-cargo">{{ c.cargo }}</span>
-                </div>
-                <div class="contacto-datos">
-                  <span v-if="c.telefono_contacto">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M3.654 1.328a.678.678 0 0 0-1.015-.063L1.605 2.3c-.483.484-.661 1.169-.45 1.77a17.568 17.568 0 0 0 4.168 6.608 17.567 17.567 0 0 0 6.608 4.168c.601.211 1.286.033 1.77-.45l1.034-1.034a.678.678 0 0 0-.063-1.015l-2.307-1.794a.678.678 0 0 0-.58-.122l-2.19.547a1.745 1.745 0 0 1-1.657-.459L5.482 8.062a1.745 1.745 0 0 1-.46-1.657l.548-2.19a.678.678 0 0 0-.122-.58L3.654 1.328zM1.884.511a1.745 1.745 0 0 1 2.612.63L6.29 2.986a1.745 1.745 0 0 1 .162 1.794l-.548 2.19a.37.37 0 0 0 .094.37l1.387 1.387a.37.37 0 0 0 .37.094l2.19-.548a1.745 1.745 0 0 1 1.794.162l1.845 1.794a1.745 1.745 0 0 1-.43 2.838l-1.034.78a3.5 3.5 0 0 1-2.93.519 18.555 18.555 0 0 1-7.04-4.46A18.555 18.555 0 0 1 .965 6.5a3.5 3.5 0 0 1 .519-2.93l.78-1.034z"/>
-                    </svg>
-                    {{ c.telefono_contacto }}
-                  </span>
-                  <span v-if="c.email_contacto">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M.05 3.555A2 2 0 0 1 2 2h12a2 2 0 0 1 1.95 1.555L8 8.414.05 3.555ZM0 4.697v7.104l5.803-3.558L0 4.697ZM6.761 8.83l-6.57 4.027A2 2 0 0 0 2 14h12a2 2 0 0 0 1.808-1.144l-6.57-4.027L8 9.586l-1.239-.757Zm3.436-.586L16 11.801V4.697l-5.803 3.546Z"/>
-                    </svg>
-                    <a :href="'mailto:' + c.email_contacto" class="link-mail">{{ c.email_contacto }}</a>
-                  </span>
-                </div>
-                <div v-if="c.notas_contacto" class="contacto-notas">{{ c.notas_contacto }}</div>
-              </div>
-              <!-- v0.9.6: detalle es SOLO LECTURA, sin acciones de editar/eliminar contactos -->
-            </div>
-          </div>
+        <div v-if="!selectedProveedor.contactos || !selectedProveedor.contactos.length" class="empty-section">
+          Este proveedor no tiene contactos asociados.
         </div>
 
-        <!-- v0.9.17: Sección Equipos Asociados (solo lectura, igual que contactos en el ojo) -->
+        <table v-else class="detail-table detail-table-full">
+          <thead>
+            <tr>
+              <th class="detail-th">Nombre</th>
+              <th class="detail-th">Cargo</th>
+              <th class="detail-th">Telefono</th>
+              <th class="detail-th">Email</th>
+              <th class="detail-th">Notas</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="c in selectedProveedor.contactos" :key="c.id">
+              <td><strong>{{ c.nombre_contacto }}</strong></td>
+              <td><span v-if="c.cargo" class="contacto-cargo">{{ c.cargo }}</span><span v-else class="na-text">N/A</span></td>
+              <td>{{ c.telefono_contacto || 'N/A' }}</td>
+              <td><a v-if="c.email_contacto" :href="'mailto:' + c.email_contacto" class="link-mail">{{ c.email_contacto }}</a><span v-else>N/A</span></td>
+              <td class="notas-cell">{{ c.notas_contacto || '' }}</td>
+            </tr>
+          </tbody>
+        </table>
+
         <hr class="detail-separator">
 
-        <div class="contactos-section">
-          <div class="contactos-header">
-            <h4>Equipos Asociados ({{ detalleEquipos.length }})</h4>
-          </div>
+        <div class="detail-section-title">Equipos Asociados ({{ detalleEquipos.length }})</div>
 
-          <div v-if="detalleCargandoEquipos" class="empty-contactos">
-            Cargando equipos...
-          </div>
-          <div v-else-if="!detalleEquipos.length" class="empty-contactos">
-            Este proveedor no tiene equipos asociados.
-          </div>
-
-          <div v-else class="contactos-list">
-            <div v-for="eq in detalleEquipos" :key="eq.id" class="contacto-card">
-              <div class="contacto-info">
-                <div class="contacto-nombre">
-                  <strong>{{ eq.nombre_corto || eq.modelo }}</strong>
-                </div>
-                <div class="contacto-datos">
-                  <span v-if="eq.marca">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z"/>
-                    </svg>
-                    {{ eq.marca }}
-                  </span>
-                  <span v-if="eq.modelo">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z"/>
-                    </svg>
-                    {{ eq.modelo }}
-                  </span>
-                  <span v-if="eq.numero_serie">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M5.5 0a.5.5 0 0 1 .5.5V1h.5a.5.5 0 0 1 .5.5V2h.5a.5.5 0 0 1 .5.5V3H8V.5a.5.5 0 0 1 1 0V3h.5a.5.5 0 0 1 .5.5V4h.5a.5.5 0 0 1 .5.5V5h.5a.5.5 0 0 1 .5.5V6h-1v-.5h-1V4h-1V2.5h-1V1h-1V.5a.5.5 0 0 1 .5-.5h1z"/>
-                    </svg>
-                    SN: {{ eq.numero_serie }}
-                  </span>
-                  <span v-if="eq.ubicacion_actual">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10zm0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
-                    </svg>
-                    {{ eq.ubicacion_actual }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div v-if="detalleCargandoEquipos" class="empty-section">
+          Cargando equipos...
         </div>
+        <div v-else-if="!detalleEquipos.length" class="empty-section">
+          Este proveedor no tiene equipos asociados.
+        </div>
+
+        <table v-else class="detail-table detail-table-full">
+          <thead>
+            <tr>
+              <th class="detail-th">Nombre</th>
+              <th class="detail-th">Marca</th>
+              <th class="detail-th">Modelo</th>
+              <th class="detail-th">N. Serie</th>
+              <th class="detail-th">Ubicacion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="eq in detalleEquipos" :key="eq.id">
+              <td><strong>{{ eq.nombre_corto || eq.modelo }}</strong></td>
+              <td>{{ eq.marca || 'N/A' }}</td>
+              <td>{{ eq.modelo || 'N/A' }}</td>
+              <td>{{ eq.numero_serie || 'N/A' }}</td>
+              <td>{{ eq.ubicacion_actual || 'N/A' }}</td>
+            </tr>
+          </tbody>
+        </table>
 
         <!-- v0.9.6: el modal de detalle solo permite cerrar (el ojo = solo visualizar) -->
         <div class="modal-actions">
@@ -1157,7 +1123,8 @@ th { background-color: #f8f9fa; font-weight: bold; }
   outline: none; border-color: #3498db; box-shadow: 0 0 0 2px rgba(52,152,219,0.15);
 }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-@media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
+@media (max-width: 600px) { .form-row, .form-row-3 { grid-template-columns: 1fr; } }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
 .btn-primary { background-color: #3498db; color: white; border: none; padding: 0.55rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
@@ -1169,53 +1136,31 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .btn-edit-detail:hover { background-color: #d97706; }
 
 /* Detalle */
-.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 0.5rem; }
-@media (max-width: 700px) { .detail-grid { grid-template-columns: 1fr; } }
-.detail-column p { margin: 0.35rem 0; font-size: 0.88rem; color: #334155; }
-.description-box {
-  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
-  padding: 0.6rem; font-size: 0.85rem; color: #475569; min-height: 60px; line-height: 1.5;
-}
+.detail-tables { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; }
+.detail-table-block { flex: 1; }
+.detail-table-block h4 { margin-bottom: 0.6rem; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.3rem; font-size: 0.95rem; }
+.detail-table { width: 100%; border-collapse: collapse; }
+.detail-table td { padding: 0.35rem 0.6rem; font-size: 0.88rem; border-bottom: 1px solid #eee; vertical-align: top; }
+.detail-table tr:last-child td { border-bottom: none; }
+.detail-label { color: #666; font-weight: 600; width: 35%; white-space: nowrap; }
+.detail-table-full { margin-bottom: 0.5rem; }
+.detail-th { font-size: 0.78rem; color: #666; font-weight: 600; padding: 0.3rem 0.6rem; text-align: left; background: #f5f7fa; border-bottom: 1px solid #dde; }
+.detail-section-title { font-size: 0.95rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.5rem; }
 .detail-separator { border: none; border-top: 1px solid #e2e8f0; margin: 1rem 0; }
-
-/* Contactos */
-.contactos-section { margin-top: 0.5rem; }
-.contactos-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-.contactos-header h4 { margin: 0; font-size: 1rem; color: #1e293b; }
-.btn-sm { padding: 0.35rem 0.75rem; font-size: 0.82rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; }
-.btn-add-contacto { background: #16a34a; color: white; }
-.btn-add-contacto:hover { background: #15803d; }
-
-.empty-contactos {
-  text-align: center; padding: 1.25rem; background: #f8fafc;
-  border: 1px dashed #cbd5e1; border-radius: 6px;
-  color: #64748b; font-size: 0.88rem;
+.empty-section { text-align: center; padding: 1rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; color: #64748b; font-size: 0.88rem; margin-bottom: 0.5rem; }
+.na-text { color: #94a3b8; font-size: 0.85rem; }
+.notas-cell { max-width: 200px; font-size: 0.82rem; color: #64748b; font-style: italic; }
+.description-box {
+  background: white; border: 1px solid #e0e0e0; border-radius: 4px;
+  padding: 0.6rem; font-size: 0.85rem; color: #444; min-height: 50px; line-height: 1.5;
+  word-break: break-word; overflow-y: auto; max-height: 150px; white-space: pre-wrap;
 }
-
-.contactos-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.contacto-card {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.65rem 0.85rem;
-  transition: border-color 0.2s;
-}
-.contacto-card:hover { border-color: #93c5fd; }
-.contacto-info { flex: 1; min-width: 0; }
-.contacto-nombre { font-size: 0.92rem; margin-bottom: 0.25rem; }
+.detail-single-desc { margin-bottom: 0.5rem; }
+.detail-single-desc strong { display: block; margin-bottom: 0.3rem; color: #2c3e50; font-size: 0.9rem; }
 .contacto-cargo {
-  display: inline-block; margin-left: 0.5rem;
-  background: #eef2ff; color: #6366f1; font-size: 0.72rem; font-weight: 600;
+  display: inline-block; background: #eef2ff; color: #6366f1; font-size: 0.72rem; font-weight: 600;
   padding: 0.1rem 0.45rem; border-radius: 3px;
 }
-.contacto-datos {
-  display: flex; flex-wrap: wrap; gap: 0.85rem; font-size: 0.8rem; color: #475569;
-}
-.contacto-datos span { display: inline-flex; align-items: center; gap: 0.3rem; }
-.contacto-datos svg { color: #64748b; }
-.contacto-notas {
-  margin-top: 0.35rem; font-size: 0.78rem; color: #64748b;
-  font-style: italic; padding-left: 0.5rem; border-left: 2px solid #e2e8f0;
-}
-.contacto-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
 
 /* Iconos — v0.9.7: grises por defecto, color solo en hover */
 .actions-cell { display: flex; gap: 0.5rem; align-items: center; }
@@ -1384,7 +1329,7 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .equipos-search-input {
   width: 100%; padding: 0.5rem 2rem 0.5rem 2rem;
   border: 1px solid #cbd5e1; border-radius: 6px;
-  font-size: 0.88rem; box-sizing: border-box; background: #fff;
+  font-size: 0.88rem; box-sizing: border-box; background: #e8f4fd;
 }
 .equipos-search-input::placeholder { color: #94a3b8; }
 .equipos-search-input:focus { outline: none; border-color: #3498db; box-shadow: 0 0 0 2px rgba(52,152,219,0.15); }

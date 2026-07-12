@@ -174,7 +174,7 @@ Cada tarea preventiva (MP) ahora genera **2 eventos en el calendario**:
 | `frontend/src/views/PreventivoView.vue` | Layout formulario (Título+Frecuencia, Fechas en filas); frecuencia default 90; select equipo con nombre-modelo-N serie; kit layout (cantidad 52px, botón amber, fondo #fef3c7); modal Generar OT con N. Serie e inputs igualados |
 | `frontend/src/views/AyudaView.vue` | Actualizada documentación de entidad y módulo: eliminado `hora_creacion`, actualizada descripción de `fecha_creacion` |
 
-## Cómo aplicar
+## Cómo aplicar (v0.9.23-b)
 
 1. Copiar los archivos a tu proyecto reemplazando los existentes.
 2. En la carpeta `backend/`, ejecutar:
@@ -187,3 +187,110 @@ Cada tarea preventiva (MP) ahora genera **2 eventos en el calendario**:
    npm run build
    ```
 5. Refrescar el navegador con **Ctrl+F5**.
+
+---
+
+## v0.9.23-c — Calendario Planificacion (3 vistas) + Eliminacion de calendario en Preventivo + Menu lateral izquierdo
+
+### 11. Eliminacion del calendario en Preventivo
+
+Se elimino completamente la pestana Calendario del modulo Preventivo, ya que el calendario unificado esta en Planificacion. Se removieron todas las funciones, estado, HTML y CSS relacionados (vistaActiva, calAnio, calMes, diasDelMes, grilla, modal de detalle, toggle de vista, etc.). El modulo Preventivo ahora solo tiene la vista de tabla.
+
+**Archivo modificado**: `frontend/src/views/PreventivoView.vue` (~655 lineas eliminadas, de 1757 a 1102).
+
+### 12. Calendario de Planificacion: 3 vistas (mes/semana/dia)
+
+Se reescribio completamente el calendario en `PlanificacionView.vue` con 3 modos de visualizacion:
+
+| Vista | Descripcion |
+|-------|-------------|
+| **Mes** | Grilla mensual con eventos. Omite fines de semana si el toggle esta apagado. |
+| **Semana** | Muestra una semana a la vez dentro del mes. Selector de semana anterior/siguiente. |
+| **Dia** | Linea de tiempo de 6:00 a 22:00 horas. Eventos posicionados por hora. Hora actual resaltada. |
+
+**Toggle Lun-Vie / Lun-Dom**: Boton tipo switch que controla si se muestran dias de la semana laboral (5 columnas) o la semana completa (7 columnas). Afecta las 3 vistas.
+
+**Fichas resumen centradas**: Las tarjetas de resumen encima de los filtros ahora usan `justify-content: center`.
+
+**Navegacion context-aware**: Los botones Atras/Adelante/Hoy se adaptan al modo activo (cambia de mes, semana o dia segun corresponda).
+
+**Bug Vue solucionado**: Se creo funcion helper `horaLabel(h)` para evitar el error del parser de Vue con `{{ String(h).padStart(2,'0') }}:00` (los `}}:` se interpretan como directiva Vue).
+
+### 13. Menu lateral izquierdo con 3 modos de visualizacion
+
+Se reemplazo el menu horizontal superior por un sistema de menu lateral izquierdo con 3 modos seleccionables por el usuario:
+
+**Arquitectura nueva**:
+- `App.vue` ahora centraliza el `Navbar` (antes estaba importado en 12 vistas individualmente).
+- Se elimino la duplicacion de `<Navbar>` en todas las vistas.
+- Se creo `Sidebar.vue` como componente independiente del menu lateral.
+- Se elimino `RightDrawer.vue` (componente temporal de la version anterior).
+- `ConfiguracionView` usa `inject('verificarModoTest')` en lugar de `ref` local + `defineExpose`.
+
+**3 modos del sidebar**:
+
+| Modo | Ancho | Comportamiento | Persistencia |
+|------|-------|----------------|--------------|
+| **Oculto** | 0px (drawer 250px al abrir) | Solo boton hamburguesa en navbar. Al hacer clic, se desliza desde la izquierda con overlay oscuro. Se cierra con clic en overlay, Escape, o al navegar. | `localStorage: cmms-sidebar-mode = 'hidden'` |
+| **Compacto** | 60px fijo | Solo iconos emoji visibles. Siempre a la vista, sin overlay. Click en icono navega directo. Tooltip en hover muestra nombre. | `localStorage: cmms-sidebar-mode = 'compact'` |
+| **Expandido** | 250px fijo | Iconos emoji + texto de cada seccion. Siempre a la vista, sin overlay. Indicador azul en item activo. | `localStorage: cmms-sidebar-mode = 'expanded'` |
+
+**Selector de modo**: En el pie del sidebar hay 3 botones con iconos SVG que permiten cambiar entre los modos. El modo activo se resalta en azul. En modo compacto, los botones se apilan verticalmente.
+
+**Transicion suave**: El cambio entre modos anima `width` y `transform` con CSS transitions (0.25s ease). El contenido principal (navbar + router-view) se desplaza con `margin-left` sincronizado via variable CSS `--sidebar-width`.
+
+**Hamburguesa a la izquierda**: En modo oculto, el boton hamburguesa esta en el lado izquierdo del header. En modos compacto/expandido, el hamburguesa se oculta automaticamente.
+
+**Barra indicadora activa**: En los modos compacto y expandido, la pagina activa muestra una barra azul de 3px en el borde derecho del item.
+
+**13 items del menu con iconos**:
+Inicio, Equipos, Repuestos, Proveedores, Contratos, Ordenes, Preventivo, Planificacion, Historial, Reportes, Usuarios, Ayuda, Configuracion.
+
+### 14. Correccion de errores
+
+- **AyudaView.vue linea 512**: Coma doble `,,` en objeto JS causaba error de parsing `Unexpected token`. Corregido a coma simple.
+
+## Archivos modificados (v0.9.23-c)
+
+| Archivo | Cambios |
+|---------|---------|
+| `frontend/src/App.vue` | Centraliza Navbar con `v-if="showNavbar"`. Wrapper `.app-layout` con `margin-left: var(--sidebar-width)`. Login sin wrapper. Inicializa `--sidebar-width` desde localStorage. |
+| `frontend/src/components/Navbar.vue` | Reescrito: hamburguesa izquierda, importa `Sidebar.vue`, gestiona `sidebarMode` (3 modos), `provide('verificarModoTest')`, CSS variable `--sidebar-width`. |
+| `frontend/src/components/Sidebar.vue` | **NUEVO**: Menu lateral izquierdo con 3 modos (hidden/compact/expanded), overlay con blur, nav con 13 items iconizados, selector de modo en footer, logout, transiciones CSS. |
+| `frontend/src/components/RightDrawer.vue` | **ELIMINADO**: Reemplazado por Sidebar.vue. |
+| `frontend/src/views/PreventivoView.vue` | Eliminado calendario (~655 lineas). Solo vista tabla. |
+| `frontend/src/views/PlanificacionView.vue` | Reescrito calendario con 3 vistas (mes/semana/dia), toggle Lun-Vie/Lun-Dom, resumen centrado, navegacion context-aware, horaLabel helper. |
+| `frontend/src/views/AyudaView.vue` | Corregida coma doble en RF13. Eliminado import de Navbar. |
+| `frontend/src/views/HomeDashboard.vue` | Eliminado import y uso de Navbar (centralizado en App.vue). |
+| `frontend/src/views/EquiposView.vue` | Eliminado import y uso de Navbar. |
+| `frontend/src/views/EquiposView_.vue` | Eliminado import y uso de Navbar. |
+| `frontend/src/views/OrdenesView.vue` | Eliminado import y uso de Navbar. |
+| `frontend/src/views/InventarioView.vue` | Eliminado import y uso de Navbar. |
+| `frontend/src/views/ProveedoresView.vue` | Eliminado import y uso de Navbar. |
+| `frontend/src/views/ContratosView.vue` | Eliminado import y uso de Navbar. |
+| `frontend/src/views/HistorialView.vue` | Eliminado import y uso de Navbar. |
+| `frontend/src/views/ReportesView.vue` | Eliminado import y uso de Navbar. |
+| `frontend/src/views/UsuariosView.vue` | Eliminado import y uso de Navbar. |
+| `frontend/src/views/ConfiguracionView.vue` | Eliminado import y uso de Navbar. `navbarRef` reemplazado por `inject('verificarModoTest')`. |
+
+## Como aplicar (v0.9.23-c)
+
+1. Copiar los archivos a tu proyecto reemplazando los existentes.
+2. **Eliminar** `frontend/src/components/RightDrawer.vue` si existe.
+3. **Crear** `frontend/src/components/Sidebar.vue` (archivo nuevo).
+4. En la carpeta `frontend/`, ejecutar:
+   ```bash
+   npm run build
+   ```
+5. Refrescar el navegador con **Ctrl+F5**.
+6. El modo del sidebar se guarda en `localStorage`. Si el usuario habia seleccionado un modo, se recordara al recargar.
+
+## Notas tecnicas (v0.9.23-c)
+
+- El modo del sidebar se persiste en `localStorage` bajo la clave `cmms-sidebar-mode`.
+- La variable CSS `--sidebar-width` se establece en `document.documentElement` para que tanto el Navbar (via `margin-left`) como el `.app-layout` (via `margin-left`) reaccionen al cambio.
+- `App.vue` inicializa `--sidebar-width` en `onMounted` antes de que el Navbar monte, evitando un salto visual en el primer render.
+- El sidebar usa `<Teleport to="body">` para evitar problemas de stacking context con `position: fixed`.
+- En modo compacto (60px), el sidebar NO tiene header ni labels, solo iconos centrados con `title` para tooltip nativo.
+- La transicion de `hidden` a `compact` anima simultaneamente `transform` (slide in) y `width` (250 a 60px), creando un efecto de "emergencia" natural.
+- `ConfiguracionView` usa `inject('verificarModoTest')` proporcionado por `Navbar.vue` via `provide()`, reemplazando el antiguo patron de `ref` + `defineExpose`.

@@ -1,15 +1,38 @@
 <script setup>
-import { ref, onMounted, provide } from 'vue'
+import { ref, onMounted, watch, provide } from 'vue'
 import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
-import RightDrawer from './RightDrawer.vue'
+import Sidebar from './Sidebar.vue'
 
 const router = useRouter()
 const sistemaNombre = ref('CMMS-BioAI')
 const modoTest = ref(false)
 const drawerOpen = ref(false)
 
+// Sidebar mode: 'hidden', 'compact', 'expanded'
+const sidebarMode = ref(localStorage.getItem('cmms-sidebar-mode') || 'hidden')
+
 const emit = defineEmits(['logout'])
+
+function getSidebarWidth() {
+  if (sidebarMode.value === 'compact') return '60px'
+  if (sidebarMode.value === 'expanded') return '250px'
+  return '0px'
+}
+
+// Actualizar variable CSS cuando cambia el modo
+function applySidebarWidth() {
+  document.documentElement.style.setProperty('--sidebar-width', getSidebarWidth())
+}
+
+watch(sidebarMode, (val) => {
+  localStorage.setItem('cmms-sidebar-mode', val)
+  applySidebarWidth()
+  // Si se cambia a modo visible, cerrar el drawer
+  if (val !== 'hidden') {
+    drawerOpen.value = false
+  }
+})
 
 const toggleDrawer = () => {
   drawerOpen.value = !drawerOpen.value
@@ -25,8 +48,7 @@ const logout = () => {
   emit('logout')
 }
 
-// Verificar si el sistema está en modo TEST
-// Criterio: si existe un proveedor con nombre "TechMed Bolivia SRL" (creado por seed_test_data)
+// Verificar modo TEST
 async function verificarModoTest() {
   try {
     const res = await apiClient.get('/proveedores/')
@@ -38,12 +60,12 @@ async function verificarModoTest() {
   }
 }
 
-// Proporcionar verificarModoTest a componentes hijos (ej. ConfiguracionView)
 provide('verificarModoTest', verificarModoTest)
 
 defineExpose({ verificarModoTest })
 
 onMounted(async () => {
+  applySidebarWidth()
   try {
     const res = await apiClient.get('/configuracion/')
     if (res.data?.empresa?.nombre) {
@@ -59,20 +81,30 @@ onMounted(async () => {
 <template>
   <header class="header">
     <div class="header-left">
+      <button
+        v-if="sidebarMode === 'hidden'"
+        class="menu-toggle"
+        @click="toggleDrawer"
+        title="Abrir menu"
+      >
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+          <path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
       <h1 class="header-title">{{ sistemaNombre }}</h1>
-      <span v-if="modoTest" class="test-badge" title="El sistema tiene datos de ejemplo cargados. Ve a Configuracion → Datos TEST para limpiar.">
-        🧪 TEST
+      <span v-if="modoTest" class="test-badge" title="Datos de ejemplo cargados. Ve a Configuracion → Datos TEST para limpiar.">
+        TEST
       </span>
     </div>
-
-    <button class="menu-toggle" @click="toggleDrawer" title="Abrir menu">
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
-
-    <RightDrawer :open="drawerOpen" @close="closeDrawer" @logout="logout" />
   </header>
+
+  <Sidebar
+    :open="drawerOpen"
+    :mode="sidebarMode"
+    @close="closeDrawer"
+    @logout="logout"
+    @set-mode="sidebarMode = $event"
+  />
 </template>
 
 <style scoped>
@@ -93,7 +125,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  min-width: 0; /* permite truncar si es necesario */
+  min-width: 0;
 }
 
 .header-title {

@@ -1147,11 +1147,11 @@ onMounted(() => {
       <div class="modal">
         <h3>{{ isEditing ? 'Editar Repuesto' : 'Nuevo Repuesto' }}</h3>
         <form @submit.prevent="saveRepuesto">
-          <div class="form-group">
-            <label>Nombre *</label>
-            <input v-model="formData.nombre_repuesto" type="text" required>
-          </div>
           <div class="form-row">
+            <div class="form-group">
+              <label>Nombre *</label>
+              <input v-model="formData.nombre_repuesto" type="text" required>
+            </div>
             <div class="form-group">
               <label>Numero de Serie</label>
               <input v-model="formData.numero_serie" type="text" placeholder="Serie del repuesto">
@@ -1161,39 +1161,21 @@ onMounted(() => {
               <input v-model="formData.numero_material" type="text" placeholder="Codigo del fabricante">
             </div>
           </div>
-          <div class="form-group">
-            <label>Imagen del Repuesto</label>
-            <div class="imagen-upload-container">
-              <div v-if="isEditing && formData.imagen_ruta && !imagenFile" class="imagen-existente">
-                <a :href="`/uploads/${formData.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(formData.imagen_ruta) }}</a>
-                <button type="button" class="btn-icon-sm" @click="eliminarImagenRepuesto" title="Eliminar imagen">&#10005;</button>
-              </div>
-              <div v-if="imagenFile" class="imagen-nueva">
-                <span class="imagen-filename">{{ imagenFile.name }}</span>
-                <button type="button" class="btn-icon-sm" @click="imagenFile = null" title="Quitar seleccion">&#10005;</button>
-                <button type="button" class="btn-subir-imagen" @click="subirImagenAhora" :disabled="subiendoImagen">
-                  {{ subiendoImagen ? 'Subiendo...' : 'Subir imagen' }}
-                </button>
-              </div>
-              <div class="imagen-upload-controls">
-                <input type="file" ref="imagenInput" accept="image/*" @change="handleImagenSelect" style="display:none">
-                <button type="button" class="btn-outline" @click="$refs.imagenInput.click()">
-                  {{ formData.imagen_ruta && !imagenFile ? 'Cambiar imagen' : 'Seleccionar imagen' }}
-                </button>
-                <span v-if="!formData.imagen_ruta && !imagenFile && !isEditing" style="font-size: 0.82rem; color: #94a3b8;">Se subira al guardar</span>
-                <span v-if="!formData.imagen_ruta && !imagenFile && isEditing" style="font-size: 0.82rem; color: #94a3b8;">Sin imagen</span>
-              </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Descripcion / Notas</label>
+              <textarea v-model="formData.descripcion" rows="2" placeholder="Detalle del repuesto, uso, etc."></textarea>
+            </div>
+            <div class="form-group">
+              <label>Especificaciones Tecnicas</label>
+              <textarea v-model="formData.especificaciones_tecnicas" rows="2" placeholder="Voltaje, tamano, capacidad, etc."></textarea>
             </div>
           </div>
-          <div class="form-group">
-            <label>Descripcion / Notas</label>
-            <textarea v-model="formData.descripcion" rows="2" placeholder="Detalle del repuesto, uso, etc."></textarea>
-          </div>
-          <div class="form-group">
-            <label>Especificaciones Tecnicas</label>
-            <textarea v-model="formData.especificaciones_tecnicas" rows="2" placeholder="Voltaje, tamano, capacidad, etc."></textarea>
-          </div>
-          <div class="form-row">
+          <div class="form-row form-row-4">
+            <div class="form-group">
+              <label>Ubicacion en almacen</label>
+              <input v-model="formData.ubicacion_almacen" type="text" placeholder="Ej: Estante B2">
+            </div>
             <div class="form-group">
               <label>{{ isEditing ? 'Cantidad disponible' : 'Cantidad inicial' }}</label>
               <input v-model.number="formData.cantidad_disponible" type="number" min="0" required>
@@ -1209,12 +1191,6 @@ onMounted(() => {
                 <option value="paquete">paquete</option>
                 <option value="rollo">rollo</option>
               </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Ubicacion en almacen</label>
-              <input v-model="formData.ubicacion_almacen" type="text" placeholder="Ej: Estante B2">
             </div>
             <div class="form-group">
               <label>Stock minimo (alerta)</label>
@@ -1235,7 +1211,6 @@ onMounted(() => {
                   + Nuevo
                 </button>
               </div>
-              <!-- v0.9.14: campo de texto legacy oculto, se mantiene para compatibilidad -->
               <input type="hidden" v-model="formData.proveedor_ultimo">
             </div>
             <div class="form-group">
@@ -1243,9 +1218,35 @@ onMounted(() => {
               <input v-model="formData.fecha_ultima_entrada" type="date">
             </div>
           </div>
-          <div class="form-group">
-            <label>Precio de Referencia (Bs.)</label>
-            <input v-model.number="formData.precio_referencia" type="number" step="0.01" min="0" placeholder="Precio de referencia para costos">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Precio de Referencia (Bs.)</label>
+              <input v-model.number="formData.precio_referencia" type="number" step="0.01" min="0" placeholder="Precio de referencia">
+            </div>
+            <div class="form-group">
+              <label>Imagen del Repuesto</label>
+              <div class="imagen-upload-container">
+                <div v-if="isEditing && formData.imagen_ruta && !imagenFile" class="imagen-existente">
+                  <a :href="`/uploads/${formData.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(formData.imagen_ruta) }}</a>
+                  <button type="button" class="btn-icon-sm" @click="eliminarImagenRepuesto" title="Eliminar imagen">&#10005;</button>
+                </div>
+                <div v-if="imagenFile" class="imagen-nueva">
+                  <span class="imagen-filename">{{ imagenFile.name }}</span>
+                  <button type="button" class="btn-icon-sm" @click="imagenFile = null" title="Quitar seleccion">&#10005;</button>
+                  <button type="button" class="btn-subir-imagen" @click="subirImagenAhora" :disabled="subiendoImagen">
+                    {{ subiendoImagen ? 'Subiendo...' : 'Subir imagen' }}
+                  </button>
+                </div>
+                <div class="imagen-upload-controls">
+                  <input type="file" ref="imagenInput" accept="image/*" @change="handleImagenSelect" style="display:none">
+                  <button type="button" class="btn-outline" @click="$refs.imagenInput.click()">
+                    {{ formData.imagen_ruta && !imagenFile ? 'Cambiar imagen' : 'Seleccionar imagen' }}
+                  </button>
+                  <span v-if="!formData.imagen_ruta && !imagenFile && !isEditing" style="font-size: 0.82rem; color: #94a3b8;">Se subira al guardar</span>
+                  <span v-if="!formData.imagen_ruta && !imagenFile && isEditing" style="font-size: 0.82rem; color: #94a3b8;">Sin imagen</span>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
@@ -1257,42 +1258,46 @@ onMounted(() => {
 
     <!-- Modal detalle repuesto -->
     <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
-      <div class="modal modal-details">
+      <div class="modal modal-details" style="width: 800px;">
         <h3>Detalle del repuesto: {{ selectedRepuesto.nombre_repuesto }}</h3>
-        <div class="detail-grid">
-          <div class="detail-column">
+        <div class="detail-tables">
+          <div class="detail-table-block">
             <h4>Identificacion</h4>
-            <p><strong>ID:</strong> #{{ selectedRepuesto.id }}</p>
-            <p><strong>Nombre:</strong> {{ selectedRepuesto.nombre_repuesto }}</p>
-            <p><strong>N. Serie:</strong> {{ selectedRepuesto.numero_serie || 'N/A' }}</p>
-            <p><strong>N. Material:</strong> {{ selectedRepuesto.numero_material || 'N/A' }}</p>
-            <p><strong>Ubicacion:</strong> {{ selectedRepuesto.ubicacion_almacen || 'Sin ubicar' }}</p>
-            <p v-if="selectedRepuesto.imagen_ruta"><strong>Imagen:</strong> <a :href="`/uploads/${selectedRepuesto.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(selectedRepuesto.imagen_ruta) }}</a></p>
+            <table class="detail-table">
+              <tbody>
+                <tr><td class="detail-label">ID</td><td>#{{ selectedRepuesto.id }}</td></tr>
+                <tr><td class="detail-label">Nombre</td><td>{{ selectedRepuesto.nombre_repuesto }}</td></tr>
+                <tr><td class="detail-label">N. Serie</td><td>{{ selectedRepuesto.numero_serie || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">N. Material</td><td>{{ selectedRepuesto.numero_material || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Ubicacion</td><td>{{ selectedRepuesto.ubicacion_almacen || 'Sin ubicar' }}</td></tr>
+                <tr v-if="selectedRepuesto.imagen_ruta"><td class="detail-label">Imagen</td><td><a :href="`/uploads/${selectedRepuesto.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(selectedRepuesto.imagen_ruta) }}</a></td></tr>
+              </tbody>
+            </table>
           </div>
-          <div class="detail-column">
+          <div class="detail-table-block">
             <h4>Inventario</h4>
-            <p>
-              <strong>Stock actual:</strong>
-              <span :class="isLowStock(selectedRepuesto) ? 'low-stock' : 'stock'">
-                {{ selectedRepuesto.cantidad_disponible }} {{ selectedRepuesto.unidad_medida }}
-              </span>
-            </p>
-            <p><strong>Stock minimo:</strong> {{ selectedRepuesto.nivel_stock_minimo ?? 'No definido' }}</p>
-            <p><strong>Proveedor ultimo:</strong> {{ getProveedorName(selectedRepuesto.proveedor_ultimo_id) || selectedRepuesto.proveedor_ultimo || 'N/A' }}</p>
-            <p><strong>Fecha ultima entrada:</strong> {{ selectedRepuesto.fecha_ultima_entrada || 'N/A' }}</p>
-            <p><strong>Precio referencia:</strong> {{ formatPrecio(selectedRepuesto.precio_referencia) }}</p>
+            <table class="detail-table">
+              <tbody>
+                <tr>
+                  <td class="detail-label">Stock actual</td>
+                  <td><span :class="isLowStock(selectedRepuesto) ? 'low-stock' : 'stock'">{{ selectedRepuesto.cantidad_disponible }} {{ selectedRepuesto.unidad_medida }}</span></td>
+                </tr>
+                <tr><td class="detail-label">Stock minimo</td><td>{{ selectedRepuesto.nivel_stock_minimo ?? 'No definido' }}</td></tr>
+                <tr><td class="detail-label">Proveedor ultimo</td><td>{{ getProveedorName(selectedRepuesto.proveedor_ultimo_id) || selectedRepuesto.proveedor_ultimo || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Fecha ultima entrada</td><td>{{ selectedRepuesto.fecha_ultima_entrada || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Precio referencia</td><td>{{ formatPrecio(selectedRepuesto.precio_referencia) }}</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
-        <div class="detail-full">
-          <h4>Descripcion</h4>
-          <div class="description-box">
-            {{ selectedRepuesto.descripcion || 'Sin descripcion.' }}
+        <div class="detail-descriptions">
+          <div v-if="selectedRepuesto.descripcion" class="desc-col">
+            <strong>Descripcion:</strong>
+            <div class="description-box">{{ selectedRepuesto.descripcion }}</div>
           </div>
-        </div>
-        <div v-if="selectedRepuesto.especificaciones_tecnicas" class="detail-full">
-          <h4>Especificaciones Tecnicas</h4>
-          <div class="description-box">
-            {{ selectedRepuesto.especificaciones_tecnicas }}
+          <div v-if="selectedRepuesto.especificaciones_tecnicas" class="desc-col">
+            <strong>Especificaciones Tecnicas:</strong>
+            <div class="description-box">{{ selectedRepuesto.especificaciones_tecnicas }}</div>
           </div>
         </div>
         <div class="modal-actions">
@@ -1380,11 +1385,11 @@ onMounted(() => {
       <div class="modal">
         <h3>{{ herrIsEditing ? 'Editar Herramienta' : 'Nueva Herramienta' }}</h3>
         <form @submit.prevent="herrSaveHerramienta">
-          <div class="form-group">
-            <label>Nombre de la Herramienta *</label>
-            <input v-model="herrFormData.nombre_herramienta" type="text" required>
-          </div>
           <div class="form-row">
+            <div class="form-group">
+              <label>Nombre de la Herramienta *</label>
+              <input v-model="herrFormData.nombre_herramienta" type="text" required>
+            </div>
             <div class="form-group">
               <label>Numero de Identificacion</label>
               <input v-model="herrFormData.numero_identificacion" type="text" placeholder="Codigo o serie de la herramienta">
@@ -1396,35 +1401,17 @@ onMounted(() => {
               </select>
             </div>
           </div>
-          <div class="form-group">
-            <label>Imagen de la Herramienta</label>
-            <div class="imagen-upload-container">
-              <div v-if="herrIsEditing && herrFormData.imagen_ruta && !herrImagenFile" class="imagen-existente">
-                <a :href="`/uploads/${herrFormData.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(herrFormData.imagen_ruta) }}</a>
-                <button type="button" class="btn-icon-sm" @click="herrEliminarImagen" title="Eliminar imagen">&#10005;</button>
-              </div>
-              <div v-if="herrImagenFile" class="imagen-nueva">
-                <span class="imagen-filename">{{ herrImagenFile.name }}</span>
-                <button type="button" class="btn-icon-sm" @click="herrImagenFile = null" title="Quitar seleccion">&#10005;</button>
-                <button type="button" class="btn-subir-imagen" @click="herrSubirImagenAhora" :disabled="herrSubiendoImagen">
-                  {{ herrSubiendoImagen ? 'Subiendo...' : 'Subir imagen' }}
-                </button>
-              </div>
-              <div class="imagen-upload-controls">
-                <input type="file" ref="herrImagenInput" accept="image/*" @change="herrHandleImagenSelect" style="display:none">
-                <button type="button" class="btn-outline" @click="$refs.herrImagenInput.click()">
-                  {{ herrFormData.imagen_ruta && !herrImagenFile ? 'Cambiar imagen' : 'Seleccionar imagen' }}
-                </button>
-                <span v-if="!herrFormData.imagen_ruta && !herrImagenFile && !herrIsEditing" style="font-size: 0.82rem; color: #94a3b8;">Se subira al guardar</span>
-                <span v-if="!herrFormData.imagen_ruta && !herrImagenFile && herrIsEditing" style="font-size: 0.82rem; color: #94a3b8;">Sin imagen</span>
-              </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Descripcion</label>
+              <textarea v-model="herrFormData.descripcion" rows="2" placeholder="Detalle de la herramienta, uso, etc."></textarea>
+            </div>
+            <div class="form-group">
+              <label>Observaciones</label>
+              <textarea v-model="herrFormData.observaciones" rows="2" placeholder="Observaciones adicionales"></textarea>
             </div>
           </div>
-          <div class="form-group">
-            <label>Descripcion</label>
-            <textarea v-model="herrFormData.descripcion" rows="2" placeholder="Detalle de la herramienta, uso, etc."></textarea>
-          </div>
-          <div class="form-row">
+          <div class="form-row form-row-3">
             <div class="form-group">
               <label>{{ herrIsEditing ? 'Cantidad disponible' : 'Cantidad inicial' }}</label>
               <input v-model.number="herrFormData.cantidad_disponible" type="number" min="0" required>
@@ -1441,20 +1428,18 @@ onMounted(() => {
                 <option value="rollo">rollo</option>
               </select>
             </div>
-          </div>
-          <div class="form-row">
             <div class="form-group">
               <label>Ubicacion en almacen</label>
               <input v-model="herrFormData.ubicacion_almacen" type="text" placeholder="Ej: Estante B2">
             </div>
+          </div>
+          <div class="form-row">
             <div class="form-group">
               <label>Estado de Uso *</label>
               <select v-model="herrFormData.estado_uso" required>
                 <option v-for="est in estadosUso" :key="est" :value="est">{{ est }}</option>
               </select>
             </div>
-          </div>
-          <div class="form-row">
             <div class="form-group">
               <label>Costo de Adquisicion (Bs.)</label>
               <input v-model.number="herrFormData.costo_adquisicion" type="number" step="0.01" min="0" placeholder="Costo de compra">
@@ -1480,10 +1465,30 @@ onMounted(() => {
               </div>
               <input type="hidden" v-model="herrFormData.proveedor_ultimo">
             </div>
-          </div>
-          <div class="form-group">
-            <label>Observaciones</label>
-            <textarea v-model="herrFormData.observaciones" rows="2" placeholder="Observaciones adicionales"></textarea>
+            <div class="form-group">
+              <label>Imagen de la Herramienta</label>
+              <div class="imagen-upload-container">
+                <div v-if="herrIsEditing && herrFormData.imagen_ruta && !herrImagenFile" class="imagen-existente">
+                  <a :href="`/uploads/${herrFormData.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(herrFormData.imagen_ruta) }}</a>
+                  <button type="button" class="btn-icon-sm" @click="herrEliminarImagen" title="Eliminar imagen">&#10005;</button>
+                </div>
+                <div v-if="herrImagenFile" class="imagen-nueva">
+                  <span class="imagen-filename">{{ herrImagenFile.name }}</span>
+                  <button type="button" class="btn-icon-sm" @click="herrImagenFile = null" title="Quitar seleccion">&#10005;</button>
+                  <button type="button" class="btn-subir-imagen" @click="herrSubirImagenAhora" :disabled="herrSubiendoImagen">
+                    {{ herrSubiendoImagen ? 'Subiendo...' : 'Subir imagen' }}
+                  </button>
+                </div>
+                <div class="imagen-upload-controls">
+                  <input type="file" ref="herrImagenInput" accept="image/*" @change="herrHandleImagenSelect" style="display:none">
+                  <button type="button" class="btn-outline" @click="$refs.herrImagenInput.click()">
+                    {{ herrFormData.imagen_ruta && !herrImagenFile ? 'Cambiar imagen' : 'Seleccionar imagen' }}
+                  </button>
+                  <span v-if="!herrFormData.imagen_ruta && !herrImagenFile && !herrIsEditing" style="font-size: 0.82rem; color: #94a3b8;">Se subira al guardar</span>
+                  <span v-if="!herrFormData.imagen_ruta && !herrImagenFile && herrIsEditing" style="font-size: 0.82rem; color: #94a3b8;">Sin imagen</span>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn-secondary" @click="herrShowModal = false">Cancelar</button>
@@ -1495,43 +1500,49 @@ onMounted(() => {
 
     <!-- Modal detalle herramienta -->
     <div v-if="herrShowDetailModal" class="modal-overlay" @click.self="herrShowDetailModal = false">
-      <div class="modal modal-details">
+      <div class="modal modal-details" style="width: 800px;">
         <h3>Detalle de la herramienta: {{ herrSelected.nombre_herramienta }}</h3>
-        <div class="detail-grid">
-          <div class="detail-column">
+        <div class="detail-tables">
+          <div class="detail-table-block">
             <h4>Identificacion</h4>
-            <p><strong>ID:</strong> #{{ herrSelected.id }}</p>
-            <p><strong>Nombre:</strong> {{ herrSelected.nombre_herramienta }}</p>
-            <p><strong>N. Identificacion:</strong> {{ herrSelected.numero_identificacion || 'N/A' }}</p>
-            <p><strong>Categoria:</strong> <span class="badge" :style="{ backgroundColor: getCategoriaColor(herrSelected.categoria) }">{{ herrSelected.categoria || 'N/A' }}</span></p>
-            <p><strong>Ubicacion:</strong> {{ herrSelected.ubicacion_almacen || 'Sin ubicar' }}</p>
-            <p v-if="herrSelected.imagen_ruta"><strong>Imagen:</strong> <a :href="`/uploads/${herrSelected.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(herrSelected.imagen_ruta) }}</a></p>
+            <table class="detail-table">
+              <tbody>
+                <tr><td class="detail-label">ID</td><td>#{{ herrSelected.id }}</td></tr>
+                <tr><td class="detail-label">Nombre</td><td>{{ herrSelected.nombre_herramienta }}</td></tr>
+                <tr><td class="detail-label">N. Identificacion</td><td>{{ herrSelected.numero_identificacion || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Categoria</td><td><span class="badge" :style="{ backgroundColor: getCategoriaColor(herrSelected.categoria) }">{{ herrSelected.categoria || 'N/A' }}</span></td></tr>
+                <tr><td class="detail-label">Ubicacion</td><td>{{ herrSelected.ubicacion_almacen || 'Sin ubicar' }}</td></tr>
+                <tr v-if="herrSelected.imagen_ruta"><td class="detail-label">Imagen</td><td><a :href="`/uploads/${herrSelected.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(herrSelected.imagen_ruta) }}</a></td></tr>
+              </tbody>
+            </table>
           </div>
-          <div class="detail-column">
+          <div class="detail-table-block">
             <h4>Inventario y Estado</h4>
-            <p>
-              <strong>Cantidad:</strong>
-              <span class="stock">{{ herrSelected.cantidad_disponible }} {{ herrSelected.unidad_medida }}</span>
-            </p>
-            <p>
-              <strong>Estado:</strong>
-              <span class="badge" :style="{ backgroundColor: getEstadoUsoColor(herrSelected.estado_uso) }">{{ herrSelected.estado_uso || 'N/A' }}</span>
-            </p>
-            <p><strong>Costo adquisicion:</strong> {{ formatPrecio(herrSelected.costo_adquisicion) }}</p>
-            <p><strong>Fecha adquisicion:</strong> {{ herrSelected.fecha_adquisicion || 'N/A' }}</p>
-            <p><strong>Proveedor ultimo:</strong> {{ getProveedorName(herrSelected.proveedor_ultimo_id) || herrSelected.proveedor_ultimo || 'N/A' }}</p>
+            <table class="detail-table">
+              <tbody>
+                <tr>
+                  <td class="detail-label">Cantidad</td>
+                  <td><span class="stock">{{ herrSelected.cantidad_disponible }} {{ herrSelected.unidad_medida }}</span></td>
+                </tr>
+                <tr>
+                  <td class="detail-label">Estado</td>
+                  <td><span class="badge" :style="{ backgroundColor: getEstadoUsoColor(herrSelected.estado_uso) }">{{ herrSelected.estado_uso || 'N/A' }}</span></td>
+                </tr>
+                <tr><td class="detail-label">Costo adquisicion</td><td>{{ formatPrecio(herrSelected.costo_adquisicion) }}</td></tr>
+                <tr><td class="detail-label">Fecha adquisicion</td><td>{{ herrSelected.fecha_adquisicion || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Proveedor ultimo</td><td>{{ getProveedorName(herrSelected.proveedor_ultimo_id) || herrSelected.proveedor_ultimo || 'N/A' }}</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
-        <div v-if="herrSelected.descripcion" class="detail-full">
-          <h4>Descripcion</h4>
-          <div class="description-box">
-            {{ herrSelected.descripcion }}
+        <div class="detail-descriptions">
+          <div v-if="herrSelected.descripcion" class="desc-col">
+            <strong>Descripcion:</strong>
+            <div class="description-box">{{ herrSelected.descripcion }}</div>
           </div>
-        </div>
-        <div v-if="herrSelected.observaciones" class="detail-full">
-          <h4>Observaciones</h4>
-          <div class="description-box">
-            {{ herrSelected.observaciones }}
+          <div v-if="herrSelected.observaciones" class="desc-col">
+            <strong>Observaciones:</strong>
+            <div class="description-box">{{ herrSelected.observaciones }}</div>
           </div>
         </div>
         <div class="modal-actions">
@@ -1754,11 +1765,11 @@ th { background-color: #f8f9fa; font-weight: bold; }
   align-items: center; z-index: 100;
 }
 .modal {
-  background: white; padding: 2rem; border-radius: 8px; width: 500px;
+  background: white; padding: 2rem; border-radius: 8px; width: 750px;
   max-width: 90%; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   max-height: 90vh; overflow-y: auto;
 }
-.modal-details { width: 640px; }
+.modal-details { width: 800px; }
 .modal-docs { width: 700px; }
 
 .form-group { margin-bottom: 1rem; }
@@ -1770,14 +1781,20 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .form-group textarea { resize: vertical; }
 .form-row { display: flex; gap: 1rem; }
 .form-row .form-group { flex: 1; }
+.form-row-3 .form-group { flex: 1; }
+.form-row-4 .form-group { flex: 1; min-width: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
 
-.detail-grid { display: flex; gap: 2rem; margin-bottom: 1.5rem; }
-.detail-column { flex: 1; }
-.detail-column h4 { margin-bottom: 0.8rem; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 0.3rem; }
-.detail-column p { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #555; }
-.detail-full { width: 100%; background: #f8f9fa; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
-.detail-full h4 { margin-top: 0; margin-bottom: 0.5rem; color: #2c3e50; }
+.detail-tables { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; }
+.detail-table-block { flex: 1; }
+.detail-table-block h4 { margin-bottom: 0.6rem; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.3rem; font-size: 0.95rem; }
+.detail-table { width: 100%; border-collapse: collapse; }
+.detail-table td { padding: 0.35rem 0.6rem; font-size: 0.88rem; border-bottom: 1px solid #eee; vertical-align: top; }
+.detail-table tr:last-child td { border-bottom: none; }
+.detail-label { color: #666; font-weight: 600; width: 42%; white-space: nowrap; }
+.detail-descriptions { display: flex; gap: 1.5rem; margin-bottom: 1rem; }
+.desc-col { flex: 1; }
+.desc-col strong { display: block; margin-bottom: 0.3rem; color: #2c3e50; font-size: 0.9rem; }
 .description-box {
   word-break: break-word; overflow-y: auto; max-height: 160px; white-space: pre-wrap;
   background: white; padding: 0.8rem; border: 1px solid #e0e0e0; border-radius: 4px;

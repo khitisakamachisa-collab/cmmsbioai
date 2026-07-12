@@ -495,3 +495,115 @@ he visto como muchos programas, Facebook, el mismo Edge, tienen menus a la derec
 es posible?
 
 
+Esta muy bonito, me gusta asi.
+realizaremos modificaciones
+pondremos ese menú a la izquierda creo se vera mejor.
+consultarte sobre ese menú, 
+ya que le adicionaste emojis o algo asi, si esos emojis pueden quedarse sin los textos.
+es decir el usuario tendrá 3 opciónes de elegir 
+1) que se oculte todo el menú en el icono superior izquierdo. (como esta ahora solo que a la izquierda)
+2) opción para tener los emojis solamente sin letras (para acceso directo, como antes era el anterior menú pero esta vez con emojis o imágenes que posee este nuevo menu)
+3) otra opción emojis con letra (como esta ahora).
+una vez se realice esta accion.
+actualiza el README-v0.9.23.md con las modificaciones hechas en este día.
+para mantener el historial de las modificaciones.
+vamos.
+
+
+si, esta bellísimo.
+subiré un respaldo. mientras 
+en el menú EQUIPOS, cuando adicionamos un NUEVO y un EDITAR, existen filas y columnas de elementos, vamos a reordenar
+los mismo elementos pero de tal manera que la pantalla o ventana de NUEVO o EDITAR seran mas anchas y no largas a la vertical.
+el nuevo orden sera:
+
+Nombre Corto *, Marca *,Modelo *
+Número de Serie *, Número de Material, Fecha Adquisición, Condición de Origen
+Inicio Garantía, Fin de Garantía, Ubicación, Estado del Equipo
+Proveedor Principal,Imagen del Equipo
+Descripción Técnica,Observaciones
+hagamoslo, asi se vera mejor.
+ 
+
+excelente, 
+nueva modificacion.
+en el ojo o en ver, los elementos dentro de Identificación y Administrativo, que se muestren en tablas.
+
+
+Descripción técnica: y Observaciones: que esten fuera del cuadro notas
+el cuadro notas sera eliminado.
+el color amarillo en el fondo de Observaciones sera eliminado.
+veamos como queda
+
+
+esta bien , pero falta.
+en la ventana de equipos, en el ojo/visualizar faltan los datos de:
+CONTRATO, INICIO CONTRATO, FIN CONTRATO (pueden estar en el area Administrativo)
+tambien falta, la imagen que tiene el equipo. esto debe estar en Identificación
+realizalo, veamos como sale.
+
+
+otra corrección, en la ventana de ver/ojo
+en CONTRATOS: 
+solo se mostrara si existe un contrato vigente.
+al igual del resto que se muestre en una tabla 
+tipo
+inicio
+fin
+
+sobre la imagen, ira dentro de la tabla, solo coloca el nombre de la imagen para que pueda ser seleccionada y abierta en una nueva ventana.
+puedes adicionar un emoji de foto si gustas siempre y cuando pueda abrirse en otra ventana.
+
+
+en el ojo/ver, Descripción técnica: y Observaciones: que vayan en la misma fila
+
+
+ok, ahora realicemos acciones similares en el ojo/ver de repuestos y herramientas.
+
+
+excelente
+ahora modificaremos la ventana REPUESTOS:
+en editar/crear, la nueva posición de los elementos será:
+Nombre *, Numero de Serie, Numero de Material
+Descripcion / Notas, Especificaciones Tecnicas
+Ubicacion en almacen, Cantidad disponible, Unidad, Stock minimo (alerta)
+Proveedor Ultimo, Fecha Ultima Entrada, Precio de Referencia (Bs.).
+Imagen del Repuesto
+
+ahora veremos en la ventana de HERRAMIENTAS SERA
+Nombre de la Herramienta *, Numero de Identificación, Categoria *
+Descripción, Observaciones
+Cantidad inicial, Unidad, Ubicacion en almacen
+Estado de Uso *, Costo de Adquisicion (Bs.), Fecha de Adquisicion
+Proveedor Ultimo,Imagen de la Herramienta
+
+si me ha faltando alguno te detienes y me lo haces saber , si no ,,, prosigue. 
+y veamos como sale
+
+
+una modificación mas, en la ventana "Editar Repuesto"
+las ultimas filas serán 
+Proveedor Ultimo, Fecha Ultima Entrada
+Precio de Referencia (Bs.), Imagen del Repuesto
+
+
+ahora en la ventana, Gestion de Proveedores y Contactos
+en el ojo/ver se pueda implementar acciones similares
+
+
+
+
+esta bueno, pero, vamos a arreglar la dimensión. haremos esta ventana mas ancha um 60% mas ancha
+datos de la empresa ira centrado, notas generales ira centrado
+Contactos Asociados (1) y Equipos Asociados (1) se agrandaran, debido a que como esta ahora
+sus elementos generan dos filas en sus datos, con este nuevo tamaño 60% mas es posible que ahora esto no ocurra.
+
+
+
+ahora en Editar Proveedor y en crear
+vamos a reordenar asi.
+Nombre de Empresa *, Ciudad, Telefono Principal
+Dirección, Email Principal, Pagina Web
+Notas Generales
+el cuadro de búsqueda de equipo por nombre modelo serie o marca, con un fondo de color que resalte
+Equipos Asociados 
+esta pagina esta limitada también a los 550px,, si esa asi cambiala a 750px

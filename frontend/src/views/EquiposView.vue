@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import apiClient from '../services/api.js'
 import DocumentosAdjuntos from '../components/DocumentosAdjuntos.vue'
 
@@ -40,6 +39,12 @@ const selectedEquipName = ref('')
 // --- Variables Modal Detalle ---
 const showDetailModal = ref(false)
 const selectedEquipo = ref({})
+const equipoContratos = ref([])
+
+// Contrato vigente (activo) del equipo
+const contratoVigente = computed(() => {
+  return equipoContratos.value.find(c => c.activo === true) || null
+})
 
 // --- Variables Modal Documentos ---
 const showDocsModal = ref(false)
@@ -64,9 +69,16 @@ const CONDICIONES_ORIGEN = [
 ]
 
 // Función para abrir el modal de detalles
-const openDetailModal = (equipo) => {
+const openDetailModal = async (equipo) => {
   selectedEquipo.value = equipo
   showDetailModal.value = true
+  // Cargar contratos del equipo
+  try {
+    const res = await apiClient.get(`/contratos/?equipo_id=${equipo.id}`)
+    equipoContratos.value = res.data || []
+  } catch (e) {
+    equipoContratos.value = []
+  }
 }
 
 // Función para abrir el modal de documentos
@@ -885,7 +897,7 @@ onMounted(() => {
 
     <!-- Modal Crear/Editar Equipo -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal">
+      <div class="modal modal-wide">
         <h3>{{ isEditing ? 'Editar Equipo' : 'Registrar Nuevo Equipo' }}</h3>
         <form @submit.prevent="saveEquipo">
           <!-- v0.9.0: Advertencia ROJA para campos no editables en modo edición -->
@@ -896,11 +908,12 @@ onMounted(() => {
             equipo y créelo de nuevo.
           </div>
 
-          <div class="form-group">
-            <label>Nombre Corto *</label>
-            <input v-model="formData.nombre_corto" type="text" required placeholder="Ej: Monitor UCI 02">
-          </div>
-          <div class="form-row">
+          <!-- Fila 1: Nombre Corto, Marca, Modelo -->
+          <div class="form-row form-row-3">
+            <div class="form-group">
+              <label>Nombre Corto *</label>
+              <input v-model="formData.nombre_corto" type="text" required placeholder="Ej: Monitor UCI 02">
+            </div>
             <div class="form-group">
               <label>Marca *</label>
               <input v-model="formData.marca" type="text" required :disabled="isEditing"
@@ -912,7 +925,9 @@ onMounted(() => {
                 :class="{ 'input-locked': isEditing }" :title="isEditing ? 'No modificable después de creado' : ''">
             </div>
           </div>
-          <div class="form-row">
+
+          <!-- Fila 2: Número de Serie, Número de Material, Fecha Adquisición, Condición de Origen -->
+          <div class="form-row form-row-4">
             <div class="form-group">
               <label>Número de Serie *</label>
               <input v-model="formData.numero_serie" type="text" required placeholder="Único" :disabled="isEditing"
@@ -922,8 +937,6 @@ onMounted(() => {
               <label>Número de Material</label>
               <input v-model="formData.numero_material" type="text" placeholder="Variante del modelo">
             </div>
-          </div>
-          <div class="form-row">
             <div class="form-group">
               <label>Fecha Adquisición</label>
               <input v-model="formData.fecha_adquisicion" type="date">
@@ -936,7 +949,9 @@ onMounted(() => {
               </select>
             </div>
           </div>
-          <div class="form-row">
+
+          <!-- Fila 3: Inicio Garantía, Fin de Garantía, Ubicación, Estado del Equipo -->
+          <div class="form-row form-row-4">
             <div class="form-group">
               <label>Inicio Garantía</label>
               <input v-model="formData.fecha_inicio_garantia" type="date">
@@ -945,8 +960,6 @@ onMounted(() => {
               <label>Fin de Garantía</label>
               <input v-model="formData.fecha_fin_garantia" type="date">
             </div>
-          </div>
-          <div class="form-row">
             <div class="form-group">
               <label>Ubicación</label>
               <input v-model="formData.ubicacion_actual" type="text" placeholder="Ej: UCI Box 5">
@@ -960,57 +973,66 @@ onMounted(() => {
               </select>
             </div>
           </div>
-          <!-- v0.9.0: Proveedor como FK con dropdown + "Crear nuevo" -->
-          <div class="form-group">
-            <label>Proveedor Principal</label>
-            <div class="proveedor-row">
-              <select v-model="formData.proveedor_principal_id" class="proveedor-select">
-                <option :value="null">— Sin proveedor —</option>
-                <option v-for="p in proveedores" :key="p.id" :value="p.id">
-                  {{ p.nombre_empresa }}{{ p.ciudad ? ' (' + p.ciudad + ')' : '' }}
-                </option>
-              </select>
-              <button type="button" class="btn-add-proveedor" @click="abrirModalNuevoProveedor" title="Crear nuevo proveedor">
-                + Nuevo
-              </button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Imagen del Equipo</label>
-            <div class="imagen-upload-container">
-              <div v-if="isEditing && formData.imagen_ruta && !imagenFile" class="imagen-existente">
-                <a :href="`/uploads/${formData.imagen_ruta}`" target="_blank" class="imagen-link">
-                  {{ getImagenNombre(formData.imagen_ruta) }}
-                </a>
-                <button type="button" class="btn-icon-sm" @click="eliminarImagenEquipo" title="Eliminar imagen">✕</button>
-              </div>
-              <div v-if="imagenFile" class="imagen-nueva">
-                <span class="imagen-filename">{{ imagenFile.name }}</span>
-                <button type="button" class="btn-icon-sm" @click="imagenFile = null" title="Quitar selección">✕</button>
-                <button type="button" class="btn-subir-imagen" @click="subirImagenAhora" :disabled="subiendoImagen">
-                  {{ subiendoImagen ? 'Subiendo...' : 'Subir imagen' }}
+
+          <!-- Fila 4: Proveedor Principal, Imagen del Equipo -->
+          <div class="form-row form-row-2">
+            <!-- v0.9.0: Proveedor como FK con dropdown + "Crear nuevo" -->
+            <div class="form-group">
+              <label>Proveedor Principal</label>
+              <div class="proveedor-row">
+                <select v-model="formData.proveedor_principal_id" class="proveedor-select">
+                  <option :value="null">— Sin proveedor —</option>
+                  <option v-for="p in proveedores" :key="p.id" :value="p.id">
+                    {{ p.nombre_empresa }}{{ p.ciudad ? ' (' + p.ciudad + ')' : '' }}
+                  </option>
+                </select>
+                <button type="button" class="btn-add-proveedor" @click="abrirModalNuevoProveedor" title="Crear nuevo proveedor">
+                  + Nuevo
                 </button>
               </div>
-              <div class="imagen-upload-controls">
-                <input type="file" ref="imagenInput" accept="image/*" @change="handleImagenSelect" style="display:none">
-                <button type="button" class="btn-outline" @click="$refs.imagenInput.click()">
-                  {{ formData.imagen_ruta && !imagenFile ? 'Cambiar imagen' : 'Seleccionar imagen' }}
-                </button>
-                <span v-if="!formData.imagen_ruta && !imagenFile && !isEditing" style="font-size: 0.82rem; color: #94a3b8;">Se subirá al guardar el equipo</span>
-                <span v-if="!formData.imagen_ruta && !imagenFile && isEditing" style="font-size: 0.82rem; color: #94a3b8;">Sin imagen</span>
+            </div>
+            <div class="form-group">
+              <label>Imagen del Equipo</label>
+              <div class="imagen-upload-container">
+                <div v-if="isEditing && formData.imagen_ruta && !imagenFile" class="imagen-existente">
+                  <a :href="`/uploads/${formData.imagen_ruta}`" target="_blank" class="imagen-link">
+                    {{ getImagenNombre(formData.imagen_ruta) }}
+                  </a>
+                  <button type="button" class="btn-icon-sm" @click="eliminarImagenEquipo" title="Eliminar imagen">✕</button>
+                </div>
+                <div v-if="imagenFile" class="imagen-nueva">
+                  <span class="imagen-filename">{{ imagenFile.name }}</span>
+                  <button type="button" class="btn-icon-sm" @click="imagenFile = null" title="Quitar selección">✕</button>
+                  <button type="button" class="btn-subir-imagen" @click="subirImagenAhora" :disabled="subiendoImagen">
+                    {{ subiendoImagen ? 'Subiendo...' : 'Subir imagen' }}
+                  </button>
+                </div>
+                <div class="imagen-upload-controls">
+                  <input type="file" ref="imagenInput" accept="image/*" @change="handleImagenSelect" style="display:none">
+                  <button type="button" class="btn-outline" @click="$refs.imagenInput.click()">
+                    {{ formData.imagen_ruta && !imagenFile ? 'Cambiar imagen' : 'Seleccionar imagen' }}
+                  </button>
+                  <span v-if="!formData.imagen_ruta && !imagenFile && !isEditing" style="font-size: 0.82rem; color: #94a3b8;">Se subirá al guardar</span>
+                  <span v-if="!formData.imagen_ruta && !imagenFile && isEditing" style="font-size: 0.82rem; color: #94a3b8;">Sin imagen</span>
+                </div>
               </div>
             </div>
           </div>
-          <!-- v0.9.0: Descripción técnica -->
-          <div class="form-group">
-            <label>Descripción Técnica</label>
-            <textarea v-model="formData.descripcion" rows="2" placeholder="¿Qué es? ¿Qué hace? Ej: Microscopio binocular para microbiología"></textarea>
+
+          <!-- Fila 5: Descripción Técnica, Observaciones -->
+          <div class="form-row form-row-2">
+            <!-- v0.9.0: Descripción técnica -->
+            <div class="form-group">
+              <label>Descripción Técnica</label>
+              <textarea v-model="formData.descripcion" rows="2" placeholder="¿Qué es? ¿Qué hace? Ej: Microscopio binocular para microbiología"></textarea>
+            </div>
+            <!-- v0.9.0: Observaciones operativas (NUEVO) -->
+            <div class="form-group">
+              <label>Observaciones</label>
+              <textarea v-model="formData.observaciones" rows="2" placeholder="¿Cómo está? Ej: Funciona correctamente, requiere calibración, le falta cable de alimentación"></textarea>
+            </div>
           </div>
-          <!-- v0.9.0: Observaciones operativas (NUEVO) -->
-          <div class="form-group">
-            <label>Observaciones</label>
-            <textarea v-model="formData.observaciones" rows="2" placeholder="¿Cómo está? Ej: Funciona correctamente, requiere calibración, le falta cable de alimentación"></textarea>
-          </div>
+
           <div class="modal-actions">
             <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar</button>
@@ -1090,45 +1112,76 @@ onMounted(() => {
 
     <!-- Modal Ver Detalles -->
     <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
-      <div class="modal" style="width: 700px;">
+      <div class="modal" style="width: 800px;">
         <h3>Detalles del Equipo: {{ selectedEquipo.nombre_corto || selectedEquipo.modelo }}</h3>
-        <div class="detail-grid">
-          <div class="detail-column">
+        <div class="detail-tables">
+          <div class="detail-table-block">
             <h4>Identificación</h4>
-            <p><strong>ID:</strong> {{ selectedEquipo.id }}</p>
-            <p><strong>Marca:</strong> {{ selectedEquipo.marca }}</p>
-            <p><strong>Modelo:</strong> {{ selectedEquipo.modelo }}</p>
-            <p><strong>Nº Serie:</strong> {{ selectedEquipo.numero_serie }}</p>
-            <p v-if="selectedEquipo.numero_material"><strong>Nº Material:</strong> {{ selectedEquipo.numero_material }}</p>
-            <p><strong>Ubicación:</strong> {{ selectedEquipo.ubicacion_actual || 'N/A' }}</p>
-            <p v-if="selectedEquipo.condicion_origen"><strong>Condición:</strong> {{ selectedEquipo.condicion_origen }}</p>
+            <table class="detail-table">
+              <tbody>
+                <tr><td class="detail-label">ID</td><td>{{ selectedEquipo.id }}</td></tr>
+                <tr><td class="detail-label">Nombre Corto</td><td>{{ selectedEquipo.nombre_corto || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Marca</td><td>{{ selectedEquipo.marca || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Modelo</td><td>{{ selectedEquipo.modelo || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Nº Serie</td><td>{{ selectedEquipo.numero_serie || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Nº Material</td><td>{{ selectedEquipo.numero_material || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Ubicación</td><td>{{ selectedEquipo.ubicacion_actual || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Condición</td><td>{{ selectedEquipo.condicion_origen || 'N/A' }}</td></tr>
+                <tr v-if="selectedEquipo.imagen_ruta"><td class="detail-label">Imagen</td><td><a :href="`/uploads/${selectedEquipo.imagen_ruta}`" target="_blank" class="imagen-link">📸 {{ getImagenNombre(selectedEquipo.imagen_ruta) }}</a></td></tr>
+              </tbody>
+            </table>
           </div>
-          <div class="detail-column">
+          <div class="detail-table-block">
             <h4>Administrativo</h4>
-            <p><strong>Estado:</strong>
-              <span class="badge" :style="{ backgroundColor: getEstadoColor(selectedEquipo.estado_id) }">
-                {{ getNombreEstado(selectedEquipo.estado_id) }}
-              </span>
-              <span v-if="getGarantiaBadge(selectedEquipo).text" :class="getGarantiaBadge(selectedEquipo).class">
-                {{ getGarantiaBadge(selectedEquipo).text }}
-              </span>
-            </p>
-            <p v-if="selectedEquipo.fecha_adquisicion"><strong>Adquisición:</strong> {{ selectedEquipo.fecha_adquisicion }}</p>
-            <p v-if="selectedEquipo.fecha_inicio_garantia"><strong>Inicio Garantía:</strong> {{ selectedEquipo.fecha_inicio_garantia }}</p>
-            <p v-if="selectedEquipo.fecha_fin_garantia"><strong>Fin Garantía:</strong> {{ selectedEquipo.fecha_fin_garantia }}</p>
-            <p><strong>Proveedor:</strong> {{ getProveedorName(selectedEquipo.proveedor_principal_id) }}</p>
+            <table class="detail-table">
+              <tbody>
+                <tr>
+                  <td class="detail-label">Estado</td>
+                  <td>
+                    <span class="badge" :style="{ backgroundColor: getEstadoColor(selectedEquipo.estado_id) }">
+                      {{ getNombreEstado(selectedEquipo.estado_id) }}
+                    </span>
+                    <span v-if="getGarantiaBadge(selectedEquipo).text" :class="getGarantiaBadge(selectedEquipo).class">
+                      {{ getGarantiaBadge(selectedEquipo).text }}
+                    </span>
+                  </td>
+                </tr>
+                <tr><td class="detail-label">Fecha Adquisición</td><td>{{ selectedEquipo.fecha_adquisicion || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Inicio Garantía</td><td>{{ selectedEquipo.fecha_inicio_garantia || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Fin Garantía</td><td>{{ selectedEquipo.fecha_fin_garantia || 'N/A' }}</td></tr>
+                <tr><td class="detail-label">Proveedor</td><td>{{ getProveedorName(selectedEquipo.proveedor_principal_id) }}</td></tr>
+              </tbody>
+            </table>
+            <!-- Contrato vigente del equipo -->
+            <div v-if="contratoVigente" class="detail-contratos">
+              <table class="detail-table">
+                <thead>
+                  <tr><th colspan="3" class="detail-contratos-title">Contrato Vigente</th></tr>
+                  <tr>
+                    <th class="detail-th">Tipo</th>
+                    <th class="detail-th">Inicio</th>
+                    <th class="detail-th">Fin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{{ contratoVigente.tipo_contrato }}</td>
+                    <td>{{ contratoVigente.fecha_inicio }}</td>
+                    <td>{{ contratoVigente.fecha_fin }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-        <div class="detail-full">
-          <h4>Notas</h4>
-          <p v-if="selectedEquipo.imagen_ruta"><strong>Imagen:</strong> <a :href="`/uploads/${selectedEquipo.imagen_ruta}`" target="_blank" class="imagen-link">{{ getImagenNombre(selectedEquipo.imagen_ruta) }}</a></p>
-          <p v-if="selectedEquipo.descripcion"><strong>Descripción técnica:</strong></p>
-          <div v-if="selectedEquipo.descripcion" class="description-box">
-            {{ selectedEquipo.descripcion }}
+        <div class="detail-descriptions">
+          <div v-if="selectedEquipo.descripcion" class="desc-col">
+            <strong>Descripción técnica:</strong>
+            <div class="description-box">{{ selectedEquipo.descripcion }}</div>
           </div>
-          <p v-if="selectedEquipo.observaciones" style="margin-top: 0.5rem;"><strong>Observaciones:</strong></p>
-          <div v-if="selectedEquipo.observaciones" class="description-box" style="background: #fefce8; border-color: #fde047;">
-            {{ selectedEquipo.observaciones }}
+          <div v-if="selectedEquipo.observaciones" class="desc-col">
+            <strong>Observaciones:</strong>
+            <div class="description-box">{{ selectedEquipo.observaciones }}</div>
           </div>
         </div>
         <div class="modal-actions">
@@ -1472,13 +1525,17 @@ th { background-color: #f8f9fa; font-weight: bold; }
 /* Modales */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
 .modal { background: white; padding: 2rem; border-radius: 8px; width: 500px; max-width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+.modal-wide { width: 820px; max-width: 95%; }
 .modal-docs { width: 650px; }
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: bold; }
 .form-group input, .form-group select { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; background-color: white; }
 .form-group textarea { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; resize: vertical; font-family: inherit; }
 .form-row { display: flex; gap: 1rem; }
-.form-row .form-group { flex: 1; }
+.form-row .form-group { flex: 1; min-width: 0; }
+.form-row-2 .form-group { flex: 1; }
+.form-row-3 .form-group { flex: 1; }
+.form-row-4 .form-group { flex: 1; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem; }
 
 /* Historial */
@@ -1498,12 +1555,20 @@ th { background-color: #f8f9fa; font-weight: bold; }
 .empty-state { text-align: center; color: #888; padding: 2rem; }
 
 /* Detalles */
-.detail-grid { display: flex; gap: 2rem; margin-bottom: 1.5rem; }
-.detail-column { flex: 1; }
-.detail-column h4 { margin-bottom: 0.8rem; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 0.3rem; }
-.detail-column p { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #555; }
-.detail-full { width: 100%; background: #f8f9fa; padding: 1rem; border-radius: 6px; }
-.detail-full h4 { margin-top: 0; margin-bottom: 0.5rem; color: #2c3e50; }
+.detail-tables { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; }
+.detail-table-block { flex: 1; }
+.detail-table-block h4 { margin-bottom: 0.6rem; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.3rem; font-size: 0.95rem; }
+.detail-table { width: 100%; border-collapse: collapse; }
+.detail-table td { padding: 0.35rem 0.6rem; font-size: 0.88rem; border-bottom: 1px solid #eee; vertical-align: top; }
+.detail-table tr:last-child td { border-bottom: none; }
+.detail-label { color: #666; font-weight: 600; width: 42%; white-space: nowrap; }
+.detail-contratos { margin-top: 0.8rem; }
+.detail-contratos-title { text-align: left; font-size: 0.85rem; color: #2c3e50; font-weight: 600; padding-bottom: 0.3rem; border-bottom: 1px solid #3498db; }
+.detail-th { font-size: 0.78rem; color: #666; font-weight: 600; padding: 0.25rem 0.6rem; text-align: left; background: #f5f7fa; }
+.ct-prov { color: #888; font-size: 0.8rem; }
+.detail-descriptions { display: flex; gap: 1.5rem; margin-bottom: 1rem; }
+.desc-col { flex: 1; }
+.desc-col strong { display: block; margin-bottom: 0.3rem; color: #2c3e50; font-size: 0.9rem; }
 .description-box {
   background: white; padding: 0.8rem; border: 1px solid #e0e0e0; border-radius: 4px;
   min-height: 50px; color: #444; font-size: 0.9rem;

@@ -696,11 +696,11 @@ onMounted(() => {
 
     <!-- Modal Crear OT -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal modal-create-ot" style="width: 1000px; max-width: 95vw;">
+      <div class="modal" style="width: 750px; max-width: 95vw;">
         <h3>Nueva Orden de Trabajo</h3>
         <form @submit.prevent="saveOrden">
-          <!-- Fila 1: Equipo (75%), Estado/Prioridad/Técnico (25%) -->
-          <div class="form-row-ot-f1">
+          <!-- Fila 1: Equipo, Estado, Prioridad, Técnico -->
+          <div class="form-row-4">
             <div class="form-group"><label>Equipo Afectado *</label><select v-model="formData.equipo_id" required><option value="" disabled>Seleccione...</option><option v-for="eq in equipos" :key="eq.id" :value="eq.id">{{ eq.nombre_corto || eq.modelo }}{{ eq.numero_serie ? ' — ' + eq.numero_serie : '' }}</option></select></div>
             <div class="form-group"><label>Estado *</label><select v-model="formData.estado_id" required><option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option></select></div>
             <div class="form-group"><label>Prioridad</label><select v-model="formData.prioridad"><option>Urgente</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
@@ -723,70 +723,64 @@ onMounted(() => {
           </div>
           <!-- Fila 3: Descripción y Acciones lado a lado -->
           <div class="form-row">
-            <div class="form-group"><label>Descripción / Falla *</label><textarea v-model="formData.descripcion_falla" required rows="3"></textarea></div>
+            <div class="form-group"><label>Descripción / Falla *</label><textarea v-model="formData.descripcion_falla" required></textarea></div>
             <div class="form-group"><label>Acciones Realizadas</label><textarea v-model="formData.acciones_realizadas" rows="3" placeholder="Describa la reparación..."></textarea></div>
           </div>
 
-          <!-- Costos Adicionales + Repuestos Utilizados en la misma fila -->
-          <div class="costos-repuestos-row">
-            <!-- Columna izquierda: Costos Adicionales (simplificado) -->
-            <div class="cr-col">
-              <div class="costos-section">
-                <div class="costo-form-inline">
-                  <div class="form-group" style="flex: 3;">
-                    <label>Costos Adicionales</label>
-                    <input v-model="costoForm.descripcion_costo" type="text" placeholder="Descripción del costo">
-                  </div>
-                  <div class="form-group">
-                    <label>Tipo</label>
-                    <select v-model="costoForm.tipo_costo">
-                      <option v-for="t in tiposCosto" :key="t" :value="t">{{ t }}</option>
-                    </select>
-                  </div>
-                  <div class="form-group" style="flex: 0.5;">
-                    <label>Monto</label>
-                    <input v-model="costoForm.monto_costo" type="number" step="0.01" min="0" placeholder="0.00">
-                  </div>
-                  <div class="form-group" style="flex: 0 0 25%;">
-                    <button type="button" class="btn-sm btn-add-costo" @click="addCostoToOT" style="width: 100%; margin-top: 1.45rem;">+ Agregar</button>
-                  </div>
+          <!-- Costos Adicionales -->
+          <h4 class="section-title">Costos Adicionales</h4>
+          <div class="costos-section">
+            <div class="costo-form">
+              <div class="form-group">
+                <label>Descripción</label>
+                <input v-model="costoForm.descripcion_costo" type="text" placeholder="Ej: Transporte al hospital remoto">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Tipo de Costo</label>
+                  <select v-model="costoForm.tipo_costo">
+                    <option v-for="t in tiposCosto" :key="t" :value="t">{{ t }}</option>
+                  </select>
                 </div>
-                <ul class="costo-lista" v-if="costosAdicionales.length">
-                  <li v-for="(c, idx) in costosAdicionales" :key="idx">
-                    <span class="costo-tipo">{{ c.tipo_costo }}</span>
-                    <span class="costo-desc">{{ c.descripcion_costo }}</span>
-                    <span class="costo-monto">Bs. {{ Number(c.monto_costo).toFixed(2) }}</span>
-                    <button type="button" class="costo-remove" @click="removeCostoFromOT(idx)" title="Quitar costo">×</button>
-                  </li>
-                  <li class="costo-total">
-                    <span>Total:</span>
-                    <span class="costo-monto-total">Bs. {{ totalCostos.toFixed(2) }}</span>
-                  </li>
-                </ul>
-                <p v-else class="costo-empty">No hay costos agregados.</p>
+                <div class="form-group">
+                  <label>Monto (Bs.)</label>
+                  <input v-model="costoForm.monto_costo" type="number" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div class="form-group" style="display: flex; align-items: flex-end;">
+                  <button type="button" class="btn-sm btn-add-costo" @click="addCostoToOT" style="width: 100%;">+ Agregar Costo</button>
+                </div>
               </div>
             </div>
-            <!-- Columna derecha: Repuestos Utilizados -->
-            <div class="cr-col">
-              <h4 class="section-title">Repuestos Utilizados</h4>
-              <div class="repuestos-section">
-                <div class="repuesto-selector">
-                  <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
-                  <input type="number" v-model="selectedCantidad" min="1" style="width: 80px">
-                  <button type="button" class="btn-sm btn-add-repuesto" @click="addRepuestoToOT">Agregar</button>
-                </div>
-                <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
-                  <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">{{ item.cantidad }} x {{ item.nombre }}</li>
-                </ul>
-                <p v-else class="repuesto-empty">No hay repuestos agregados.</p>
-              </div>
-            </div>
+            <ul class="costo-lista" v-if="costosAdicionales.length">
+              <li v-for="(c, idx) in costosAdicionales" :key="idx">
+                <span class="costo-tipo">{{ c.tipo_costo }}</span>
+                <span class="costo-desc">{{ c.descripcion_costo }}</span>
+                <span class="costo-monto">Bs. {{ Number(c.monto_costo).toFixed(2) }}</span>
+                <button type="button" class="costo-remove" @click="removeCostoFromOT(idx)" title="Quitar costo">×</button>
+              </li>
+              <li class="costo-total">
+                <span>Total:</span>
+                <span class="costo-monto-total">Bs. {{ totalCostos.toFixed(2) }}</span>
+              </li>
+            </ul>
+            <p v-else class="costo-empty">No hay costos agregados.</p>
           </div>
 
-          <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
-            <button type="submit" class="btn-primary">Crear</button>
-            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
+          <!-- Repuestos Utilizados -->
+          <h4 class="section-title">Repuestos Utilizados</h4>
+          <div class="repuestos-section">
+            <div class="repuesto-selector">
+              <select v-model="selectedRepuestoId"><option :value="null">Seleccionar...</option><option v-for="rep in listaRepuestos" :key="rep.id" :value="rep.id">{{ rep.nombre_repuesto }} (Stock: {{ rep.cantidad_disponible }})</option></select>
+              <input type="number" v-model="selectedCantidad" min="1" style="width: 80px">
+              <button type="button" class="btn-sm btn-add-repuesto" @click="addRepuestoToOT">Agregar</button>
+            </div>
+            <ul class="repuesto-lista" v-if="repuestosSeleccionados.length">
+              <li v-for="(item, idx) in repuestosSeleccionados" :key="idx">{{ item.cantidad }} x {{ item.nombre }}</li>
+            </ul>
+            <p v-else class="repuesto-empty">No hay repuestos agregados.</p>
           </div>
+
+          <div class="modal-actions"><button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button><button type="submit" class="btn-primary">Crear</button></div>
         </form>
       </div>
     </div>
@@ -881,12 +875,12 @@ onMounted(() => {
 
     <!-- MODAL EDITAR (Formulario) -->
     <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
-      <div class="modal modal-edit-ot" style="width: 1000px; max-width: 95vw;">
+      <div class="modal modal-edit-ot" style="width: 800px; max-width: 95vw;">
         <h3>Editar / Cerrar OT #{{ selectedOT.id }}</h3>
 
         <form @submit.prevent="updateOrden">
-          <!-- Fila 1: Equipo (75%), Estado/Prioridad/Técnico (25%) -->
-          <div class="form-row-ot-f1">
+          <!-- Fila 1: Equipo, Estado, Prioridad, Técnico -->
+          <div class="form-row-4">
             <div class="form-group"><label>Equipo Afectado *</label><select v-model="editFormData.equipo_id" required><option value="" disabled>Seleccione...</option><option v-for="eq in equipos" :key="eq.id" :value="eq.id">{{ eq.nombre_corto || eq.modelo }}{{ eq.numero_serie ? ' — ' + eq.numero_serie : '' }}</option></select></div>
             <div class="form-group"><label>Nuevo Estado *</label><select v-model="editFormData.estado_id" required><option v-for="est in estadosOT" :key="est.id" :value="est.id">{{ est.nombre_estado }}</option></select></div>
             <div class="form-group"><label>Prioridad</label><select v-model="editFormData.prioridad"><option>Urgente</option><option>Alta</option><option>Media</option><option>Baja</option></select></div>
@@ -918,32 +912,35 @@ onMounted(() => {
           </div>
           <!-- Fila 3: Descripción y Acciones lado a lado -->
           <div class="form-row">
-            <div class="form-group"><label>Descripción / Falla *</label><textarea v-model="editFormData.descripcion_falla" required rows="3"></textarea></div>
+            <div class="form-group"><label>Descripción / Falla *</label><textarea v-model="editFormData.descripcion_falla" required></textarea></div>
             <div class="form-group"><label>Acciones Realizadas</label><textarea v-model="editFormData.acciones_realizadas" rows="3" placeholder="Describa la reparación..."></textarea></div>
           </div>
 
           <!-- Costos Adicionales + Repuestos Utilizados en la misma fila -->
           <div class="costos-repuestos-row">
-            <!-- Columna izquierda: Costos Adicionales (simplificado) -->
+            <!-- Columna izquierda: Costos Adicionales -->
             <div class="cr-col">
+              <h4 class="section-title">Costos Adicionales</h4>
               <div class="costos-section">
-                <div class="costo-form-inline">
-                  <div class="form-group" style="flex: 3;">
-                    <label>Costos Adicionales</label>
-                    <input v-model="editCostoForm.descripcion_costo" type="text" placeholder="Descripción del costo">
-                  </div>
+                <div class="costo-form">
                   <div class="form-group">
-                    <label>Tipo</label>
-                    <select v-model="editCostoForm.tipo_costo">
-                      <option v-for="t in tiposCosto" :key="t" :value="t">{{ t }}</option>
-                    </select>
+                    <label>Descripción</label>
+                    <input v-model="editCostoForm.descripcion_costo" type="text" placeholder="Ej: Transporte al hospital remoto">
                   </div>
-                  <div class="form-group" style="flex: 0.5;">
-                    <label>Monto</label>
-                    <input v-model="editCostoForm.monto_costo" type="number" step="0.01" min="0" placeholder="0.00">
-                  </div>
-                  <div class="form-group" style="flex: 0 0 25%;">
-                    <button type="button" class="btn-sm btn-add-costo" @click="addEditCostoToOT" style="width: 100%; margin-top: 1.45rem;">+ Agregar</button>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>Tipo de Costo</label>
+                      <select v-model="editCostoForm.tipo_costo">
+                        <option v-for="t in tiposCosto" :key="t" :value="t">{{ t }}</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label>Monto (Bs.)</label>
+                      <input v-model="editCostoForm.monto_costo" type="number" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                      <button type="button" class="btn-sm btn-add-costo" @click="addEditCostoToOT" style="width: 100%;">+ Agregar</button>
+                    </div>
                   </div>
                 </div>
                 <ul class="costo-lista" v-if="editCostosAdicionales.length">
@@ -978,9 +975,9 @@ onMounted(() => {
             </div>
           </div>
 
-          <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
-            <button type="submit" class="btn-primary">Guardar Cambios</button>
+          <div class="modal-actions">
             <button type="button" class="btn-secondary" @click="showEditModal = false">Cancelar</button>
+            <button type="submit" class="btn-primary">Guardar Cambios</button>
           </div>
         </form>
       </div>
@@ -1146,9 +1143,6 @@ th { background-color: #f8f9fa; }
 .costos-section { padding: 0; margin-top: 0.5rem; }
 .costo-form { background: #faf5ff; padding: 0.75rem; border-radius: 4px; border: 1px dashed #c4b5fd; margin-bottom: 0.75rem; }
 .costo-form .form-row { gap: 0.5rem; }
-.costo-form-inline { display: flex; gap: 0.5rem; align-items: flex-end; margin-bottom: 0.75rem; flex-wrap: wrap; }
-.costo-form-inline .form-group { margin-bottom: 0; flex: 1; min-width: 100px; }
-.costo-form-inline .form-group label { font-size: 0.78rem; margin-bottom: 0.2rem; }
 .btn-add-costo { background: #7c3aed; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85rem; margin-top: 0.25rem; }
 .btn-add-costo:hover { background: #6d28d9; }
 .costo-lista { list-style: none; padding: 0; margin: 0; }
@@ -1198,12 +1192,10 @@ th { background-color: #f8f9fa; }
 
 /* Detalle tabla OT (v0.9.23) */
 .modal-view-ot { width: 750px !important; max-width: 95vw !important; }
-.modal-edit-ot { width: 1000px !important; max-width: 95vw !important; }
-.modal-create-ot { width: 1000px !important; max-width: 95vw !important; }
+.modal-edit-ot { width: 800px !important; max-width: 95vw !important; }
 .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem 1rem; }
 .form-row-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.75rem 1rem; }
-.form-row-ot-f1 { display: grid; grid-template-columns: 3fr 1fr 1fr 1fr; gap: 0.75rem 1rem; }
-@media (max-width: 768px) { .form-row-3, .form-row-4, .form-row-ot-f1 { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .form-row-3, .form-row-4 { grid-template-columns: 1fr; } }
 .detail-table-block h4 { margin-bottom: 0.6rem; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.3rem; font-size: 0.95rem; }
 .detail-table { width: 100%; border-collapse: collapse; }
 .detail-table td { padding: 0.35rem 0.6rem; font-size: 0.88rem; border-bottom: 1px solid #eee; vertical-align: top; }

@@ -672,6 +672,7 @@ onMounted(async () => {
         </div>
         <div class="modal-body">
           <div class="form-grid">
+            <!-- Fila 1: Proveedor, Tipo, Fecha Inicio, Fecha Fin -->
             <div class="form-group">
               <label>Proveedor <span class="req">*</span></label>
               <select v-model="formData.proveedor_id" class="input">
@@ -693,6 +694,7 @@ onMounted(async () => {
               <label>Fecha Fin <span class="req">*</span></label>
               <input v-model="formData.fecha_fin" type="date" class="input" />
             </div>
+            <!-- Fila 2: Costo Total, Costo Periódico, Periodicidad, Moneda -->
             <div class="form-group">
               <label>Costo Total</label>
               <input v-model="formData.costo_total" type="number" step="0.01" class="input" placeholder="0.00" />
@@ -711,6 +713,7 @@ onMounted(async () => {
               <label>Moneda</label>
               <input v-model="formData.moneda" type="text" class="input input-readonly" readonly title="El sistema opera únicamente en Bolivianos (BOB)" />
             </div>
+            <!-- Fila 3: Tiempo de Respuesta, Horario de Servicio -->
             <div class="form-group">
               <label>Tiempo de Respuesta</label>
               <input v-model="formData.tiempo_respuesta" type="text" class="input" placeholder="ej: 24h hábil" />
@@ -719,22 +722,23 @@ onMounted(async () => {
               <label>Horario de Servicio</label>
               <input v-model="formData.horario_servicio" type="text" class="input" placeholder="ej: L-V 8:00-18:00" />
             </div>
-            <div class="form-group form-group-full">
+            <!-- Fila 4: Cobertura y Notas lado a lado -->
+            <div class="form-group">
               <label>Cobertura (detalle)</label>
               <textarea v-model="formData.cobertura_detalle" class="input" rows="2" placeholder="Servicios incluidos en el contrato..."></textarea>
             </div>
-            <div class="form-group form-group-full">
+            <div class="form-group">
               <label>Notas</label>
               <textarea v-model="formData.notas" class="input" rows="2"></textarea>
             </div>
-            <div class="form-group form-group-full">
+            <!-- Fila 5: Equipos Asociados -->
+            <div class="form-group" style="grid-column: 1 / -1;">
               <label>
                 Equipos Asociados
                 <span class="equipos-counter">({{ equiposSeleccionadosCount }} seleccionado{{ equiposSeleccionadosCount === 1 ? '' : 's' }} de {{ equipos.length }})</span>
                 <button v-if="equiposSeleccionadosCount > 0" type="button" class="btn-limpiar-seleccion" @click="limpiarSeleccionEquipos" title="Quitar todos">Limpiar selección</button>
               </label>
               <div class="equipos-selector">
-                <!-- v0.9.9: Opción B — chips/tags de equipos seleccionados -->
                 <div v-if="equiposSeleccionados.length" class="chips-container">
                   <span v-for="eq in equiposSeleccionados" :key="eq.id" class="chip">
                     <span class="chip-text">
@@ -749,7 +753,6 @@ onMounted(async () => {
                   No hay equipos seleccionados. Use el buscador para agregar.
                 </div>
 
-                <!-- Buscador -->
                 <div class="equipos-search-wrapper">
                   <svg class="equipos-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
@@ -764,7 +767,6 @@ onMounted(async () => {
                   <button v-if="equiposSearchQuery" type="button" class="equipos-search-clear" @click="equiposSearchQuery = ''" title="Limpiar búsqueda">×</button>
                 </div>
 
-                <!-- Resultados de búsqueda (excluyendo ya seleccionados) -->
                 <div v-if="equiposSearchQuery" class="equipos-resultados">
                   <p v-if="!equipos.length" class="text-muted equipos-empty">No hay equipos registrados.</p>
                   <p v-else-if="!equiposResultadosBusqueda.length" class="text-muted equipos-empty">No se encontraron equipos con "{{ equiposSearchQuery }}" o ya están todos seleccionados.</p>
@@ -876,7 +878,7 @@ onMounted(async () => {
           </tbody>
         </table>
 
-        <div class="modal-actions">
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
           <button class="btn btn-secondary" @click="showDetailModal = false">Cerrar</button>
         </div>
       </div>
@@ -1492,7 +1494,7 @@ textarea.input {
 .equipos-search-input {
   width: 100%; padding: 0.5rem 2rem 0.5rem 2rem;
   border: 1px solid #cbd5e1; border-radius: 6px;
-  font-size: 0.88rem; box-sizing: border-box; background: #fff;
+  font-size: 0.88rem; box-sizing: border-box; background: #e8f4fd;
 }
 .equipos-search-input::placeholder { color: #94a3b8; }
 .equipos-search-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
@@ -1630,7 +1632,7 @@ textarea.input {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 0.75rem 1rem;
 }
 
@@ -1734,6 +1736,9 @@ textarea.input {
   .page-header { flex-direction: column; align-items: stretch; }
   .header-actions { justify-content: stretch; }
   .header-actions .btn { flex: 1; justify-content: center; }
+}
+@media (min-width: 769px) and (max-width: 900px) {
+  .form-grid { grid-template-columns: 1fr 1fr; }
 }
 
 /* Detalle tabla (v0.9.23) */

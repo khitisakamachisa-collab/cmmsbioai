@@ -607,3 +607,51 @@ Notas Generales
 el cuadro de búsqueda de equipo por nombre modelo serie o marca, con un fondo de color que resalte
 Equipos Asociados 
 esta pagina esta limitada también a los 550px,, si esa asi cambiala a 750px
+
+
+dentro de Gestion de Proveedores y Contactosçç
+tenemos en la tabla, Acciones, donde tenemos el icono gestionar contactos, ordenalo en forma de tablas.
+
+
+dentro de la pagina Contratos en acciones en el ojo/ver, de la misma manera como hemos venido haciendo
+conviértelo a tablas.
+veamos como queda.
+respeta los colores.
+
+
+
+algunas pequeñas modificaciones
+en COSTOS en 
+a) el ojo/ver, que el botón CERRAR este a la derecha.
+b) en EDITAR y CREAR. la nueva disposición será la siguiente
+Proveedor *,Tipo de Contrato *,Fecha Inicio *,Fecha Fin *
+Costo Total, Costo Periódico, Periodicidad Costo, Moneda
+Tiempo de Respuesta,Horario de Servicio
+Cobertura (detalle),Notas
+Equipos Asociados, 
+búsqueda
+
+Los botones CANCELAR y CREAR, siempre a la derecha.
+
+
+
+
+
+en el modal de visualización de Listado de Órdenes de Trabajo
+convierte la información en tablas,  como en las otras visualizaciones.
+
+
+
+
+en la misma pagina cambiar el orden de EDITAR y CREAR.
+Equipo Afectado *, Nuevo Estado *, Prioridad, Técnico Asignado
+Título / Tipo de OT, Fecha y Hora de Creación, Tiempo Invertido, horas/días
+Descripción / Falla *, Acciones Realizadas
+Costos Adicionales, Repuestos Utilizados
+
+
+el campo Equipo Afectado *, debe tener el nombre del equipo - numero de serie.
+
+intentemos a ver como se ve
+
+

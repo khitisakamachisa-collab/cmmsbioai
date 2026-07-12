@@ -794,90 +794,89 @@ onMounted(async () => {
 
     <!-- Modal Detalle -->
     <div v-if="showDetailModal && selectedContrato" class="modal-overlay" @click.self="showDetailModal = false">
-      <div class="modal modal-lg">
-        <div class="modal-header">
-          <h3>Contrato #{{ selectedContrato.id }} — {{ selectedContrato.tipo_contrato }}</h3>
-          <button class="btn-close" @click="showDetailModal = false">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="detalle-grid">
-            <div class="detalle-item">
-              <span class="detalle-label">Proveedor</span>
-              <span class="detalle-value">{{ selectedContrato.proveedor_nombre || '—' }}</span>
-            </div>
-            <div class="detalle-item">
-              <span class="detalle-label">Estado</span>
-              <span class="badge" :class="getEstadoVigencia(selectedContrato).clase">{{ getEstadoVigencia(selectedContrato).label }}</span>
-            </div>
-            <div class="detalle-item">
-              <span class="detalle-label">Fecha Inicio</span>
-              <span class="detalle-value">{{ formatFecha(selectedContrato.fecha_inicio) }}</span>
-            </div>
-            <div class="detalle-item">
-              <span class="detalle-label">Fecha Fin</span>
-              <span class="detalle-value">{{ formatFecha(selectedContrato.fecha_fin) }}</span>
-            </div>
-            <div class="detalle-item">
-              <span class="detalle-label">Días Restantes</span>
-              <span class="detalle-value">{{ selectedContrato.dias_restantes ?? '—' }}</span>
-            </div>
-            <!-- v0.9.11: Precio del contrato destacado -->
-            <div class="detalle-item detalle-precio">
-              <span class="detalle-label">Precio del Contrato</span>
-              <span class="detalle-value detalle-precio-value">
-                <span v-if="selectedContrato.costo_total !== null && selectedContrato.costo_total !== undefined">
-                  {{ formatMoneda(selectedContrato.costo_total, selectedContrato.moneda) }}
-                  <small class="detalle-precio-tipo">Costo total</small>
-                </span>
-                <span v-else-if="selectedContrato.costo_periodico !== null && selectedContrato.costo_periodico !== undefined">
-                  {{ formatMoneda(selectedContrato.costo_periodico, selectedContrato.moneda) }}
-                  <small class="detalle-precio-tipo">Costo {{ selectedContrato.periodicidad_costo.toLowerCase() }}</small>
-                </span>
-                <span v-else class="text-muted">—</span>
-              </span>
-            </div>
-            <div class="detalle-item">
-              <span class="detalle-label">Costo Total</span>
-              <span class="detalle-value">{{ formatMoneda(selectedContrato.costo_total, selectedContrato.moneda) }}</span>
-            </div>
-            <div class="detalle-item">
-              <span class="detalle-label">Costo Periódico</span>
-              <span class="detalle-value">
-                {{ formatMoneda(selectedContrato.costo_periodico, selectedContrato.moneda) }}
-                <small v-if="selectedContrato.costo_periodico !== null && selectedContrato.costo_periodico !== undefined" class="text-muted">/ {{ selectedContrato.periodicidad_costo }}</small>
-              </span>
-            </div>
-            <div class="detalle-item">
-              <span class="detalle-label">Tiempo de Respuesta</span>
-              <span class="detalle-value">{{ selectedContrato.tiempo_respuesta || '—' }}</span>
-            </div>
-            <div class="detalle-item">
-              <span class="detalle-label">Horario de Servicio</span>
-              <span class="detalle-value">{{ selectedContrato.horario_servicio || '—' }}</span>
-            </div>
-            <div class="detalle-item detalle-full">
-              <span class="detalle-label">Cobertura</span>
-              <span class="detalle-value">{{ selectedContrato.cobertura_detalle || '—' }}</span>
-            </div>
-            <div class="detalle-item detalle-full">
-              <span class="detalle-label">Notas</span>
-              <span class="detalle-value">{{ selectedContrato.notas || '—' }}</span>
-            </div>
-            <div class="detalle-item detalle-full">
-              <span class="detalle-label">Equipos Asociados ({{ selectedContrato.equipos?.length || 0 }})</span>
-              <div v-if="selectedContrato.equipos && selectedContrato.equipos.length" class="equipos-lista">
-                <div v-for="eq in selectedContrato.equipos" :key="eq.id" class="equipo-tag">
-                  <strong>{{ eq.nombre_corto }}</strong>
-                  <strong v-if="eq.modelo" class="equipo-tag-detalle">— {{ eq.modelo }}</strong>
-                  <strong v-if="eq.numero_serie" class="equipo-tag-detalle">SN: {{ eq.numero_serie }}</strong>
-                  <strong v-if="eq.ubicacion_actual" class="equipo-tag-detalle">📍 {{ eq.ubicacion_actual }}</strong>
-                </div>
-              </div>
-              <span v-else class="text-muted">Sin equipos asociados</span>
-            </div>
+      <div class="modal modal-detalle-contrato" style="width: 750px; max-width: 95vw;">
+        <h3 style="margin: 0 0 1rem 0; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem;">Contrato #{{ selectedContrato.id }} — {{ selectedContrato.tipo_contrato }}</h3>
+
+        <div style="max-width: 520px; margin: 0 auto;">
+          <div class="detail-table-block" style="flex: none; margin-bottom: 1rem;">
+            <h4>Información General</h4>
+            <table class="detail-table">
+              <tbody>
+                <tr><td class="detail-label">Proveedor</td><td>{{ selectedContrato.proveedor_nombre || '—' }}</td></tr>
+                <tr><td class="detail-label">Estado</td><td><span class="badge" :class="getEstadoVigencia(selectedContrato).clase">{{ getEstadoVigencia(selectedContrato).label }}</span></td></tr>
+                <tr><td class="detail-label">Fecha Inicio</td><td>{{ formatFecha(selectedContrato.fecha_inicio) }}</td></tr>
+                <tr><td class="detail-label">Fecha Fin</td><td>{{ formatFecha(selectedContrato.fecha_fin) }}</td></tr>
+                <tr><td class="detail-label">Días Restantes</td><td>{{ selectedContrato.dias_restantes ?? '—' }}</td></tr>
+                <tr><td class="detail-label">Tiempo de Respuesta</td><td>{{ selectedContrato.tiempo_respuesta || '—' }}</td></tr>
+                <tr><td class="detail-label">Horario de Servicio</td><td>{{ selectedContrato.horario_servicio || '—' }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="detail-table-block" style="flex: none;">
+            <h4>Costos</h4>
+            <table class="detail-table">
+              <tbody>
+                <tr><td class="detail-label">Precio del Contrato</td>
+                  <td>
+                    <span v-if="selectedContrato.costo_total !== null && selectedContrato.costo_total !== undefined">
+                      {{ formatMoneda(selectedContrato.costo_total, selectedContrato.moneda) }}
+                      <small style="color: #64748b; font-size: 0.78rem; display: block;">Costo total</small>
+                    </span>
+                    <span v-else-if="selectedContrato.costo_periodico !== null && selectedContrato.costo_periodico !== undefined">
+                      {{ formatMoneda(selectedContrato.costo_periodico, selectedContrato.moneda) }}
+                      <small style="color: #64748b; font-size: 0.78rem; display: block;">Costo {{ selectedContrato.periodicidad_costo?.toLowerCase() }}</small>
+                    </span>
+                    <span v-else style="color: #94a3b8;">—</span>
+                  </td>
+                </tr>
+                <tr><td class="detail-label">Costo Total</td><td>{{ formatMoneda(selectedContrato.costo_total, selectedContrato.moneda) }}</td></tr>
+                <tr><td class="detail-label">Costo Periódico</td>
+                  <td>
+                    {{ formatMoneda(selectedContrato.costo_periodico, selectedContrato.moneda) }}
+                    <small v-if="selectedContrato.costo_periodico !== null && selectedContrato.costo_periodico !== undefined" style="color: #94a3b8;"> / {{ selectedContrato.periodicidad_costo }}</small>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-        <div class="modal-footer">
+
+        <div class="detail-descriptions">
+          <div v-if="selectedContrato.cobertura_detalle" class="desc-col">
+            <h4>Cobertura</h4>
+            <div class="description-box">{{ selectedContrato.cobertura_detalle }}</div>
+          </div>
+          <div v-if="selectedContrato.notas" class="desc-col">
+            <h4>Notas</h4>
+            <div class="description-box">{{ selectedContrato.notas }}</div>
+          </div>
+        </div>
+
+        <div class="detail-section-title">Equipos Asociados ({{ selectedContrato.equipos?.length || 0 }})</div>
+        <div v-if="!selectedContrato.equipos || !selectedContrato.equipos.length" class="empty-section">
+          Sin equipos asociados.
+        </div>
+        <table v-else class="detail-table detail-table-full">
+          <thead>
+            <tr>
+              <th class="detail-th">Nombre</th>
+              <th class="detail-th">Modelo</th>
+              <th class="detail-th">N. Serie</th>
+              <th class="detail-th">Ubicación</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="eq in selectedContrato.equipos" :key="eq.id">
+              <td><strong>{{ eq.nombre_corto }}</strong></td>
+              <td>{{ eq.modelo || '—' }}</td>
+              <td>{{ eq.numero_serie || '—' }}</td>
+              <td>{{ eq.ubicacion_actual || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="modal-actions">
           <button class="btn btn-secondary" @click="showDetailModal = false">Cerrar</button>
         </div>
       </div>
@@ -1736,4 +1735,23 @@ textarea.input {
   .header-actions { justify-content: stretch; }
   .header-actions .btn { flex: 1; justify-content: center; }
 }
+
+/* Detalle tabla (v0.9.23) */
+.detail-tables { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; }
+.detail-table-block { flex: 1; }
+.detail-table-block h4 { margin-bottom: 0.6rem; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 0.3rem; font-size: 0.95rem; }
+.detail-table { width: 100%; border-collapse: collapse; }
+.detail-table td { padding: 0.35rem 0.6rem; font-size: 0.88rem; border-bottom: 1px solid #eee; vertical-align: top; }
+.detail-table tr:last-child td { border-bottom: none; }
+.detail-label { color: #666; font-weight: 600; width: 35%; white-space: nowrap; }
+.detail-table-full { margin-bottom: 0.5rem; }
+.detail-th { font-size: 0.78rem; color: #666; font-weight: 600; padding: 0.3rem 0.6rem; text-align: left; background: #f5f7fa; border-bottom: 1px solid #dde; }
+.detail-section-title { font-size: 0.95rem; font-weight: 600; color: #2c3e50; margin-bottom: 0.5rem; }
+.detail-descriptions { display: flex; gap: 1.5rem; margin-bottom: 1rem; }
+.desc-col { flex: 1; }
+.desc-col h4 { margin-bottom: 0.4rem; color: #2c3e50; font-size: 0.9rem; }
+.description-box { background: white; border: 1px solid #e0e0e0; border-radius: 4px; padding: 0.6rem; font-size: 0.85rem; color: #444; min-height: 50px; line-height: 1.5; word-break: break-word; overflow-y: auto; max-height: 150px; white-space: pre-wrap; }
+.empty-section { text-align: center; padding: 1rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; color: #64748b; font-size: 0.88rem; margin-bottom: 0.5rem; }
+.na-text { color: #94a3b8; font-size: 0.85rem; }
+.modal-detalle-contrato { width: 750px !important; max-width: 95vw !important; padding: 1.5rem; }
 </style>

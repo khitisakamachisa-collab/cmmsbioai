@@ -1105,10 +1105,10 @@ onMounted(() => {
             <p><strong>Columnas obligatorias:</strong> nombre_repuesto, cantidad_disponible</p>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showImportModal = false">Cancelar</button>
             <button type="button" class="btn-outline" @click="downloadTemplate" title="Descargar plantilla Excel">Plantilla Excel</button>
             <button type="button" class="btn-outline" @click="downloadTemplateCSV" title="Descargar plantilla CSV">Plantilla CSV</button>
             <button type="button" class="btn-primary" :disabled="!importFile" @click="uploadExcel">Importar</button>
+            <button type="button" class="btn-secondary" @click="showImportModal = false">Cancelar</button>
           </div>
         </div>
         <div v-if="importing" class="import-progress">
@@ -1249,8 +1249,8 @@ onMounted(() => {
             </div>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar</button>
+            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
           </div>
         </form>
       </div>
@@ -1344,9 +1344,9 @@ onMounted(() => {
             <p><strong>Columnas obligatorias:</strong> nombre_herramienta, cantidad_disponible</p>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="herrShowImportModal = false">Cancelar</button>
             <button type="button" class="btn-outline" @click="herrDownloadTemplate" title="Descargar plantilla Excel">Plantilla Excel</button>
             <button type="button" class="btn-primary" :disabled="!herrImportFile" @click="herrUploadExcel">Importar</button>
+            <button type="button" class="btn-secondary" @click="herrShowImportModal = false">Cancelar</button>
           </div>
         </div>
         <div v-if="herrImporting" class="import-progress">
@@ -1491,8 +1491,8 @@ onMounted(() => {
             </div>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="herrShowModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar</button>
+            <button type="button" class="btn-secondary" @click="herrShowModal = false">Cancelar</button>
           </div>
         </form>
       </div>
@@ -1576,10 +1576,10 @@ onMounted(() => {
             <input v-model="nuevoProveedorNombre" type="text" required placeholder="Ej: TechMed Bolivia SRL" autofocus>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showNuevoProveedorModal = false">Cancelar</button>
             <button type="submit" class="btn-primary" :disabled="creandoProveedor">
               {{ creandoProveedor ? 'Creando...' : 'Crear Proveedor' }}
             </button>
+            <button type="button" class="btn-secondary" @click="showNuevoProveedorModal = false">Cancelar</button>
           </div>
         </form>
       </div>

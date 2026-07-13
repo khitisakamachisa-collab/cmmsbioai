@@ -786,10 +786,10 @@ onMounted(async () => {
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" @click="cerrarModal" :disabled="saving">Cancelar</button>
           <button class="btn btn-primary" @click="guardarContrato" :disabled="saving">
             {{ saving ? 'Guardando...' : (isEditing ? 'Actualizar' : 'Crear') }}
           </button>
+          <button class="btn btn-secondary" @click="cerrarModal" :disabled="saving">Cancelar</button>
         </div>
       </div>
     </div>
@@ -946,6 +946,7 @@ onMounted(async () => {
               <button type="button" class="btn btn-primary" :disabled="!importFile" @click="submitImport">
                 Importar
               </button>
+              <button type="button" class="btn btn-secondary" @click="showImportModal = false">Cancelar</button>
             </div>
           </div>
 

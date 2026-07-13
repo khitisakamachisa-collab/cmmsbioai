@@ -411,8 +411,8 @@ onMounted(() => {
             </div>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showCreateModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Registrar Evento</button>
+            <button type="button" class="btn-secondary" @click="showCreateModal = false">Cancelar</button>
           </div>
         </form>
       </div>

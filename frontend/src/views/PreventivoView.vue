@@ -711,8 +711,8 @@ onMounted(() => {
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar</button>
+            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
           </div>
         </form>
       </div>
@@ -760,10 +760,10 @@ onMounted(() => {
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showGenerarOTModal = false">Cancelar</button>
             <button type="submit" class="btn-primary" :disabled="generarOTLoading">
               {{ generarOTLoading ? 'Generando...' : 'Generar OT' }}
             </button>
+            <button type="button" class="btn-secondary" @click="showGenerarOTModal = false">Cancelar</button>
           </div>
         </form>
       </div>

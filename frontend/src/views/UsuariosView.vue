@@ -147,8 +147,8 @@ onMounted(() => {
             </select>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar</button>
+            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
           </div>
         </form>
       </div>

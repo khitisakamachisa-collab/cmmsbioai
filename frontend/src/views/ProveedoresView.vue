@@ -701,10 +701,10 @@ onMounted(() => {
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showModal = false" :disabled="saving">Cancelar</button>
             <button type="submit" class="btn-primary" :disabled="saving">
               {{ saving ? 'Guardando...' : 'Guardar' }}
             </button>
+            <button type="button" class="btn-secondary" @click="showModal = false" :disabled="saving">Cancelar</button>
           </div>
         </form>
       </div>
@@ -833,8 +833,8 @@ onMounted(() => {
               placeholder="Horario de atencion, preferencias de contacto..."></textarea>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showContactoModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar</button>
+            <button type="button" class="btn-secondary" @click="showContactoModal = false">Cancelar</button>
           </div>
         </form>
       </div>
@@ -957,6 +957,7 @@ onMounted(() => {
             <button type="button" class="btn-primary" :disabled="!importFile" @click="submitImport">
               Importar
             </button>
+            <button type="button" class="btn-secondary" @click="showImportModal = false">Cancelar</button>
           </div>
         </div>
 

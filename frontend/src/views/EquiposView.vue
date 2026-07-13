@@ -825,7 +825,6 @@ onMounted(() => {
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showImportModal = false">Cancelar</button>
             <button type="button" class="btn-outline" @click="downloadTemplate" title="Descargar plantilla Excel con datos de ejemplo">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" style="vertical-align: -2px; margin-right: 4px;">
                 <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
@@ -843,6 +842,7 @@ onMounted(() => {
             <button type="button" class="btn-primary" :disabled="!importFile" @click="uploadExcel">
               Importar
             </button>
+            <button type="button" class="btn-secondary" @click="showImportModal = false">Cancelar</button>
           </div>
         </div>
 
@@ -1034,8 +1034,8 @@ onMounted(() => {
           </div>
 
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
             <button type="submit" class="btn-primary">Guardar</button>
+            <button type="button" class="btn-secondary" @click="showModal = false">Cancelar</button>
           </div>
         </form>
       </div>
@@ -1055,10 +1055,10 @@ onMounted(() => {
             <input v-model="nuevoProveedorNombre" type="text" required placeholder="Ej: TechMed Bolivia SRL" autofocus>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showNuevoProveedorModal = false">Cancelar</button>
             <button type="submit" class="btn-primary" :disabled="creandoProveedor">
               {{ creandoProveedor ? 'Creando...' : 'Crear Proveedor' }}
             </button>
+            <button type="button" class="btn-secondary" @click="showNuevoProveedorModal = false">Cancelar</button>
           </div>
         </form>
       </div>

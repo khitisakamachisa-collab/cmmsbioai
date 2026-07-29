@@ -1,0 +1,24 @@
+{
+  "empresa": {
+    "nombre": "CMMS-BioAI"
+  },
+  "directorios": {
+    "uploads_base": "D:\\uploads",
+    "equipos_imagenes": "EQUIPOS",
+    "equipos_documentos": "EQUIPOS",
+    "ot_documentos": "OT",
+    "repuestos_imagenes": "REPUESTOS",
+    "repuestos_documentos": "REPUESTOS",
+    "herramientas_imagenes": "HERRAMIENTAS",
+    "herramientas_documentos": "HERRAMIENTAS",
+    "reportes": "REPORTES"
+  },
+  "sistema": {
+    "idioma": "es",
+    "zona_horaria": "America/La_Paz",
+    "moneda": "BOB",
+    "prefijo_equipos": "E",
+    "prefijo_ordenes": "OT",
+    "prefijo_inventario": "R"
+  }
+}

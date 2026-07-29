@@ -1,0 +1,21 @@
+nombre_repuesto,numero_serie,numero_material,descripcion,especificaciones_tecnicas,cantidad_disponible,unidad_medida,ubicacion_almacen,nivel_stock_minimo,proveedor_ultimo,fecha_ultima_entrada,precio_referencia
+Filtro HEPA para cabina de flujo,SN-FLT-001,FLT-HEP-001,Filtro HEPA 99.97% 0.3μm para cabina Esco A2,"99.97% 0.3um, tamano estandar",3,unidad,Almacén B - Estante 1,2,BioSupply SRL,2025-01-15,850.5
+Lámpara UV para autoclave,SN-LMP-002,LMP-UV-002,Lámpara germicida UV 254nm Steris,"254nm, 15W, T8",5,unidad,Almacén B - Estante 1,2,MedEquip Bolivia,2025-02-20,320.0
+Electrodo pH recalculado,SN-ELC-003,ELC-PH-003,Electrodo de pH combinado para analizadores,"Combinado, rango 0-14 pH",4,unidad,Lab. Bioquímica,2,LabTech SA,2025-03-10,1200.0
+Tubos de ensayo 16x100mm,,TUB-16004,"Tubos de vidrio borosilicato, paquete x100","16x100mm, borosilicato",25,paquete,Almacén A - Estante 3,10,Vidriolab,2025-04-01,45.0
+Reactivos panel bioquímico,,RCT-BIO-005,Kit de reactivos Cobas c311 panel completo,"Panel completo, vigencia 6 meses",2,kit,Refrigerador Lab 2°C-8°C,1,Roche Diagnostics,2025-05-15,3500.0
+Filtro de aire compresor,,FLT-AIR-006,Filtro de línea para compresor dental/medico,"5 micras, roscable 1/4",6,unidad,Almacén B - Estante 2,3,DentalPro,2025-03-22,120.0
+Cable ECG 12 derivaciones,SN-CBL-007,CBL-ECG-007,Cable paciente 12-lead para GE MAC 2000,"12-lead, conector GE",3,unidad,Almacén C - Gabinete 1,2,GE Healthcare,2025-01-30,2100.0
+Sensor SpO2 dedo,,SNR-SPO-008,Sensor pulsioximetría dedo adulto Mindray,"Dedo adulto, compatible Mindray",4,unidad,UCI - Armario suministros,2,Mindray,2025-04-10,780.0
+Papel térmico monitor,,PPL-TRM-009,Papel térmico 112mm para monitor de signos vitales,112mm x 30m,8,rollo,Almacén A - Estante 5,3,PaperMed,2025-06-01,25.0
+Batería interna desfibrilador,SN-BAT-010,BAT-DEF-010,Batería recargable Zoll R Series 14.4V,"14.4V Li-Ion, autonomia 8h",2,unidad,Emergencias - Armario,1,Zoll Medical,2024-12-15,4500.0
+Goma/pistón pipeta,,GOM-PIP-011,Pistón de goma para pipeta Hamilton 100-1000μL,Compatible Hamilton 100-1000uL,10,unidad,Lab. Automatización,5,Hamilton,2025-05-20,35.0
+Sellador de tapa incubadora,,SLR-INC-012,Junta de goma puerta incubadora Thermo Heracell,"Silicona, tamano estandar Heracell",2,unidad,Almacén B - Estante 4,1,Thermo Fisher,2025-02-28,290.0
+Fluorescente microscopio,,LMP-MIC-013,Lámpara halógena 6V 30W para Olympus CX23,"6V 30W, base BA15d",3,unidad,Almacén B - Estante 1,2,Olympus,2025-03-15,180.0
+Reactivos hematología,,RCT-HEM-014,Kit diluyente/limpiador analizador hematológico,Diluyente + limpiador + hemolizante,3,kit,Refrigerador Lab 2°C-8°C,1,Sysmex,2025-04-20,2800.0
+Filtro CO2 incubadora,,FLT-CO2-015,Filtro HEPA para incubadora CO2 Thermo,"HEPA, 99.97% para Thermo 150/250",2,unidad,Almacén B - Estante 3,1,Thermo Fisher,2025-01-25,650.0
+Aceite bomba vacío,,ACE-VAC-016,Aceite para bomba de vacío Autoclave Steris 1L,"1L, grado vacío",4,litro,Almacén A - Estante 2,2,Steris,2025-05-05,150.0
+Manguera silicona,,MNG-SIL-017,Tubo silicona 8mm ID para bombas de infusión,"8mm ID, medical grade",5,metro,Almacén C - Estante 1,3,MedSilicone,2025-04-15,18.0
+Electrodo ECG desechable,,ELC-ECG-018,Electrodos Ag/Cl adulto paquete x50,"Ag/Cl, adulto, x50",20,paquete,UCI - Armario suministros,10,3M Healthcare,2025-06-10,55.0
+Papel filtro centrífuga,,PPL-CEN-019,Filtro de carbón para Eppendorf 5424,"Carbón activado, compatible 5424",6,unidad,Lab. Hematología,3,Eppendorf,2025-03-30,95.0
+Solución calibración pH,,SLC-PH-020,Solución buffer pH 4.01 / 7.00 / 10.01 set,Set 3 botellas 500mL,5,kit,Lab. Control Calidad,2,Hanna Instruments,2025-02-10,280.0

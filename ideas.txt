@@ -1,0 +1,20 @@
+ideas
+calendario
+se ve como 
+mes semana dia agenda
+
+
+opciones OT
+abierta, en progreso, en espera, completa.
+
+
+en estado del equipo
+operativo, modernización, fuera de servicio en espera, inspección programada, puesta en marcha, apagado de emergencia
+
+
+
+nuevo menú ESTADISTICAS
+
+
+IDEA
+que filas mostrar

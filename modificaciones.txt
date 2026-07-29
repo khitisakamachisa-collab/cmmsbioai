@@ -1,0 +1,657 @@
+modificaciones en pagina EQUIPOS
+
+en la  tabla EQUIPOS se encuentra el campo estado_id con 19 estados, que debemos cambiar en cantidad a solo:
+
+estado_id
+1. Operativo           
+2. En mantenimiento    
+3. En reparación       
+4. Fuera de servicio   
+6. En calibración      
+7. En inspección       
+8. Esp. Repuesto
+9. Esp atención técnica      
+9. Retirado/Baja      
+10.En Monitoreo           
+11.Otro       
+
+la misma tabla posee el campo ubicacion_actual, por lo cual estos elementos serán retirados
+ya que el usuario puede ponerlos manualmente y es libre de modificarlos, no tienen restricción.
+se eliminaras los elementos
+
+1. En almacenes
+2. Almacén c/repuesto
+3. En transporte
+4. En préstamo
+5. otro
+
+la condición de origen del EQUIPO es excelente, se queda como esta.
+condicion_origen
+Compra, Donacion, Prestamo, Demostracion, Evaluacion, Leasing, Renta, Comodato, Otro
+
+los ESTADOS dentro de equipos no los mesclaremos con garantías o contratos. los estados serán solo los 11 ya definidos mas arriba.
+en este momento la casilla ESTADOS esta mesclando los 11 estados_id con "garantía vencida", no se debe hacer asi. solo los 11 estados 
+indicados mas arriba.
+si y solo si existe un equipo en garantía dentro de la fechas de inicio y final de garantía, este mensaje en color verde "en garantia", se
+mostrara debajo del nombre_corte
+si no existe un equipo que este dentro las fechas de garantía. debajo del nombre_corto no se mostrara nada.
+para esto se creara un nuevo filtro, GARANTIA.
+
+equipos que esten en contrato también tendrán el mismo comportamiento.
+un equipo bajo un contrato dentro de las fechas del contrato, se mostrara debajo del nombre_corto como "en contrato" si y solo si, se encuentra 
+dentro de las fechas del contrato. si este contrato esta fuera de fecha no se mostrara nada. existirá un filtro para "en contrato" "sin contrato"
+
+consulta: el realizar el calculo para cada equipo de si esta dentro de las fechas de contrato o dentro de las fechas de garantía, puede ser complicado si se elige para un gran numero de equipos, pero, se consulta si este valor es mejor se guarde en alguna tabla o en la misma tabla de equipo con un nuevo campo. o en la tabla estadoequipo? como es mejor? 
+
+
+
+
+haremos pequeñas modificaciones en la pagina de EQUIPOS
+haremos una busqueda mas, adicional a nombre modelo y marca, haremos una segunda busqueda por "numero de serie".
+quitaremos de la lista "Condición" no es necesario que se muestre, pero se mantendrá en  los filtros.
+en los iconos de las "Acciones" estos están en colores oscuros y algunos se muestran en colores cuando se pasa el mouse por sobre ellos. 
+ahora, intentemos que sean de colores antes de pasar el mouse sobre ellos, para que visualmente sean mas familiares para el usuario final.
+
+
+
+en la pagina de "Proovedores", el boton de las "plantillas" y de "importar" son distintas en logica a las que tiene la pagina "EQUIPOS".
+vamos a hacerla igual que en equipos.
+en la misma pagina de "proovedores" el "ojo" puede ver, pero puede agregar editar y eliminar un contacto, eso no puede ser. por definicion
+el "ojo" solo puede vizualizar. lo resolveremos de esta manera, en el lapiz modificaremos editaremos todo lo de la empresa, como esta hasta ahora.
+el bote de basura sirve para eliminar eso esta bien. pero crearemos un nuevo icono con una persona, ese sera el icono de contacto, donde podremos adicionar eliminar modificar los contactos de la empresa, pueden ser varios contactos, siguiendo la logica.
+adicionalmente los iconos seran de color. todos esos iconos de esta pagina seran de color.
+hagamoslo¡¡¡
+
+
+ok, seguiremos haciendo cambios en "proovedores".
+Cuando queremos hacer un nuevo contacto y precionamos "+ Agregar Contacto" la ventana de "nuevo contacto" se abre detraz de la pantalla que hemos abierto anteriormente y debemos cerrarla manualmente para poder acceder a la que esta detraz.
+lo solucionaremos de la siguiente manera. cuanto presionemos "+ Agregar Contacto" esa ventana debe cerrarse para dar paso a la ventana de "nuevo contacto"
+lo mismo debemos hacer cuando abrimos un contacto y queremos editarlo, debemos cerrar esa ventana para dar paso a la anterior de edicion.
+
+sobre el color de los iconos, ahora probaremos esto: los iconos estaran sin colores como estaban anteriormente y cuando pasemos el mouse encima 
+se pondran del color que ahora usan para cuando el mouse esta encima...
+hagamoslo.
+
+
+Paginas "Contratos"
+la pagina contratos, tiene diferencias visuales y de uso que no encajan con las otras paginas.
+no existe un boton de "Cargar Excel" como en las otras paginas para que se puedan importar las plantillas. debe crearse siguiendo el patron de la
+pagina de "EQUIPOS".
+
+en "+ Nuevo Contrato" sale una ventana pero al momento de seleccionar los equipos "Equipos Asociados", ¿pero que ocurre si los equipos son muchos?
+¿no sera demaciado larga la pagina? ¿que pasa si son mas de 100 equipos?.
+debemos conversar sobre opciones de hacerlo mas practico.
+
+la opcion de "Buscar" se encuentra en un lugar distinto a donde se muestra en las otras paginas, seguir el ejemplo de "EQUIPOS".
+el buscador debe estar alejado de los filtros. como en "EQUIPOS"
+
+Los colores de los iconos ojo, lapiz y basurero seran los que utilizamos en "proovedores".
+hagamoslo
+
+sigamos tu recomendación , opción B.
+observaciones: en la lista las "Acciones" están en vertical, deben estar en horizontal.
+los botones de exportar, deben estar en un color semejante a los de importar y "+ Nuevo Contrato", tienen que ser un color solido, que convine con los otros.
+
+
+
+
+
+se puede crear uno nuevo.
+pero
+cuando edito sale error
+localhost5173
+Error al guardar contrato: [{"type":"int_parsing","loc":["path","contrato_id"],"msg":"Input should be a valid integer, unable to parse string as an integer","input":"undefined"}]
+en el backend sale este error
+2026-06-28 17:27:21,467 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     127.0.0.1:60398 - "GET /contratos/ HTTP/1.1" 200 OK
+2026-06-28 17:27:21,469 INFO sqlalchemy.engine.Engine ROLLBACK
+INFO:     127.0.0.1:54572 - "PUT /contratos/undefined HTTP/1.1" 422 Unprocessable Content
+
+otras cosas a corregir
+en la lista en "Acciones" se muestran los iconos muy a la derecha. no están alineados, como en las otra paginas.
+revisa por que esta asi y corrigelo.
+en el "ojo" en visualización se muestran opciones de edición y eliminar. no deben estar allí eliminalos, ver es solo ver.
+
+otra cosa, cuando en editar o en nuevo contrato se buscan los equipos los números de serie y marca deben estar también en negrillas.
+otra cosa, quita de la pagina la explicación "Gestión de contratos de mantenimiento, leasing, comodato y otros (RF12)"
+
+
+ok, esta solucionado.
+vamos a hacer unas modificaciones mas a EQUIPOS.
+cuando un equipo tiene "contrato" y "garantía" en el nombre corto se poden uno debajo del otro generando una tercera fila que descompagina todo.
+entonces, pon uno al lado del otro. cuando se seleccione garantía y en contrato, para evitar generar una tercera fila.
+en esta misma pagina usaremos los colores y formas para los iconos que estamos usando en "promovedores"
+
+En la pagina "contratos" en el "ojo" que se muestre también el precio del contrato.
+que el fondo de los equipos seleccionados en el contrato sea de un color resaltándolo, el color que ahora tiene es muy similar al fondo en general.
+
+y respecto a tu pregunta.
+si, quiero aplicar el mismo selector chips/tags a Proveedores (en su modal de crear/editar empresa).
+
+
+
+
+otras correcciones.
+en EQUIPOS en los iconos cuando se pasa el mouse sobre ellos no cambian de color. deben cambiar como en proovedores. revisa que paso.
+en CONTRATOS debemos adicionar DOCUMENTACION, ya que los contratos tienen documentación. etc.
+en CONTRATOS, los Equipos Asociados en ver deben tener un fondo de color mas llamativo. y todo su texto en negro.
+en CONTRATOS, en editar los chips pueden ser de cualquier color que sugieras pero las letras deben ser en negro no en blanco. para facilidad de lectura.
+
+
+hola, ahora revisaremos la pagina de REPUESTOS.
+esta pagina, tiene 2 paginas dentro REPUESTOS Y HERRAMIENTAS.
+ambas tienen campos "Proveedor Ultimo" estos deben ligarse con los "proveedores" que ya tenemos.
+es decir deben aparecer la lista de los proveedores al momento de crear o editar una herramienta o un repuesto
+también, así como lo hicimos en EQUIPOS debemos tener la opción de "+ Nuevo" cuando un proveedor no existe, para luego completar los datos del proveedor.
+adicionalmente, los iconos de ojo, lápiz, basurero documentación. deben tener colores de fondo iguales a los de EQUIPOS.
+CONSULTA: esta forma de obtener los nombres de los proveedores esta bien? planteaste alguna vez un tipo de búsqueda. que tal si los proveedores sean muchos?
+talvez la lista como hasta ahora esta sea demasiado larga, o aun sigue siendo una buena oopcion.. analizar lo optimo
+VAMOS HAGAMOSLO!!!
+
+
+hola, algunas pequeñas modificaciones mas.
+la pagina de "contratos", el campo "Vigencia" tiene una fecha en letras negra y la otra en grises,,, ambas sean en negras.
+en la pagina CONTRATOS, en nuevo contrato o editar contrato.
+los tamaños de los cuadros de texto y de todos en general están des encuadrados, supongo que puedes dimensionar estos cuadros por que si no 
+no se vieran asi,, asi que verifica que esten en un tamaño correcto. corrígelos.
+en las mismas pantalla editar y nuevo el campo "Moneda" solo da la opción de BOB por ahora debe estar todo en esa moneda.
+verifica que la moneda para todo el proyecto sea solo BOB bolivianos.
+vamos hagámoslo.
+
+ok, ahora todo esta ordenado y esta en bolivianos en las pantallas de nuevo y editar
+pero hemos retrocedido en otras cosas que ya habíamos solucionado antes.
+es que volviste atrás en cosas que ya habíamos solucionado
+1.- el cuadro buscador no esta donde debe estar como en las demás paginas, arriba a la derecha, corrige eso.
+2.- en la tabla debajo de "Acciones" no están bien alineadas el ojo, el lapiz, el basurero, y teníamos documentación que ahora no esta. corrige eso.
+3.- los iconos de ojo, lapiz, basurero. documentación no son iguales a las otras paginas, regresaron a ser emojis, corrige eso.
+4.- en la tabla "Equipos" ya no debe estar. corrije eso.
+5.- no tenemos el botón de subir archivos Excel donde tambien teniamos las plantillas, corrige eso.
+6.- En las pantallas de nuevo y editar la forma de búsqueda de los equipos para ponerlos en contrato ya no están es un método antiguo que corregimos
+el que ahora se encuentra... corrige, eso.
+
+lo único bueno es que los cuadros de texto están ordenados y la moneda es bolivianos.
+
+talvez estas leyendo archivos muy antiguos, pero tenemos estos archivos README-v0.9.XX.md
+donde tenemos todo registrado puedes leerlos para ver donde te perdiste o revisar nuevamente la pagina de GitHub...
+a menos que me recomiendes borrar todo y volver a empezar.... no se que es mejor.??? tu que opinas..?
+
+
+
+01/07/2026
+
+bueno retomemos las mejoras en el sistema...
+según el manejo e observado y requiero modificación de:
+la pagina PROOVEDORES "Gestión de Proveedores y Contactos"
+en el ojo, en visualizar no se puede ver los equipos asociados al proveedor.
+en editar puedo modificar "Equipos Asociados" eso esta bien, allí se pueden adicionar eliminar
+pero en el ojo no se ven. deben poder verse.
+debemos corregirlo.
+
+antes de continuar verificar que estemos en la ultima versión corregida v0.9.16 y con la misma información de GitHub
+antes de iniciar las modificaciones.
+si todo esta bien, continuemos
+
+ 
+
+ok, excelente.
+nueva modificaciones
+en ORDENES "Listado de Órdenes de Trabajo" las opciones de nuevo y de editar no son las mismas.
+en nuevo existen menos opciones que en editar. ambas deben tener las mismas opciones.
+el campo "Repuestos Utilizados", tiene un cajon de selección que es mas delgado que el resto de los 
+cajones o cuadros de texto, hay que solucionarlo, debe tener el mismo ancho. esa misma caja de selección hasta un poco mas larga
+para que encuadre con el resto de los elementos cajas de texto que ya están encuadradas.
+otra cosa que en editar no se pueden modificar las cuadros de texto de 
+Equipo:
+Título:
+Falla:
+en editar estos deberían poder modificarse.
+
+bueno solucionemos estos problemas.
+
+
+aun no he subido a GitHub.
+las modificaciones están mejor pero aun faltan. seguimos en ORDENES.
+los colores de los iconos de ojo, lapiz, basurero, documento, no están con los colores de fondo como lo están en EQUIPOS por ejemplo
+para tener la uniformidad de colores.
+otra observación, cuando adicionamos un repuesto al momento de crear, no se adiciona. si se crea la Ot pero no se adiciona a la ot el repuesto.
+en editar si se logra adicionar el repuesto. hay que corregir eso.
+otra observación, cuando elegimos un repuesto y lo adicionamos, esta adición pueda verse con un fondo amarillo. eso resaltara.
+otra observación, en ver se debe redimensionar los cuadros en general esta muy ancho
+al parecer los cuadro "Descripción de Falla", "Acciones Realizadas" están muy largas lo cual activa la barra de desplazamiento horizontal
+sin ser necesario. en esta misma ventana el "Repuestos Utilizados" tenga un fondo amarillo para resaltar a la vista ese repuesto.
+resolvamos esto. por favor.
+
+ok, funciona, ahora crea un nuevo equipo con repuesto.
+pero debemos solucionar varias cosas.
+1.- en el ojo, en la visualización se ve el repuesto en fondo amarillo, pero no se ve, ¿Qué repuesto se adiciono?, tiene que verse el nombre del repuesto. ejemplo: cantidad x nombre_repuesto … solucionar esto.
+2.-en el ojo, en la visualización el cuadro "Acciones Realizadas", las letras están en verde, deben estar en un tono normal al resto.
+3.- vamos a adicionar filtros en la pantalla ordenes:
+Tipo: 
+Prioridad:
+Estado:
+también necesitamos mostrar todos los elementos por ascendente descendente, por que los nuevos OT se muestran al final y eso ocasiona que se tenga
+que avanzar muchas paginas para poder ver el ultimo realizado, con una selección ascendente descendente se pueda listar o el ultimo o el primero.
+4.- Esto es un poco mas delicado. los costos que se pueden crear en un nuevo equipo y en editar. estos costos no se ven en el ojo en la visualización. debe verse. y deben tener un fondo rojo claro.
+sobre el mismo tema, los costos deben adicionarse como se adiciona los contactos en proovedores.
+es decir un OT puede tener varios costos. al adicionar estos costos al momento de crear uno nuevo o al momento de editar, estos costos deben
+adicionarse en un fondo de color rojo claro.
+esto es delicado por que puede redefinir la forma de manejar las tablas y el objetivo es tener un registros de costos para todo el proyecto.
+talvez podemos dejar este punto para mas adelante. este punto 4. por que debemos ver la mejor forma de resolver esto de los costos conforme las 
+tablas existentes en la pagina AYUDA de este proyecto.
+5. con todas las modificaciones realizadas revisar si en la pagina de ayuda se ha cambiado algo y actualizarlo.
+vamos a corregir lo que podamos ahora y si el punto 4 debe dejarse para mas adelante lo haremos,,,
+luego de realizar estos puntos actualizare el GitHub.
+
+vamos....
+
+
+
+hola, ahora tenemos unas modificaciones a realizar en CONTRATOS.
+sobre lo que te mencionaba anteriormente. existen costos en algunas OT o si se usan mantenimientos preventivos estos se asocian a contratos 
+que también tienen costo. todo esto sirve para saber cuanto se le ha invertido a un equipo. asi como el costo de repuestos.
+entendiendo eso. hay que hacer que los costos sean de forma muy parecida a los contactos en proovedores, es decir
+que pueden existir varios costos para un OT no solo 1 no solo 2... sino n. 
+según recuerdo ya hemos solucionado esto, pero al parecer en las siguientes modificaciones se han perdido... 
+por lo cual usaremos de referencia la ayuda del programa y en especial:
+ENTIDADES
+OtCostoAdicional, otcostoadicional, RF11 v0.9.1
+también buscaremos alguna información entre las versiones cerca.
+al final estos costos serán en un fondo color rojo claro en los formularios cuando se cree un nuevo OT o se realice alguna modificación.
+vamos intentemos comprender como debería ser y hagamoslo para ver como queda.
+adelante.!!!
+
+
+esta bien. 
+pero seguiremos corrigiendo. 
+en ORDENES donde estamos trabajando.
+en crear nuevo y editar,  existe unas líneas para separar "Costos Adicionales" y "Repuestos Utilizados",  hay que eliminarlas
+en crear nuevo y editar, los costos adicionales están en rojo claro todo el cuadro esta en la gama de ese color, esta bien. se queda, pero
+ahora lo mismo debe ocurrir para el cuadro "Repuestos Utilizados" en el color amarillo claro y la gama de ellos.
+en ojo visualizar esta desordenado. "Costos Adicionales" debe estar encima de "Repuestos Utilizados" para que visualmente sea igual que editar y crear.
+si te das cuanta, estas modificaciones son visuales, es decir posiciones en distintos lugares, formas distintas, colores distintos, así también
+verificar uniformidad de títulos dentro de cuadros o fuera... de preferencia los títulos "Costos Adicionales" y "Repuestos Utilizados" estén fuera del cuadro.
+
+
+
+
+hola, nuevas modificaciones.
+en ORDENES
+1.-
+en crear o en editar, no existe la opción de "fecha y hora". debe existir para poder generar el calendario y-o reprogramar.
+habilitar esta opcion de fecha que se encuentra en la entidad. y-o indicame si se necesita crear un campo en la tabla "ordentrabajo" el campo "hora".
+
+2.-
+en visualizar editar y nuevo:
+a) algunos colores en los cuadros no son visualmente profesionales (no se ve bien), utilizaremos tu criterio bajo ciertos margenes.
+hablo de los cuadros con colores rojos y amarillos en: 
+Costos Adicionales y Repuestos Utilizados (que deben ser resaltantes del resto)
+cambialos a tu criterio pero que resalten.
+b)Costos Adicionales y Repuestos Utilizados tienen cuadros, quita solo el cuadro exterior despues de los titulos.
+
+3.-
+en visualizacion.
+en el ojo los cuadros: Descripción de Falla y Acciones Realizadas estan en cuadros de color claro. que no tengan cuadros.
+en editar y nuevo estos campos no tienen un cuadro que les rodee. en visualizacion que no tengan cuadros alrededor.
+
+4.-
+en la lista de ORDENES
+existe el campo origen, analiza el codigo, explicame que hace. 
+analizaremos el retirarlo o reemplazarlo de alguna manera.
+sugiere opciones.
+
+
+ademas si se haran modificaciones no olvides documentarlas en el programa en la pagina AYUDA. si se cambian las tablas. 
+
+vamos.
+
+
+
+espera antes de que yo pueda cambiar el codigo en mi pc. algunas observaciones.
+(v0.9.23)
+
+1.-
+el campo "fecha vencimiento", esta se asocia a una "Orden generada automáticamente desde tarea preventiva: PREVENTIVO"
+asi que no podemos usarla. (la analizaremos luego)
+existe un campo "fecha_creacion" esta es la que debemos permitir editar cuando sea necesario y en crear tambien pueda ser editable, aunque por defecto usara la fecha y hora para la creacion.
+la "hora de creacion" es la que no existe y debes crearla.
+observa tambien que tenemos un modo DATOS TEST en condifuracion.
+ya qeu el dato "hora de creacion" sera creado, debes de implementarlo en esta opcion.
+yo, cuando tenga el codigo, iniciare con la base de datos en blanco,, y luego usare el MODO TEST.
+estamos probando el funcionamiento del programa.
+
+corrige todo y vuelve a realizar las acciones
+
+2.-
+sobre la opción que me das en el campo ORIGEN
+escojo la B y la E ambas.
+
+3.-
+para que yo pueda probar en mi pc, debes juntar todos los archivos que se modificaron comprimirlos y dármelos para descargar
+yo descargare y reemplazare en mi carpeta y realizare las pruebas....
+
+
+vamos, con estas aclaraciones ,, volvamos a hacer.
+
+
+
+esta bien, pero olvidaste crear el archivo readme v0.9.23.
+esto es necesario para mantener la documentación y el historial del sistema
+por ahora no hay problema, realizaras ese archivo ahora junto a otras modificaciones que haremos ahora.
+1.-
+observo que, en la tabla "orden trabajo" tiene "fecha de creación" que tiene también la hora.
+entonces la consulta es la siguiente.
+si en ese solo campo "fecha de creacion" también se puede modificar la hora, no necesitamos tener una hora aparte en "hora creacion"
+si es así lo quitaremos y solo mantendremos "fecha de creacion"
+
+2.- 
+cuando un equipo llega de "preventivo" y le aplicamos  🛡️ junto al título en OTs.
+le podemos modificar la fecha y hora de creación y esta fecha y hora deba aparecer en el calendario. como MP
+esto no ocurre ahora, debemos implementarlo.
+
+hagamos estas modificaciones.
+
+
+
+
+esta mucho mejor.
+funciona
+pero vamos a modificar algunas cosas en:
+nuevo y en editar. vamos a reorganizar algunos elementos
+1.-
+"Técnico Asignado" y "Título / Tipo de OT" deben ir en una sola fila.
+2.-
+"Fecha y Hora de Creación" y "Tiempo Invertido" asi como las opciones de "hora o dia", estas 3 deben ir en una sola fila.
+3.-
+en el campo "Repuestos Utilizados" esta bien solo debemos modificar el botón AGREGAR, es distinto en tamaño a los otros botones y no se ve bien.
+que sea del mismo tamaño que los otros botones y que sea del color en el cual resalta el campo repuesto utilizado cuando se elige
+4.-
+en "Costos Adicionales" el campo "Descripción" ira primero arriba, luego en una sola fila iran "Tipo de Costo" "Monto (Bs.)" y el botón "+ Agregar Costo". se mantendrán los colores existentes.
+
+arreglemos esto.
+
+
+
+ok ahora vamos a relacionar los preventivos con las ordenes de trabajo
+
+cuando hacemos una MP mantenimiento preventivo
+
+1.-
+seleccionamos el "Titulo de la Tarea", para este caso, siempre será la opción "preventivo" tal cual esta en la selección de ordenes "Título / Tipo de OT"
+la razón es por que es esa su naturaleza. MP por lo que este campo estará predefinido con ese nombre y el usuario no podrá cambiarlo
+entonces al crear nuevo o editar, este campo se vera pero no se podrá cambiar.
+entonces cuando el usuario decida hacer el OT este campo "Titulo de la Tarea" = "preventivo" pasara a ORDENES al campo "Título / Tipo de OT"
+y en ORDENES tampoco se podrá cambiar por que viene de MP, MANTENIMIENTO PREVENTIVO.
+MANEJAREMOS ESA LOGICA.
+
+2.-
+ahora al crear un nuevo MP, asumiremos que el usuario quiere asignar el mantenimiento a la fecha del sistema
+por lo que la fecha y hora del sistema irán al campo "Ultima Fecha Realizada". el usuario podrá modificar esta fecha.
+cuando se cree o modifique el MP este se reflejara en el calendario como un MP no realizado hasta que este MP pase a un OT.
+
+3.-
+en el campo "Frecuencia (dias)", tendremos la frecuencia en días que modificara al campo "Próxima Fecha Programada".
+como en el punto 2 ya tenemos la "Ultima Fecha Realizada" sumando los XX días del campo  "Frecuencia (dias)" tendremos la "Próxima Fecha Programada"
+los XX días del campo "Frecuencia (dias)" son por defecto 60, pero si el usuario cambia este campo se cambiara la "Próxima Fecha Programada"
+y si el usuario cambia la "Próxima Fecha Programada" cambiara la "Frecuencia (dias)"
+(esta es la lógica por ahora)
+entones el botón sugerir fecha será eliminado, la "próxima fecha programada" quedara en el calendario como un MP programado.
+
+4.-
+cuando el usuario configure al "Responsable"
+este dato pasara al OT al campo correspondiente. el usuario luego podrá modificar este campo.
+
+
+
+
+esta mejor pero una pequeña mejora en PREVENTIVO.
+En nuevo o en editar.
+Titulo de la Tarea y Frecuencia (dias) ocuparan una sola fila
+Ultima Fecha Realizada y Proxima Fecha Programada ocuparan una sola fila
+Ultima Fecha Realizada tendrá la fecha del sistema por defecto y el usuario podrá editarlo
+Frecuencia (dias) será por defecto 90 días y esos días se adicionaran a Proxima Fecha Programada
+la funcionalidad será como habíamos quedado antes.
+ahora estas 2 fechas,  Ultima Fecha Realizada, Proxima Fecha Programada serán anotadas en el calendario de planificación.
+
+modifiquemos esto.
+
+
+
+
+
+esta bien,
+algunas modificaciones mas. seguimos en PREVENTIVO, cuando hacemos un NUEVO.
+1.-
+en Kit de Mantenimiento, el cuadro donde se selecciona  la lista de repuestos es muy pequeña y el cuadro donde se seleccionan la cantidad es muy largo
+en una misma fila estarán de derecha a izquierda el botón de AGREGAR. el cuadro con la cantidad en un largo reducido como para 3 dijitos nada mas, 
+luego seguirá el cuadro de selección de repuestos.
+2.-
+cuando se agrega un repuesto el fondo del cuadro del elemento agregado debe resaltarse en un color, tu elige el color.
+3.-
+entre los cuadro "Titulo de la Tarea" y "Frecuencia (dias)" debe existir un pequeñisitmo espacio, ahora están demasiado juntos ,,están pegados, no deben estarlo.
+4.-
+entre los cuadros "Ultima Fecha Realizada" y "Proxima Fecha Programada" debe existir un pequeñísimo espacio, ahora están pegados no deben estar asi.
+5.-
+en NUEVO o en EDITAR se debe encuadrar los cuadros de textos, algunos son mas largos que los otros.
+6.-
+en la opción de "Generar Orden de Trabajo" el cuadro "Fecha y Hora Programada", es mas largo que los otros cuadros, encuadrar todo.
+en la misma ventana arriba se muestra los datos de 
+Tarea: y Equipo: también debe estar el numero de serie.
+7.-
+en nuevo y en editar al seleccionar el elemento a realizar el mantenimiento, es decir el equipo
+se debe mostrar como se hace ahora el "nombre del equipo" - modelo - numero de serie
+hagamos estos cambios para ver como queda.
+
+
+no olvides documentarlo.
+
+vamos.
+
+
+
+muy bien, solo en una pequeña modificación en NUEVO y en EDITAR.
+En la fila de "Kit de Mantenimiento"
+el primer componente a la izquierda "seleccionar repuesto" debe ser largo en tamaño, tanto como sea posible después de 
+hacer que el cuadro a su derecha "cuadro que incrementa la cantidad" se redusca de tamaño al tamaño a lo largo que tiene el botón AGREGAR 
+que se encuentra a la izquierda.
+
+hagamos esto,,,
+
+
+
+
+si vas a eliminar el calendario dentro de PREVENTIVO, es redundante solo usaremos el calendario en PLANIFICACION.
+pero antes de eliminarlo responde esta consulta.
+en PLANIFICACION el calendario que quedara, ¿este puede permitir que se elijan los días a mostrar?
+me gastaría que pueda elegir que el mes que se visualiza, muestre de lunes a viernes y luego elegir que se muestre todo incluido sábados y domingos.
+también otra opción en la cual se pueda mostrar solo una semana del mes, no todo el mes.
+también me gustaria la opción del dia entero para que pueda ver las horas de trabajo.
+
+adicionalmente, me gustaria que las fichas que están por encima de los filtros esten centreadas
+
+si estas acciones pueden hacerse. hagamosla después de eliminar el calendario dentro de PREVENTIVO que ya no usaremos.
+
+
+excelente,
+nuevas modificaciones
+tenemos en algunas opciones del programa plantillas para cargar al programa.
+una de ellas que ahora no esta funcionando, es CONTRATOS, no se la razón analiza y corrige.
+en el modo test, todas las tablas posibles deben cargarse. para que el usuario pueda analizar el funcionamiento del programa.
+los elementos de las plantillas y del modo test no deben repetirse.
+no necesitamos que sean ampulosos.
+analicemos las plantillas y el modo test,, para que sea funcional.
+una vez que lo hagas, borrare la base de datos para empezar en modo test y luego probare las plantillas 
+vamos.
+no olvides, actualizar las versiones para el seguimiento de los cambios
+además después del análisis, actualiza la ayuda de la pagina, para tener una actualización y control de los cambios y pendientes.
+luego veremos el tema del menú y los pendiente en base a la información que se tiene ahora.
+vamos una vez este punto funcione subiré a GitHub.
+
+
+lo voy probando ,,, al parecer esta funcionando,,,,
+una consulta respecto al menu,
+esta arriba en el sentido horizontal. 
+podemos poner este menú que salga a la derecha,
+he visto como muchos programas, Facebook, el mismo Edge, tienen menus a la derecha que se ocultan, incluso tu pagina z.ai tiene esa opción, podemos probar realizando algo asi… me gustaria ver como sale.
+es posible?
+
+
+Esta muy bonito, me gusta asi.
+realizaremos modificaciones
+pondremos ese menú a la izquierda creo se vera mejor.
+consultarte sobre ese menú, 
+ya que le adicionaste emojis o algo asi, si esos emojis pueden quedarse sin los textos.
+es decir el usuario tendrá 3 opciónes de elegir 
+1) que se oculte todo el menú en el icono superior izquierdo. (como esta ahora solo que a la izquierda)
+2) opción para tener los emojis solamente sin letras (para acceso directo, como antes era el anterior menú pero esta vez con emojis o imágenes que posee este nuevo menu)
+3) otra opción emojis con letra (como esta ahora).
+una vez se realice esta accion.
+actualiza el README-v0.9.23.md con las modificaciones hechas en este día.
+para mantener el historial de las modificaciones.
+vamos.
+
+
+si, esta bellísimo.
+subiré un respaldo. mientras 
+en el menú EQUIPOS, cuando adicionamos un NUEVO y un EDITAR, existen filas y columnas de elementos, vamos a reordenar
+los mismo elementos pero de tal manera que la pantalla o ventana de NUEVO o EDITAR seran mas anchas y no largas a la vertical.
+el nuevo orden sera:
+
+Nombre Corto *, Marca *,Modelo *
+Número de Serie *, Número de Material, Fecha Adquisición, Condición de Origen
+Inicio Garantía, Fin de Garantía, Ubicación, Estado del Equipo
+Proveedor Principal,Imagen del Equipo
+Descripción Técnica,Observaciones
+hagamoslo, asi se vera mejor.
+ 
+
+excelente, 
+nueva modificacion.
+en el ojo o en ver, los elementos dentro de Identificación y Administrativo, que se muestren en tablas.
+
+
+Descripción técnica: y Observaciones: que esten fuera del cuadro notas
+el cuadro notas sera eliminado.
+el color amarillo en el fondo de Observaciones sera eliminado.
+veamos como queda
+
+
+esta bien , pero falta.
+en la ventana de equipos, en el ojo/visualizar faltan los datos de:
+CONTRATO, INICIO CONTRATO, FIN CONTRATO (pueden estar en el area Administrativo)
+tambien falta, la imagen que tiene el equipo. esto debe estar en Identificación
+realizalo, veamos como sale.
+
+
+otra corrección, en la ventana de ver/ojo
+en CONTRATOS: 
+solo se mostrara si existe un contrato vigente.
+al igual del resto que se muestre en una tabla 
+tipo
+inicio
+fin
+
+sobre la imagen, ira dentro de la tabla, solo coloca el nombre de la imagen para que pueda ser seleccionada y abierta en una nueva ventana.
+puedes adicionar un emoji de foto si gustas siempre y cuando pueda abrirse en otra ventana.
+
+
+en el ojo/ver, Descripción técnica: y Observaciones: que vayan en la misma fila
+
+
+ok, ahora realicemos acciones similares en el ojo/ver de repuestos y herramientas.
+
+
+excelente
+ahora modificaremos la ventana REPUESTOS:
+en editar/crear, la nueva posición de los elementos será:
+Nombre *, Numero de Serie, Numero de Material
+Descripcion / Notas, Especificaciones Tecnicas
+Ubicacion en almacen, Cantidad disponible, Unidad, Stock minimo (alerta)
+Proveedor Ultimo, Fecha Ultima Entrada, Precio de Referencia (Bs.).
+Imagen del Repuesto
+
+ahora veremos en la ventana de HERRAMIENTAS SERA
+Nombre de la Herramienta *, Numero de Identificación, Categoria *
+Descripción, Observaciones
+Cantidad inicial, Unidad, Ubicacion en almacen
+Estado de Uso *, Costo de Adquisicion (Bs.), Fecha de Adquisicion
+Proveedor Ultimo,Imagen de la Herramienta
+
+si me ha faltando alguno te detienes y me lo haces saber , si no ,,, prosigue. 
+y veamos como sale
+
+
+una modificación mas, en la ventana "Editar Repuesto"
+las ultimas filas serán 
+Proveedor Ultimo, Fecha Ultima Entrada
+Precio de Referencia (Bs.), Imagen del Repuesto
+
+
+ahora en la ventana, Gestion de Proveedores y Contactos
+en el ojo/ver se pueda implementar acciones similares
+
+
+
+
+esta bueno, pero, vamos a arreglar la dimensión. haremos esta ventana mas ancha um 60% mas ancha
+datos de la empresa ira centrado, notas generales ira centrado
+Contactos Asociados (1) y Equipos Asociados (1) se agrandaran, debido a que como esta ahora
+sus elementos generan dos filas en sus datos, con este nuevo tamaño 60% mas es posible que ahora esto no ocurra.
+
+
+
+ahora en Editar Proveedor y en crear
+vamos a reordenar asi.
+Nombre de Empresa *, Ciudad, Telefono Principal
+Dirección, Email Principal, Pagina Web
+Notas Generales
+el cuadro de búsqueda de equipo por nombre modelo serie o marca, con un fondo de color que resalte
+Equipos Asociados 
+esta pagina esta limitada también a los 550px,, si esa asi cambiala a 750px
+
+
+dentro de Gestion de Proveedores y Contactosçç
+tenemos en la tabla, Acciones, donde tenemos el icono gestionar contactos, ordenalo en forma de tablas.
+
+
+dentro de la pagina Contratos en acciones en el ojo/ver, de la misma manera como hemos venido haciendo
+conviértelo a tablas.
+veamos como queda.
+respeta los colores.
+
+
+
+algunas pequeñas modificaciones
+en COSTOS en 
+a) el ojo/ver, que el botón CERRAR este a la derecha.
+b) en EDITAR y CREAR. la nueva disposición será la siguiente
+Proveedor *,Tipo de Contrato *,Fecha Inicio *,Fecha Fin *
+Costo Total, Costo Periódico, Periodicidad Costo, Moneda
+Tiempo de Respuesta,Horario de Servicio
+Cobertura (detalle),Notas
+Equipos Asociados, 
+búsqueda
+
+Los botones CANCELAR y CREAR, siempre a la derecha.
+
+
+
+
+
+en el modal de visualización de Listado de Órdenes de Trabajo
+convierte la información en tablas,  como en las otras visualizaciones.
+
+
+
+
+en la misma pagina cambiar el orden de EDITAR y CREAR.
+Equipo Afectado *, Nuevo Estado *, Prioridad, Técnico Asignado
+Título / Tipo de OT, Fecha y Hora de Creación, Tiempo Invertido, horas/días
+Descripción / Falla *, Acciones Realizadas
+Costos Adicionales, Repuestos Utilizados
+
+
+el campo Equipo Afectado *, debe tener el nombre del equipo - numero de serie.
+
+intentemos a ver como se ve
+
+

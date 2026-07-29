@@ -1,0 +1,219 @@
+¡Me parece una propuesta excelente! La IA de diseño tiene razón: esto eleva el módulo de MP al nivel de CMMS profesionales. Déjame analizarlo en detalle.
+
+## 🎯 Mi opinión técnica
+
+### Sobre el dropdown de equipo (Opción 1 vs 2)
+
+**Recomendación: Opción 2** (label después de selección), pero con una mejora:
+
+```
+[Dropdown: ▼ Microscopio Olympus CX23]
+              Modelo: CX23 | Serie: MIC-OLY-001 | Ubicación: Lab. Microbiología
+```
+
+**Por qué no la Opción 1**: un dropdown con texto muy largo se vuelve inmanejable visualmente. La Opción 2 es más limpia y se puede implementar con un `watch` sobre `formData.equipo_id` que busca el equipo seleccionado y muestra sus datos en un panel informativo.
+
+**Implementación**: ya hicimos algo similar en OT (donde propusimos `nombre_corto + numero_serie + ubicacion_actual`). Para MP es igual.
+
+### Sobre la lógica de periodicidad (lo más importante)
+
+Tu descripción del ciclo es **exactamente como funcionan los CMMS profesionales**. Déjame dibujarlo:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  CICLO DE MANTENIMIENTO PREVENTIVO                  │
+│                                                     │
+│  1. Administrador programa MP                       │
+│     → Crea OT preventiva (🟢 VERDE en calendario)   │
+│                                                     │
+│  2. Técnico completa la OT                          │
+│     → ultima_fecha = fecha de completado            │
+│     → Sistema sugiere próxima fecha (recordatorio)  │
+│     → Recordatorio (🟡 AMARILLO en calendario)      │
+│                                                     │
+│  3. Administrador convierte recordatorio en OT      │
+│     → Nueva OT preventiva (🟢 VERDE)                │
+│     → Vuelve al paso 2                              │
+│                                                     │
+│  4. Si la fecha del recordatorio pasa sin acción    │
+│     → Recordatorio vencido (🔴 ROJO en calendario)  │
+│     → Sigue siendo recordatorio, solo cambia color  │
+│     → Se puede convertir en OT cuando se quiera     │
+└─────────────────────────────────────────────────────┘
+```
+
+**Esto es brillante porque**:
+- El `frecuencia_dias` (ej: 90) se usa SOLO para sugerir la próxima fecha
+- El `proxima_fecha` es la fecha REAL que aparece en el calendario
+- El color depende del estado: verde (OT activa), amarillo (recordatorio), rojo (vencido)
+- No necesitas campos complejos como `condiciones_activacion` o `logica_periodicidad` (esos son para v1.0+)
+
+### Sobre los campos del RF03 original vs lo que necesitamos ahora
+
+El RF03 original (del Excel) tiene campos muy avanzados. Mi recomendación es **dividir en dos niveles**:
+
+#### Nivel 1 — v0.9.1/v0.9.2 (lo que podemos hacer pronto)
+
+| Campo actual | Estado | Cambio |
+|--------------|--------|--------|
+| `id` | ✅ Ya existe | Sin cambio |
+| `equipo_id` | ✅ Ya existe | Sin cambio (renombrar conceptualmente de `equipo_tipo_id`) |
+| `titulo` | ✅ Ya existe | Sin cambio |
+| `descripcion` | ✅ Ya existe | Renombrar a `descripcion_detalle` (opcional, solo nombre) |
+| `frecuencia_dias` | ✅ Ya existe | Mantener como `periodicidad_valor` + agregar `periodicidad_tipo` |
+| `ultima_fecha` | ✅ Ya existe | Equivalente a `ultimo_mantenimiento_fecha` |
+| `proxima_fecha` | ✅ Ya existe | Equivalente a `proxima_fecha_vencimiento_manual` |
+| `activa` | ✅ Ya existe | Equivalente a `activo` |
+| `responsable_id` | ✅ Ya existe | Equivalente a `tecnico_asignado_predeterminado_id` |
+
+**Nuevos campos a agregar en v0.9.1/v0.9.2:**
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `periodicidad_tipo` | TEXT (enum) | "Dias" / "Horas" / "Ciclos" — por ahora solo "Dias" funcional |
+| `periodicidad_valor` | INTEGER | Reemplaza `frecuencia_dias` (mismo concepto, nombre más claro) |
+| `estado_recordatorio` | TEXT (calculado) | "programada" / "recordatorio" / "vencida" — se calcula en runtime |
+
+#### Nivel 2 — v1.0+ (lo que dejamos para después)
+
+| Campo | Por qué posponerlo |
+|-------|-------------------|
+| `condiciones_activacion` (JSON) | Lógica compleja de activación (OR entre horas y días). Requiere diseño de UI avanzado. |
+| `logica_periodicidad` (JSON) | Patrones complejos (ej: 2 veces al año). Requiere parser de expresiones. |
+| `contador_acumulado` | Para mantenimiento basado en horas/ciclos. Requiere integración con equipos que reportan uso. |
+| `periodicidad_tipo = "Horas"` | Requiere que el equipo reporte horas de uso. Por ahora solo "Dias" es funcional. |
+| `periodicidad_tipo = "Ciclos"` | Requiere que el equipo reporte ciclos. Ídem. |
+
+### Sobre los estados del calendario
+
+Tu propuesta de estados es perfecta:
+
+| Estado | Color | Condición | Acción posible |
+|--------|-------|-----------|----------------|
+| **Programada** | 🟢 Verde | Hay una OT activa (Abierta o En Proceso) generada desde este MP | Completar la OT |
+| **Recordatorio** | 🟡 Amarillo | La OT fue completada y hay una `proxima_fecha` futura | Convertir en OT |
+| **Vencida** | 🔴 Rojo | La `proxima_fecha` ya pasó y no se convirtió en OT | Convertir en OT (urgente) |
+| **Realizada** | ⚪ Gris | La OT fue completada (hoy o en el pasado) | Ver historial |
+
+### Sobre los filtros
+
+| Filtro | Origen |
+|--------|--------|
+| Ubicación | Derivada del equipo (`equipo.ubicacion_actual`) |
+| Responsable | `tarea.responsable_id` |
+| Estado | Calculado: Hoy / Vencidos / Realizados / Alertas |
+
+## 📋 Impacto en el roadmap
+
+Esta propuesta cambia el enfoque de v0.9.2. En lugar de solo "RF12 Contratos + Planificación", ahora también incluye el **rediseño del módulo MP**.
+
+### Roadmap actualizado propuesto
+
+| Versión | Foco | Cambios |
+|---------|------|---------|
+| **v0.9.0** | ✅ Completada | RF01 + Modo TEST + usuarios |
+| **v0.9.1** | RF11 Costos en OT + mejoras OT | Tab `OtCostoAdicional`, dropdown de equipo con modelo+serie, formularios consistentes |
+| **v0.9.2** | RF03 rediseñado + Planificación (calendario) | **Rediseño completo de MP** con ciclo verde→amarillo→rojo, calendario unificado OT+MP, RF12 Contratos |
+| **v0.9.3** | RF13 Exportación + UX | Export Excel/CSV/PDF, bug fixes |
+| **v1.0.0** | Estados multi-dimensión + RF03 avanzado | `condiciones_activacion`, `logica_periodicidad`, `contador_acumulado`, periodicidad por horas/ciclos |
+
+## 🤔 Mis preguntas para ti
+
+1. **¿Confirmas que el ciclo es**: programar MP → genera OT (verde) → completar OT → genera recordatorio (amarillo) → convertir recordatorio en OT (verde) → ...?**
+
+2. **¿El recordatorio se genera automáticamente al completar la OT**, o el administrador tiene que hacerlo manualmente? Mi recomendación: **automático** — al completar una OT generada desde MP, el sistema calcula `proxima_fecha = fecha_completado + frecuencia_dias` y la marca como recordatorio (amarillo).
+
+3. **¿Los estados "Hoy, Vencidos, Realizados, Alertas" son filtros del calendario o de la lista de MPs?** Mi recomendación: **ambos** — el calendario muestra colores, la lista tiene filtro por estado.
+
+4. **¿Confirmas que posponemos `condiciones_activacion`, `logica_periodicidad`, `contador_acumulado` y periodicidad por horas/ciclos a v1.0?**
+
+5. **¿En qué versión quieres implementar esto?** Mi recomendación: **v0.9.2** (junto con Planificación), porque el calendario necesita este ciclo para funcionar correctamente.
+
+## 💡 Mi reflexión final
+
+Tu propuesta es **exactamente lo que el sistema necesita** para ser un CMMS profesional. El ciclo verde→amarillo→rojo es intuitivo y refleja cómo funciona el mantenimiento preventivo en la vida real:
+
+- **Verde**: "Hay trabajo programado para hoy, ve y hazlo"
+- **Amarillo**: "No hay trabajo activo, pero recuerda que viene el próximo mantenimiento"
+- **Rojo**: "¡Se te pasó la fecha! Atiende esto ya"
+
+La clave técnica es que **no necesitamos campos complejos** para implementar esto en v0.9.2. Solo necesitamos:
+- `proxima_fecha` (ya existe, editable)
+- `frecuencia_dias` (ya existe, para sugerir próxima)
+- `ultima_fecha` (ya existe, se actualiza al completar OT)
+- Un campo calculado `estado_recordatorio` (verde/amarillo/rojo) que se deriva de los anteriores
+- El endpoint `generar-ot` que ya existe
+
+**Lo único realmente nuevo** es:
+- La lógica de "al completar OT → calcular próxima fecha → crear recordatorio"
+- Los colores en el calendario
+- El filtro por estado
+
+¿Te parece bien el análisis? ¿Confirmas las preguntas?
+
+
+
+¡Importante aclarar! Déjame ser muy preciso para que subas lo correcto a GitHub:
+
+## ✅ Lo que SÍ está implementado AHORA (v0.9.0 completa)
+
+| Feature | Estado | En qué archivo |
+|---------|--------|----------------|
+| RF01 actualizado (sin campos obsoletos, con nuevos) | ✅ Implementado | Backend + Frontend |
+| 3 usuarios TEST (admin/admin, tech/tech, user/user) | ✅ Implementado | `database.py` |
+| Modo TEST (cargar/limpiar datos) | ✅ Implementado | `configuracion.py` + `ConfiguracionView.vue` |
+| Badge "🧪 MODO TEST" en navbar | ✅ Implementado | `Navbar.vue` |
+| `proxima_fecha` editable (NO auto-calculada) | ✅ Implementado | `preventivo.py` + `PreventivoView.vue` |
+| Botón "Sugerir fecha" en Preventivo | ✅ Implementado | `PreventivoView.vue` |
+| Widget "MPs Próximos (7 días)" en Home | ✅ Implementado | `HomeDashboard.vue` |
+| EquiposView con formulario v0.9.0 completo | ✅ Implementado | `EquiposView.vue` |
+| DELETE con restricciones de dependencias | ✅ Implementado | `equipos.py` |
+| Campos no editables (modelo/marca/serie) | ✅ Implementado | `EquiposView.vue` + schema |
+| Plantilla Excel/CSV con nuevos campos | ✅ Implementado | `plantilla_equipos.xlsx/csv` |
+
+## 🔶 Lo que NO está implementado aún (es propuesta para v0.9.2)
+
+| Feature | Cuándo | Estado |
+|---------|--------|--------|
+| Ciclo verde→amarillo→rojo en calendario | v0.9.2 | 🔶 Solo diseño discutido |
+| Recordatorio automático al completar OT | v0.9.2 | 🔶 Solo diseño |
+| Estados del calendario (Programada/Recordatorio/Vencida/Realizada) | v0.9.2 | 🔶 Solo diseño |
+| Página "Planificación" (calendario unificado OT+MP) | v0.9.2 | 🔶 Solo diseño |
+| RF11 Costos en OT | v0.9.1 | 🔶 Solo diseño |
+| RF12 Contratos | v0.9.2 | 🔶 Solo diseño |
+
+## 📦 Qué subir a GitHub AHORA
+
+**Sube v0.9.0 completa** (Fases 1, 2, 3a, 3b). Es lo que tienes funcionando en tu PC. Incluye:
+
+```
+backend/models/equipos.py          ← Modelo v0.9.0
+backend/models/preventivo.py       ← proxima_fecha editable
+backend/schemas/equipo.py          ← Validaciones
+backend/schemas/preventivo.py      ← proxima_fecha en Create/Update
+backend/database.py                ← 3 usuarios TEST + migración
+backend/utils/meta_json.py         ← build_equipo_meta actualizado
+backend/api/routes/equipos.py      ← CRUD + DELETE restrictivo + proveedor al vuelo
+backend/api/routes/preventivo.py   ← Sin auto-cálculo
+backend/api/routes/configuracion.py ← Modo TEST + escaneo actualizado
+frontend/public/plantillas/*        ← Plantilla regenerada
+frontend/src/components/Navbar.vue  ← Badge MODO TEST
+frontend/src/views/EquiposView.vue  ← Formulario v0.9.0 completo
+frontend/src/views/PreventivoView.vue ← proxima_fecha editable
+frontend/src/views/HomeDashboard.vue ← Widget MPs próximos
+frontend/src/views/ConfiguracionView.vue ← Pestaña Datos TEST
+frontend/src/views/AyudaView.vue    ← RF01 actualizado
+```
+
+## ⚠️ IMPORTANTE
+
+Lo que discutimos sobre el **ciclo verde→amarillo→rojo** del MP es un **diseño futuro para v0.9.2**. **NO está implementado** en lo que vas a subir a GitHub ahora.
+
+Lo que SÍ está implementado y es funcional:
+- `proxima_fecha` es editable (el usuario la setea manualmente)
+- El sistema sugiere `ultima_fecha + frecuencia_dias` pero el usuario puede cambiarla
+- El widget del Home muestra "MPs próximos en 7 días"
+
+**¿Confirmado?** Sube a GitHub lo que tienes funcionando ahora (v0.9.0 completa). El ciclo verde→amarillo→rojo lo implementaremos en v0.9.2 junto con la página "Planificación".
+
+¿Te queda claro qué subir?

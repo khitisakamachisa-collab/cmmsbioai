@@ -1,5 +1,5 @@
 @echo off
-REM === Script mejorado para sincronizar con GitHub ===
+REM === Script para respaldar en GitHub con comentario personalizado ===
 
 REM Cambia al directorio del proyecto
 cd /d "D:\cmmsbioai"
@@ -10,23 +10,19 @@ echo ==============================
 git pull origin main
 
 echo ==============================
-echo 2. Verificando cambios locales...
-echo ==============================
-git status
-
-echo ==============================
-echo 3. Preparando archivos para commit...
+echo 2. Preparando archivos para commit...
 echo ==============================
 git add -A
 
 echo ==============================
-echo 4. Escribe el mensaje del commit:
+echo 3. Escribe el mensaje del commit:
 echo ==============================
 set /p commitmsg=Mensaje: 
+
 git commit -m "%commitmsg%"
 
 echo ==============================
-echo 5. Subiendo cambios a GitHub...
+echo 4. Subiendo cambios a GitHub...
 echo ==============================
 git push origin main
 

@@ -191,8 +191,8 @@ def seed_database():
 
     Crea:
     - 3 usuarios TEST: admin/admin, tech/tech, user/user
-    - 19 estados de equipo (catálogo biomédico)
-    - 5 estados de orden de trabajo
+    - 11 estados de equipo (catálogo biomédico)
+    - 5 estados base de OT + 'En Monitoreo' (v1.1.1, idempotente)
     """
     with Session(engine) as session:
 
@@ -221,7 +221,7 @@ def seed_database():
                 session.add(usuario)
                 print(f"✅ Seed: Usuario '{username}' creado ({username} / {password})")
 
-        # === 2. Seed: Estados de Equipo (19 estados biomédicos) ===
+        # === 2. Seed: Estados de Equipo (11 estados biomédicos) ===
         equipo_estado_count = session.exec(select(EstadoEquipo)).first()
         if not equipo_estado_count:
             estados_equipo = [
@@ -253,7 +253,7 @@ def seed_database():
             ]
             for estado in estados_ot:
                 session.add(estado)
-            print("✅ Seed: 5 estados de orden de trabajo creados (con 'Esp. Repuesto')")
+            print("✅ Seed: 5 estados base de OT creados ('En Monitoreo' se agrega aparte, idempotente)")
 
         # === 3.b v1.1.1: estado de OT 'En Monitoreo' (idempotente, corre SIEMPRE
         # === para cubrir BDs nuevas y BDs existentes actualizadas) ===

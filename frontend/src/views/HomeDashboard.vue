@@ -55,7 +55,9 @@ const fetchData = async () => {
 const totalEquipos = computed(() => equipos.value.length)
 
 const ordenesPendientes = computed(() => {
-  const cerrados = new Set(['completada', 'cerrada'])
+  // v1.1.2 (I1): estados cerrados reales del catálogo (seed database.py).
+  // Antes: set con 'cerrada' (inexistente) → las CANCELADAS contaban como pendientes.
+  const cerrados = new Set(['completada', 'cancelada'])
   return ordenes.value.filter((ot) => {
     const est = estadosOT.value.find((e) => e.id === ot.estado_id)
     if (!est) return true

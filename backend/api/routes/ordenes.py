@@ -361,7 +361,7 @@ def actualizar_orden(ot_id: int, ot_data: OrdenTrabajoUpdate,
         raise HTTPException(
             status_code=400,
             detail=f"La OT está {actual}: es un registro de solo lectura. "
-                   f"Use la acción /reabrir con un comentario (regla R7) si necesita modificarla."
+                   f"Use la acción /reincidencia para crear una nueva OT vinculada (regla R7) si necesita darle continuidad."
         )
 
     ot_data_dict = ot_data.model_dump(exclude_unset=True)
@@ -424,7 +424,7 @@ def asignar_tecnico(ot_id: int, accion: AccionAsignar, session: Session = Depend
     actual = _nombre_estado(session, db_ot.estado_id)
     if actual in ESTADOS_CERRADOS:
         raise HTTPException(status_code=400,
-            detail=f"No se puede asignar una OT {actual}. Reábrala primero con comentario (R2/R7).")
+            detail=f"No se puede asignar una OT {actual}. Use la acción /reincidencia para crear una nueva OT vinculada (R7).")
 
     tecnico = session.get(Usuario, accion.tecnico_asignado_id)
     if not tecnico:

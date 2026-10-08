@@ -147,8 +147,7 @@ def generar_ot_desde_preventivo(tarea_id: int, req: GenerarOTRequest, session: S
     for rp in repuestos_kit:
         repuestos_copiados.append({
             "repuesto_id": rp.repuesto_id,
-            "cantidad": rp.cantidad_requerida,
-            "nombre": session.get(rp.repuesto_id.__class__, rp.repuesto_id) if False else None
+            "cantidad": rp.cantidad_requerida
         })
     
     # Devolver la OT creada + info de repuestos del kit

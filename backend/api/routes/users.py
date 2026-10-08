@@ -1,35 +1,47 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
+from typing import List
 from database import get_session
 from models.users import Usuario
-from utils.security import get_password_hash  # Usar el mismo bcrypt que auth.py
+from schemas.user import UserCreate, UserRead
+from utils.security import get_password_hash  # Mismo bcrypt que auth.py
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
-@router.get("/")
-def listar_usuarios(session: Session = Depends(get_session)):
-    usuarios = session.exec(select(Usuario)).all()
-    return usuarios
 
-@router.post("/")
-def crear_usuario(usuario_data: dict, session: Session = Depends(get_session)):
-    # Verificar email
-    existe = session.exec(select(Usuario).where(Usuario.email == usuario_data["email"])).first()
+@router.get("/", response_model=List[UserRead])
+def listar_usuarios(session: Session = Depends(get_session)):
+    """v1.1.2 (I6): responde con UserRead — ya NO expone hashed_password."""
+    usuarios = session.exec(select(Usuario)).all()
+    return [UserRead.model_validate(u) for u in usuarios]
+
+
+@router.post("/", response_model=UserRead)
+def crear_usuario(datos: UserCreate, session: Session = Depends(get_session)):
+    """v1.1.2 (I6): valida entrada con UserCreate (antes dict crudo) y
+    responde con UserRead (sin hash). Comportamiento anterior preservado:
+    username = email, rol del frontend -> Usuario.role."""
+    existe = session.exec(
+        select(Usuario).where(Usuario.email == datos.email)
+    ).first()
     if existe:
         raise HTTPException(status_code=400, detail="El email ya está registrado")
 
-    # Hashear contraseña con bcrypt (mismo método que usa auth.py para verificar)
-    hashed_password = get_password_hash(usuario_data["password"])
-    
+    existe_username = session.exec(
+        select(Usuario).where(Usuario.username == datos.email)
+    ).first()
+    if existe_username:
+        raise HTTPException(status_code=400, detail="El nombre de usuario ya está registrado")
+
     nuevo_usuario = Usuario(
-        username=usuario_data["email"], # Usamos email como username
-        email=usuario_data["email"],
-        full_name=usuario_data["nombre_completo"],
-        hashed_password=hashed_password,
-        role=usuario_data.get("rol", "tecnico"),
-        is_active=True
+        username=datos.email,  # Se usa email como username (igual que antes)
+        email=datos.email,
+        full_name=datos.nombre_completo,
+        hashed_password=get_password_hash(datos.password),
+        role=datos.rol or "tecnico",
+        is_active=True,
     )
     session.add(nuevo_usuario)
     session.commit()
     session.refresh(nuevo_usuario)
-    return nuevo_usuario
+    return UserRead.model_validate(nuevo_usuario)

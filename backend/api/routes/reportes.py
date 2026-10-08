@@ -442,7 +442,6 @@ def reporte_inventario_repuestos(session: Session = Depends(get_session)):
 #   - Disponibilidad   = MTBF / (MTBF + MTTR) × 100
 # Unidad de tiempo: horas (tiempo_real_invertido × 24 si unidad_tiempo="dias")
 
-from fastapi.responses import StreamingResponse
 import csv as _csv
 import io as _io
 

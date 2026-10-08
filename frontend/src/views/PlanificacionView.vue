@@ -140,10 +140,17 @@ const eventosUnificados = computed(() => {
 
   // Procesar MPs: dos eventos por tarea (ultima_fecha y proxima_fecha)
   if (filterTipo.value !== 'ot') {
+    // v1.1.2 (I2): estados activos por NOMBRE (no por ids hardcodeados) —
+    // incluye 'En Monitoreo' (v1.1.1). Catálogo cargado en estadosOT.
+    const nombresActivos = ['abierta', 'en proceso', 'esp. repuesto', 'en monitoreo']
+    const idsEstadoActivo = new Set(
+      estadosOT.value
+        .filter(e => nombresActivos.includes((e.nombre_estado || '').trim().toLowerCase()))
+        .map(e => e.id)
+    )
     tareasMP.value.forEach(tarea => {
       const tieneOt = ordenes.value.some(ot =>
-        ot.orden_preventiva_id === tarea.id &&
-        (ot.estado_id === 1 || ot.estado_id === 2 || ot.estado_id === 3)
+        ot.orden_preventiva_id === tarea.id && idsEstadoActivo.has(ot.estado_id)
       )
 
       // --- Evento 1: Última Fecha Realizada ---

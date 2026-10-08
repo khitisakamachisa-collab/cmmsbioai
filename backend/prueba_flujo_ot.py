@@ -1,5 +1,14 @@
 # -*- coding: utf-8 -*-
 """
+HISTÓRICO v1.1.0 — NO EJECUTAR
+==============================
+Este script está roto tras v1.1.1: llama al endpoint /reabrir,
+que fue ELIMINADO y sustituido por /reincidencia (cierre
+definitivo + OT nueva vinculada). La batería canónica vigente es:
+    python prueba_flujo_v111.py   (51 verificaciones)
+
+Se conserva solo como referencia histórica de la era v1.1.0.
+-----------------------------------------------------------------
 CMMS-BioAI — Prueba integral del Flujo de Trabajo OT (v1.1.0)
 =============================================================
 Valida las reglas R1–R7 y los endpoints de acción sobre una base

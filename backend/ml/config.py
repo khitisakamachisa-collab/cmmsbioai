@@ -29,8 +29,6 @@ SINONIMOS_JSON = DATA_DIR / "sinonimos_biomedicos.json"
 # Archivos de modelos entrenados (joblib)
 MODELO_CLASIFICADOR = MODELS_DIR / "clasificador_fallas.joblib"
 MODELO_RUL = MODELS_DIR / "modelo_rul.joblib"
-VECTORIZADOR_N1 = MODELS_DIR / "tfidf_n1.joblib"
-VECTORIZADOR_N2 = MODELS_DIR / "tfidf_n2.joblib"
 VECTORIZADOR_N3 = MODELS_DIR / "tfidf_n3.joblib"
 LABEL_ENCODER = MODELS_DIR / "label_encoder.joblib"
 METRICAS_ENTRENAMIENTO = MODELS_DIR / "metricas_entrenamiento.json"

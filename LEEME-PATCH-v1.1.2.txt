@@ -1,0 +1,133 @@
+=====================================================================
+ CMMS-BioAI — PARCHE v1.1.2 · LIMPIEZA (Auditoría Paquete 1)
+ Fecha: 2026-10-08 · 15 archivos en el ZIP · NO toca flujo, NO toca
+ modelos, NO requiere migración de datos, NO instala dependencias.
+=====================================================================
+
+QUÉ ES
+------
+Aplica el Paquete 1 de AUDITORIA-CODIGO-v1.1.1.md:
+  · BLOQUE A — 6 muertos borrados del backend (+2 ediciones menores)
+  · BLOQUE B — 13 muertos borrados del frontend (incl. 2 builds stale)
+  · BLOQUE C — fixes I1, I2, I3, I4, I5, I6, I7
+Detalle completo de cada ID en AUDITORIA-CODIGO-v1.1.1.md (incluido
+en este ZIP, con el checklist ya marcado).
+
+IMPORTANTE — ESTE PARCHE TAMBIÉN BORRA ARCHIVOS
+-----------------------------------------------
+Un ZIP no puede borrar archivos de tu máquina. Los archivos muertos
+debes eliminarlos tú. Dos opciones:
+  Opción 1 (recomendada): ejecuta  aplicar-limpieza-v1.1.2.bat
+          desde la RAÍZ del repo (D:\cmmsbioai). Pide confirmación.
+  Opción 2: borra a mano la lista de la sección "LISTA DE BORRADO".
+
+NOTA: la "carpeta fantasma" backend\D:\uploads del hallazgo A9 SOLO
+existió en el sandbox Linux (ahí el path de Windows se crea literal).
+En tu máquina Windows ese path resuelve a tu D:\uploads real, que es
+tu configuración intencional en config.json — NO la borres.
+
+ARCHIVOS MODIFICADOS (copiar y sobrescribir)
+--------------------------------------------
+ backend\ml\config.py               A6: fuera VECTORIZADOR_N1/N2
+ backend\api\routes\preventivo.py   A7: fuera residuo "if False"
+ backend\api\routes\ordenes.py      I3: mensajes -> /reincidencia
+ backend\api\routes\reportes.py     I7: import duplicado fuera
+ backend\database.py                I5: docstrings seed (11/6 estados)
+ backend\api\routes\users.py        I6: schemas reales en GET/POST
+ backend\schemas\user.py            A2+I6: REVIVIDO — UserCreate valida
+                                    el POST; UserRead responde SIN
+                                    hashed_password
+ backend\prueba_flujo_ot.py         I4: cabecera "HISTÓRICO NO EJECUTAR"
+ frontend\src\views\HomeDashboard.vue      I1: 'cancelada' sí cuenta
+                                           como cerrada
+ frontend\src\views\PlanificacionView.vue  I2: OT activa por NOMBRE de
+                                           estado (incluye En Monitoreo)
+ versiones.txt                      fila v1.1.2
+ AUDITORIA-CODIGO-v1.1.1.md         checklist Paquete 1 marcado
+
+ARCHIVOS NUEVOS
+---------------
+ backend\prueba_v112_limpieza.py    batería v1.1.2 (10 checks)
+ LEEME-PATCH-v1.1.2.txt             este archivo
+ aplicar-limpieza-v1.1.2.bat        borrado seguro de los muertos
+
+LISTA DE BORRADO (20 ítems, lo hace el .bat)
+--------------------------------------------
+ Backend (6):
+   backend\api\routes\dashboard.py            (A1)
+   backend\ml\diagnostico.py                  (A3)
+   backend\ml\prueba_inferencia.py            (A4)
+   backend\routes\  [carpeta completa]        (A5)
+   backend\config.txt                         (A8)
+   backend\D:\uploads  [solo si existiera literal] (A9)
+ Frontend (14):
+   frontend\src\OrdenesView.vue               (F2 prototipo)
+   frontend\src\views\EquiposView_.vue        (F3)
+   frontend\src\views\Sidebar.vue             (F4 la activa es
+                                               components\Sidebar.vue)
+   frontend\src\components\HelloWorld.vue     (F5)
+   frontend\src\components\WorkOrdersChart.vue        (F6)
+   frontend\src\components\EquipmentStatusChart.vue   (F6)
+   frontend\src\assets\vue.svg                (F5)
+   frontend\src\assets\vite.svg               (F5)
+   frontend\src\assets\hero.png               (F5)
+   frontend\public\icons.svg                  (F5)
+   frontend\src\style.css                     (F7, 0 bytes)
+   frontend\src\style - copia.css             (F7)
+   frontend\dist_index.html                   (F8 build stale)
+   frontend\dist_assets\  [carpeta]           (F8 build stale)
+   frontend\dist_build\   [carpeta]           (F8 build stale)
+
+INSTALACIÓN (orden recomendado)
+-------------------------------
+ 1. Respaldar cmms_bioai.db (como siempre).
+ 2. Copiar y sobrescribir los 12 archivos modificados.
+ 3. Copiar los 3 archivos nuevos.
+ 4. Ejecutar aplicar-limpieza-v1.1.2.bat (o borrar a mano).
+ 5. Verificar (sección siguiente).
+
+VERIFICACIÓN
+------------
+    cd D:\cmmsbioai\backend
+    venv\Scripts\activate
+    python prueba_flujo_v111.py      -> 51/51  (flujo v1.1.1 intacto)
+    python prueba_v112_limpieza.py   -> 10/10  (users sin hash + rol)
+
+    cd D:\cmmsbioai\frontend
+    npm run build                    -> dist/ regenerado sin errores
+
+Pruebas visuales rápidas en la app:
+  · Inicio: si tienes una OT Cancelada, el KPI "OTs pendientes" ya
+    NO la cuenta (I1).
+  · Planificación: un MP cuya OT está "En Monitoreo" ya NO aparece
+    como "sin OT" (I2).
+  · Intenta editar una OT cerrada: el mensaje ahora sugiere
+    /reincidencia (I3).
+  · Configuración o Usuarios: la lista de usuarios sigue igual, pero
+    la API ya no devuelve hashes de contraseña (I6).
+
+QUÉ NO CAMBIA
+-------------
+ · Máquina de estados R1–R8, sellos de tiempo, bitácora: intactos.
+ · Catálogos, seed y estados: intactos (solo docstrings actualizados).
+ · Endpoints vivos: siguen siendo los mismos (solo se fue el router
+   dashboard.py, que ni siquiera estaba registrado).
+ · requirements.txt: sin cambios.
+
+GITHUB (cuando verifiques)
+--------------------------
+    git add .
+    git commit -m "v1.1.2 limpieza (auditoria paquete 1) + fix users sin hash + I1/I2/I3"
+    git push origin main
+OJO: este commit debería incluir TAMBIÉN todo lo pendiente desde
+v1.0.0 (backend\ml\, ia.py, PredictivoView, etc. — hallazgo X1 de la
+auditoría: GitHub sigue en la era v0.9.x).
+
+PRÓXIMOS PASOS (hoja de ruta)
+-----------------------------
+ · Pendientes de tu decisión (auditoría §9): D1-D4 (históricos de la
+   raíz: archivar en docs\historico\ o borrar) y D8 (BD.xlsx).
+ · v1.2 Fase A: red LAN (baseURL dinámica G2 + firewall + commit X1).
+ · v1.2.1: cuando me pases los flujos simulados con la IA de
+   documentación, se codifican sobre este repo ya limpio.
+=====================================================================

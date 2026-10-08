@@ -1,0 +1,95 @@
+¡Excelente paso, Raul! Definir los roles y permisos **antes** de escribir una sola línea de código (o pedirle a la IA que lo haga) es la mejor práctica de ingeniería de software. Esto evita "agujeros de seguridad" y, lo más importante para tu tesis, **protege la integridad de los datos** para que tus métricas y modelos de IA no se contaminen.
+
+He refinado y estructurado tu lista inicial. He fusionado algunos para evitar redundancias y he añadido roles clave que son vitales tanto para la operación real en un hospital boliviano como para tu investigación de maestría.
+
+Aquí tienes la estructura de **5 Roles Fundamentales** para tu CMMS Bio AI:
+
+---
+
+### 1. Solicitante / Operador Clínico (Fusión de "Usuario Regular" y "Personal Médico")
+*   **Perfil:** Enfermeras, médicos, técnicos de laboratorio o cualquier persona que use el equipo en el día a día.
+*   **Objetivo:** Reportar fallas o solicitar mantenimientos de la forma más rápida y sencilla posible (idealmente escaneando un código QR del equipo).
+*   **Permisos (Lo que SÍ puede hacer):**
+    *   Crear una nueva Solicitud de Servicio (que se convierte en OT "Abierta").
+    *   Adjuntar una foto o descripción breve del problema.
+    *   Ver el estado *público* de su solicitud (ej: "En proceso", "Completada").
+*   **Restricciones (Lo que NO puede hacer):**
+    *   No puede editar, pausar ni cerrar una OT.
+    *   No puede ver datos técnicos, costos o métricas del equipo.
+*   **Aporte a la IA/Métricas:** Sus descripciones iniciales son el **input principal para tu modelo de NLP**. Cuanto más fácil sea reportar, más datos de texto natural tendrás para entrenar el clasificador de fallas.
+
+### 2. Técnico Biomédico (Ejecutor de Campo)
+*   **Perfil:** El personal que realiza el mantenimiento preventivo, correctivo o las inspecciones predictivas.
+*   **Objetivo:** Ejecutar el trabajo, registrar tiempos con precisión y documentar la solución técnica.
+*   **Permisos (Lo que SÍ puede hacer):**
+    *   Cambiar el estado de la OT (de *Abierta* a *En Proceso*, *Pausada-Logística*, etc.).
+    *   Registrar tiempos de inicio y fin de tareas.
+    *   Llenar los **Campos Estructurados** al cerrar (Código de Falla, Causa Raíz, Estado de Confiabilidad final).
+    *   Adjuntar el informe técnico (PDF/Word) o fotos del "antes y después".
+*   **Restricciones (Lo que NO puede hacer):**
+    *   **NO puede eliminar ni borrar una OT.**
+    *   **NO puede reabrir una OT cerrada** (si hay reincidencia, debe crear una nueva OT hija).
+    *   No puede modificar la fecha de creación original de la OT.
+*   **Aporte a la IA/Métricas:** Sus acciones alimentan directamente el **MTTR, MDT y la Disponibilidad**. Sus campos estructurados son las "etiquetas" (labels) que tu modelo de XAI/SHAP usará para explicar las predicciones de RUL.
+
+### 3. Coordinador / Jefe de Mantenimiento Biomédico
+*   **Perfil:** El responsable del área. Quien toma decisiones sobre presupuestos, compras de repuestos y asignación de trabajo.
+*   **Objetivo:** Supervisar el flujo de trabajo, desbloquear cuellos de botella y analizar el rendimiento del área.
+*   **Permisos (Lo que SÍ puede hacer):**
+    *   Asignar OTs a técnicos específicos.
+    *   Aprobar el cambio de estado a *"Pausada - Logística"* (validando que se pidió el repuesto).
+    *   Ver dashboards en tiempo real con métricas (MTBF, MTTR, Disponibilidad, Tasa de Reincidencia).
+    *   Forzar el cierre de una OT *solo* con un motivo justificado y auditado (ej: "Equipo dado de baja"), dejando huella en el log del sistema.
+*   **Restricciones (Lo que NO puede hacer):**
+    *   No debe alterar los tiempos registrados por el técnico sin dejar una nota de auditoría (para no sesgar las métricas).
+*   **Aporte a la IA/Métricas:** Es el consumidor principal de los **reportes de XAI/SHAP**. Él usará las explicaciones de la IA para justificar compras de repuestos o cambios de protocolo ante la dirección del hospital.
+
+### 4. Administrador del Sistema (IT / DevOps)
+*   **Perfil:** La persona encargada de que el software funcione (puedes ser tú en un inicio, o el personal de TI del hospital).
+*   **Objetivo:** Mantener la infraestructura, la seguridad y la integridad de la base de datos.
+*   **Permisos (Lo que SÍ puede hacer):**
+    *   Crear, modificar o desactivar cuentas de usuario y asignar roles.
+    *   Realizar copias de seguridad (backups) de la base de datos.
+    *   Configurar parámetros globales (ej: nombres de tipos de equipos, lista de repuestos).
+*   **Restricciones (Lo que NO puede hacer):**
+    *   No debe interferir en la lógica de negocio de las OTs (no debe cambiar estados de OTs por "favor" o error). Su rol es técnico, no operativo.
+*   **Aporte a la IA/Métricas:** Garantiza que los datos no se pierdan y que el entorno de ejecución de los modelos de IA (Python, librerías) esté estable.
+
+### 5. Auditor de IA / Investigador (Tu rol principal como Diseñador/Tesista)
+*   **Perfil:** Tú (Raul) o tu director de tesis.
+*   **Objetivo:** Evaluar el rendimiento de los modelos predictivos, depurar errores y preparar los datos para la tesis sin alterar el entorno productivo.
+*   **Permisos (Lo que SÍ puede hacer):**
+    *   Acceso de **solo lectura (Read-Only)** a todos los datos históricos y en tiempo real.
+    *   Acceso a un "Panel de IA" donde se visualizan las predicciones de RUL, los valores de SHAP y la confianza del modelo NLP.
+    *   Ejecutar scripts de prueba (como los que haces en Python/JS) contra una **copia de la base de datos** (entorno de staging), nunca contra la base de datos real del hospital.
+*   **Restricciones (Lo que NO puede hacer):**
+    *   **Absolutamente ninguna escritura (Write) o modificación** en las OTs del sistema productivo. Esto es vital para que tu tesis sea defendible: los datos deben ser inmutables.
+*   **Aporte a la IA/Métricas:** Es el rol que valida que el sistema cumple con los objetivos académicos y que las métricas se calculan correctamente según la teoría de confiabilidad.
+
+---
+
+### 💡 Resumen Visual para tu Prompt de IA (Matriz de Permisos)
+
+Cuando le pidas a la IA de programación que genere el código, le darás esta regla de oro:
+
+| Rol | Crear OT | Editar Tiempos OT | Cambiar Estado OT | Eliminar/Borrar OT | Reabrir OT Cerrada | Ver Dashboard IA/SHAP |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Solicitante** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Técnico** | ✅ (Reincidencia) | ✅ (Solo propias) | ✅ | ❌ | ❌ | ❌ |
+| **Coordinador** | ✅ | ✅ (Con auditoría) | ✅ | ❌ | ❌ | ✅ |
+| **Admin Sistema**| ❌ | ❌ | ❌ | ❌ (Solo desactivar usuarios) | ❌ | ✅ |
+| **Auditor IA** | ❌ | ❌ (Solo lectura) | ❌ (Solo lectura) | ❌ | ❌ | ✅ (Completo) |
+
+---
+
+### Próximos Pasos
+
+Esta estructura protege tu regla de "no reabrir OTs", separa las responsabilidades y le da a tu tesis un marco de trabajo profesional y auditado.
+
+¿Te parece bien esta distribución de roles? Si estás de acuerdo, el siguiente paso lógico es que **redactemos juntos el "Mega-Prompt"** para tu asistente de programación, donde le explicaremos:
+1. El stack tecnológico (Python, JS, Open Source, etc.).
+2. La estructura de la base de datos (con los 3 selectores que definimos antes).
+3. Las reglas de negocio estrictas (la matriz de permisos de arriba).
+4. Cómo deben calcularse los relojes (MTTR vs Logística).
+
+¿Quieres que empecemos a armar ese prompt ahora?

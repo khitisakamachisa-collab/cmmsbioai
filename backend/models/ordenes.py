@@ -1,5 +1,6 @@
 from typing import Optional
 from sqlmodel import Field, SQLModel
+from pydantic import NaiveDatetime
 from datetime import datetime, date
 
 # --- Tabla de Dominio: Estados de OT ---
@@ -26,7 +27,8 @@ class OrdenTrabajo(SQLModel, table=True):
     prioridad: str 
     tecnico_asignado_id: Optional[int] = Field(default=None, foreign_key="usuario.id")
     
-    fecha_creacion: datetime = Field(default_factory=datetime.now)
+    # NaiveDatetime: almacenamiento naive en SQLite (compat sqlmodel>=0.0.22)
+    fecha_creacion: NaiveDatetime = Field(default_factory=datetime.now)
     fecha_vencimiento: Optional[date] = None
     
     titulo: str
@@ -38,3 +40,62 @@ class OrdenTrabajo(SQLModel, table=True):
     unidad_tiempo: Optional[str] = Field(default="horas")  # "horas" o "dias"
     costo_adicional: Optional[float] = None  # Costo general de la OT
     costos_adicionales: Optional[float] = None  # Costos adicionales (externos, transporte, etc.)
+
+    # ==========================================================
+    # v1.1.0 — Flujo de Trabajo OT (Propuesta aprobada 03/10/2026)
+    # Regla R5: sellos de tiempo, primera escritura inmutable.
+    #   fecha_asignacion     → se fija al ASIGNAR técnico (1ra vez)
+    #   fecha_inicio_trabajo → se fija al INICIAR trabajo (1ra vez)
+    #   fecha_resolucion     → se fija al RESOLVER/completar (1ra vez)
+    # Ningún endpoint los sobreescribe una vez establecidos.
+    # ==========================================================
+    fecha_asignacion: Optional[NaiveDatetime] = None
+    fecha_inicio_trabajo: Optional[NaiveDatetime] = None
+    fecha_resolucion: Optional[NaiveDatetime] = None
+
+    # ==========================================================
+    # v1.1.1 — Cierre definitivo y reincidencias
+    # (prompt "Gestión de OTs con Cierre Definitivo y Reapertura")
+    #
+    # Una OT cerrada (Completada/Cancelada) es INMUTABLE: ya no se
+    # reabre. Si la misma falla vuelve a intervenirse, se crea una
+    # OT NUEVA vinculada:
+    #   parent_ot_id     → OT que originó la reincidencia
+    #   failure_sequence → nº de veces que la misma falla en el mismo
+    #                      equipo ha generado OTs (1 = primera).
+    #                      Sirve para detectar fallas crónicas y para
+    #                      no distorsionar MTBF/MTTR/Disponibilidad
+    #                      (cada OT individual mantiene su propio
+    #                      inicio/cierre).
+    # ==========================================================
+    parent_ot_id: Optional[int] = Field(default=None, foreign_key="ordentrabajo.id")
+    failure_sequence: int = Field(default=1)
+
+
+# ==============================================================
+# v1.1.0 — Bitácora de transiciones (Regla R4)
+# Cada acción del flujo OT (asignar, iniciar, pausar, reanudar,
+# resolver, cancelar, reabrir, editar) queda registrada aquí con
+# usuario, comentario y estados anterior/nuevo. Es la evidencia
+# de trazabilidad para auditoría y para el cálculo del tiempo
+# en "Esp. Repuesto" del reporte /reportes/tiempos-etapa.
+# ==============================================================
+
+class BitacoraOT(SQLModel, table=True):
+    __tablename__ = "bitacora_ot"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    orden_trabajo_id: int = Field(foreign_key="ordentrabajo.id", index=True)
+
+    fecha: NaiveDatetime = Field(default_factory=datetime.now)
+
+    # Acción del flujo: creada / asignada / iniciada / pausada /
+    # reanudada / resuelta / cancelada / reabierta / editada
+    accion: str
+
+    # Usuario que ejecutó (username) o "sistema"
+    usuario: Optional[str] = None
+
+    estado_anterior: Optional[str] = None
+    estado_nuevo: Optional[str] = None
+    comentario: Optional[str] = None

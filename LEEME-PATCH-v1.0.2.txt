@@ -1,0 +1,99 @@
+================================================================
+ CMMS-BioAI — PARCHE v1.0.2
+ MTBF / MTTR / Disponibilidad (Cap. IV) + Guía de Usuario integrada
+================================================================
+
+CONTENIDO DE ESTA VERSIÓN
+-------------------------
+1. NUEVO: Indicadores de mantenimiento MTBF / MTTR / Disponibilidad
+   - Endpoint: GET /reportes/mtbf-mttr
+     · por equipo y por tipo de equipo
+     · filtro por periodo (fecha_desde / fecha_hasta)
+     · exportación CSV para el análisis estadístico (Capítulo IV):
+       GET /reportes/mtbf-mttr?formato=csv
+   - Definiciones usadas (visibles en el propio reporte):
+       Falla          = OT correctiva completada (sin plan preventivo)
+       MTBF           = horas operativas del periodo / nº de fallas
+       MTTR           = suma de tiempos de reparación / nº de fallas
+                        con tiempo registrado
+       Disponibilidad = MTBF / (MTBF + MTTR) × 100
+   - Frontend: nueva pestaña "MTBF / MTTR / Dispon." en Reportes
+     con tarjetas resumen, dos tablas (equipo y tipo) y botón
+     "Exportar CSV (Cap. IV)".
+
+2. NUEVO: Guía de Usuario integrada en Ayuda del Sistema
+   - Pestaña "📖 Guía de Usuario" (primera de la página /ayuda):
+     qué es el sistema, módulos A–E, semáforo con umbrales reales
+     (Rojo ≤30 d / Amarillo 31–90 d / Verde >90 d / Sin datos),
+     botones del panel predictivo, FAQ y glosario esencial
+     (incluye Estudio de Ablación, SVM, SHAP, XAI, métricas
+     reales F1=0.92 / AUC=0.96 / RMSE≈24 d / MAE≈17 d, normas
+     ISO 55000, ISO 13485, IEC 60601-1, ISO/IEC 17025, DECIDE-AI,
+     Ley 164).
+
+3. INCLUIDO: Parche v1.0.1 (compatibilidad Python 3.13/3.14)
+   - Modelos con NaiveDatetime + sqlmodel>=0.0.24 en requirements.
+   - Si ya aplicaste el parche v1.0.1, los archivos de models/
+     y requirements.txt son idénticos: reemplázalos sin miedo.
+
+ARCHIVOS INCLUIDOS (12)
+-----------------------
+LEEME-PATCH-v1.0.2.txt                    (este archivo)
+backend/requirements.txt                  (reemplazar)
+backend/models/ordenes.py                 (reemplazar)
+backend/models/contratos.py               (reemplazar)
+backend/models/costos.py                  (reemplazar)
+backend/models/historial.py               (reemplazar)
+backend/models/documentos.py              (reemplazar)
+backend/api/routes/reportes.py            (reemplazar — añade endpoint)
+backend/prueba_mtbf.py                    (nuevo — prueba del endpoint, se limpia sola)
+backend/limpiar_datos_prueba.py           (nuevo — borra datos de prueba MTBF-001/002)
+frontend/src/views/ReportesView.vue       (reemplazar — pestaña MTBF)
+frontend/src/views/AyudaView.vue          (reemplazar — guía de usuario)
+
+PASOS DE INSTALACIÓN (Windows)
+------------------------------
+1. COPIA los archivos sobre tu proyecto D:\cmmsbioai
+   (reemplaza los existentes, manteniendo la misma estructura de
+   carpetas).
+
+2. Desde D:\cmmsbioai\backend:
+      python -m pip install --upgrade "sqlmodel>=0.0.24"
+   (si ya instalaste sqlmodel 0.0.47, este paso no hace nada)
+
+3. Dependencia solo para las PRUEBAS (prueba_mtbf.py, prueba_api_ia.py):
+      python -m pip install httpx2
+   (el TestClient de starlette moderno la requiere; el servidor
+   uvicorn NO la necesita para funcionar)
+
+4. Verificación (opcional pero recomendada):
+      python prueba_mtbf.py
+   Debe terminar mostrando "OK ✓" en la verificación manual y un
+   CSV de ejemplo. Al final ELIMINA SOLO los datos de prueba, así
+   que puedes ejecutarlo sin miedo sobre tu base de datos real.
+
+   NOTA: si ya habías corrido la prueba antes del 02/10/2026, tu
+   BD quedó con 2 equipos de prueba (seriales MTBF-001 y MTBF-002)
+   que inflan las estadísticas. Límpialos UNA sola vez con:
+      python limpiar_datos_prueba.py
+
+5. Levanta el sistema:
+   Terminal 1:  cd D:\cmmsbioai\backend
+                python -m uvicorn main:app --reload
+   Terminal 2:  cd D:\cmmsbioai\frontend
+                npm run build   (o npm run dev para desarrollo)
+
+6. Comprueba en la app:
+   - Reportes → pestaña "MTBF / MTTR / Dispon."
+   - Ayuda del Sistema → pestaña "📖 Guía de Usuario"
+
+NOTAS PARA LA TESIS (CAPÍTULO IV)
+---------------------------------
+- El CSV incluye: equipo, tipo, periodo analizado, nº de fallas,
+  horas de reparación, horas operativas, MTBF, MTTR y
+  Disponibilidad — listo para Excel/SPSS/R.
+- Recuerda registrar el "tiempo real invertido" (y su unidad,
+  horas/días) al completar cada OT correctiva: es el insumo del
+  MTTR y de la Disponibilidad. Equipos sin OTs correctivas
+  muestran Disponibilidad 100% (sin fallas registradas) y MTBF "—".
+- El botón "Exportar CSV" respeta el filtro de fechas de la vista.

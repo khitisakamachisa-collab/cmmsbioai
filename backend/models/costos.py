@@ -5,6 +5,7 @@ Reemplaza los campos `costo_adicional` y `costos_adicionales` de OrdenTrabajo.
 """
 from typing import Optional
 from sqlmodel import Field, SQLModel
+from pydantic import NaiveDatetime
 from datetime import date, datetime
 
 
@@ -27,7 +28,8 @@ class OtCostoAdicional(SQLModel, table=True):
 
     # Fechas
     fecha_registro: Optional[date] = None    # fecha del costo (default = hoy)
-    fecha_creacion: datetime = Field(default_factory=datetime.now)  # auditoría
+    # NaiveDatetime: almacenamiento naive en SQLite (compat sqlmodel>=0.0.22)
+    fecha_creacion: NaiveDatetime = Field(default_factory=datetime.now)  # auditoría
 
     # Auditoría
     subido_por: Optional[str] = None         # username del usuario que registró el costo

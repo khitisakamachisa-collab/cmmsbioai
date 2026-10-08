@@ -1,5 +1,6 @@
 from typing import Optional
 from sqlmodel import Field, SQLModel
+from pydantic import NaiveDatetime
 from datetime import datetime
 
 
@@ -26,7 +27,8 @@ class EventoHistorial(SQLModel, table=True):
     tecnico_id: Optional[int] = Field(default=None, foreign_key="usuario.id")
 
     # Fechas
-    fecha_evento: datetime = Field(default_factory=datetime.now)
+    # NaiveDatetime: almacenamiento naive en SQLite (compat sqlmodel>=0.0.22)
+    fecha_evento: NaiveDatetime = Field(default_factory=datetime.now)
 
     # Detalles adicionales
     acciones_realizadas: Optional[str] = None

@@ -21,6 +21,10 @@ class EquipoBase(BaseModel):
     ubicacion_actual: Optional[str] = None
     estado_id: Optional[int] = 1
 
+    # Tipo y criticidad (v1.0.0 — RF07 Módulo Predictivo)
+    tipo_equipo: Optional[str] = "Otro"                        # "Bomba de Infusión" activa la IA
+    criticidad: Optional[str] = "Media"                        # Baja / Media / Alta
+
     # Proveedor (FK en vez de texto libre)
     proveedor_principal_id: Optional[int] = None               # NUEVO
 
@@ -33,6 +37,16 @@ class EquipoBase(BaseModel):
 
     # Imagen
     imagen_ruta: Optional[str] = None
+
+    @field_validator('criticidad')
+    @classmethod
+    def validate_criticidad(cls, v):
+        """Valida que criticidad sea Baja/Media/Alta (feature del modelo RUL)."""
+        if v is None or v == '':
+            return 'Media'
+        if v not in {'Baja', 'Media', 'Alta'}:
+            raise ValueError('criticidad debe ser: Baja, Media o Alta')
+        return v
 
     @field_validator('condicion_origen')
     @classmethod
@@ -88,11 +102,23 @@ class EquipoUpdate(BaseModel):
     fecha_fin_garantia: Optional[date] = None
     ubicacion_actual: Optional[str] = None
     estado_id: Optional[int] = None
+    tipo_equipo: Optional[str] = None
+    criticidad: Optional[str] = None
     proveedor_principal_id: Optional[int] = None
     condicion_origen: Optional[str] = None
     descripcion: Optional[str] = None
     observaciones: Optional[str] = None
     imagen_ruta: Optional[str] = None
+
+    @field_validator('criticidad')
+    @classmethod
+    def validate_criticidad(cls, v):
+        """Valida que criticidad sea Baja/Media/Alta (feature del modelo RUL)."""
+        if v is None or v == '':
+            return v
+        if v not in {'Baja', 'Media', 'Alta'}:
+            raise ValueError('criticidad debe ser: Baja, Media o Alta')
+        return v
 
     @field_validator('condicion_origen')
     @classmethod

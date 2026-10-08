@@ -536,7 +536,9 @@ const openDetalle = (evento) => {
 
 const irAOrden = (otId) => {
   showDetalleModal.value = false
-  router.push('/ordenes')
+  // v1.1.1: lleva el ID en la URL → la página de OTs abre automáticamente
+  // el modal ⚡ Acciones de Flujo de esa OT (seguir el flujo más rápido)
+  router.push({ path: '/ordenes', query: { ot: otId } })
 }
 
 const irAPreventivo = () => {

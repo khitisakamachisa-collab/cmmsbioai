@@ -1,0 +1,65 @@
+================================================================
+ CMMS-BioAI — PARCHE v1.0.1
+ Compatibilidad Python 3.13/3.14 + sqlmodel moderno
+================================================================
+
+PROBLEMA QUE CORRIGE
+--------------------
+En Python 3.14, sqlmodel 0.0.21 falla al arrancar el backend con:
+
+  pydantic.errors.PydanticUserError: Field 'id' requires a type annotation
+
+Causa: Python 3.14 cambió el manejo interno de anotaciones de clase
+(PEP 649) y sqlmodel 0.0.21 (2024) no lo soporta. Además, sqlmodel
+0.0.24+ exige que los datetime tengan timezone; este parche usa el
+tipo NaiveDatetime para mantener el almacenamiento NAIVE original,
+sin migración de base de datos ni cambios en el frontend.
+
+ARCHIVOS INCLUIDOS (6)
+----------------------
+1. backend/requirements.txt            -> sqlmodel>=0.0.24 (actualizado)
+2. backend/models/ordenes.py           -> fecha_creacion: NaiveDatetime
+3. backend/models/contratos.py         -> fecha_inicio/fin/creacion: NaiveDatetime
+4. backend/models/costos.py            -> fecha_creacion: NaiveDatetime
+5. backend/models/historial.py         -> fecha_evento: NaiveDatetime
+6. backend/models/documentos.py        -> fecha_subida: NaiveDatetime
+
+PASOS DE INSTALACIÓN (Windows)
+------------------------------
+1. COPIA los archivos de este paquete sobre tu proyecto D:\cmmsbioai
+   (reemplaza los existentes):
+
+   backend\requirements.txt        <- reemplazar
+   backend\models\ordenes.py       <- reemplazar
+   backend\models\contratos.py     <- reemplazar
+   backend\models\costos.py        <- reemplazar
+   backend\models\historial.py     <- reemplazar
+   backend\models\documentos.py    <- reemplazar
+
+2. Actualiza sqlmodel (desde D:\cmmsbioai\backend):
+
+   python -m pip install --upgrade "sqlmodel>=0.0.24"
+
+   (verás algo como "Successfully installed sqlmodel-0.0.4x")
+
+3. Levanta el backend y verifica:
+
+   python -m uvicorn main:app --reload
+
+   Debe arrancar sin el error "Field 'id' requires a type
+   annotation" y mostrar:  Uvicorn running on http://127.0.0.1:8000
+
+4. Verificación rápida de creación de OTs:
+   - Abre la app (frontend) y crea una Orden de Trabajo de prueba.
+   - No debe aparecer ningún error de "timezone information".
+
+NOTAS
+-----
+- NO se requiere migración de base de datos: tu cmms_bioai.db
+  existente sigue funcionando igual (fechas naive, como siempre).
+- NO se requiere reinstalar Python 3.12: el parche es compatible
+  con Python 3.10 a 3.14 (probado en 3.12 y 3.14).
+- El módulo IA (RF07) no cambia: F1=0.9242, AUC=0.9628 verificados.
+- Si prefieres no aplicar el parche: la alternativa es instalar
+  Python 3.12 y recrear el entorno con sqlmodel 0.0.21 (el
+  requirements.txt v1.0.0). No recomendado.

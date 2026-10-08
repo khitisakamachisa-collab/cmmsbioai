@@ -4,6 +4,7 @@ Gestión de contratos de mantenimiento y servicios con proveedores.
 """
 from typing import Optional
 from sqlmodel import Field, SQLModel
+from pydantic import NaiveDatetime
 from datetime import datetime
 
 
@@ -23,8 +24,9 @@ class Contrato(SQLModel, table=True):
 
     # Tipo y vigencia
     tipo_contrato: str  # enum: Comodato, Mantenimiento Preventivo, Mantenimiento Correctivo, Leasing, Garantía Extendida, Soporte Técnico, Servicio Integral, Otro
-    fecha_inicio: datetime  # NOT NULL
-    fecha_fin: datetime     # NOT NULL
+    # NaiveDatetime: almacenamiento naive en SQLite (compat sqlmodel>=0.0.22)
+    fecha_inicio: NaiveDatetime  # NOT NULL
+    fecha_fin: NaiveDatetime     # NOT NULL
 
     # Costos
     costo_total: Optional[float] = None
@@ -39,7 +41,7 @@ class Contrato(SQLModel, table=True):
 
     # Notas y auditoría
     notas: Optional[str] = None
-    fecha_creacion: datetime = Field(default_factory=datetime.now)
+    fecha_creacion: NaiveDatetime = Field(default_factory=datetime.now)
 
 
 class ContratoEquipo(SQLModel, table=True):

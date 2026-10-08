@@ -1,0 +1,217 @@
+================================================================
+ CMMS-BioAI — PARCHE v1.1.0
+ FLUJO DE TRABAJO OT (reglas R1–R7) + KPIs de tiempos por etapa
+ Aprobado tras auditoría del flujo OT (03/10/2026)
+================================================================
+
+CONTENIDO DE ESTA VERSIÓN
+-------------------------
+1. MÁQUINA DE ESTADOS Y ACCIONES ENDPOINT (H1, H2, H3)
+   - Toda OT NACE "Abierta". El selector de estado desapareció
+     del formulario de creación (R1).
+   - El estado SOLO cambia mediante 7 acciones endpoint
+     (asignar / iniciar / pausar / reanudar / resolver /
+     cancelar / reabrir). El PUT genérico ya NO modifica
+     estados y rechaza OTs cerradas (H2).
+   - Resolver (completar) EXIGE: acciones_realizadas +
+     tiempo_real_invertido > 0 (H3/R3).
+   - Transiciones válidas (R2):
+       Abierta      → En Proceso | Cancelada
+       En Proceso   → Esp. Repuesto | Completada | Cancelada
+       Esp. Repuesto→ En Proceso | Cancelada
+       Completada   → (solo vía reabrir → En Proceso)
+       Cancelada    → (solo vía reabrir → Abierta)
+
+2. SELLOS DE TIEMPO INMUTABLES (H4 / R5)
+   - Nuevas columnas en 'ordentrabajo' (migración automática):
+       fecha_asignacion, fecha_inicio_trabajo, fecha_resolucion
+   - Se fijan UNA sola vez; ningún endpoint los sobreescribe.
+
+3. BITÁCORA DE TRANSICIONES (H5 / R4)
+   - Nueva tabla 'bitacora_ot': cada acción queda registrada
+     con usuario, comentario y estados anterior → nuevo.
+   - Consulta: GET /ordenes/{id}/bitacora
+   - Visible en el modal "Ver" de la OT (línea de tiempo).
+
+4. VENCIMIENTO VISIBLE (H6)
+   - Nueva columna "Vence" en el listado de OTs; en ROJO si
+     ya venció y la OT sigue abierta. También en el detalle.
+
+5. UI DE ACCIONES DE FLUJO
+   - Botón ⚡ en cada fila de OT → modal "Acciones de Flujo":
+     muestra solo las acciones válidas para el estado actual.
+   - Formularios contextuales: asignar técnico, motivo de
+     pausa/cancelación/reapertura, cierre con solución+tiempo.
+   - OTs Completadas/Canceladas son de solo lectura (lápiz
+     deshabilitado); para cambiarlas use Reabrir (R7).
+
+6. KPIs DEL FLUJO — GET /reportes/tiempos-etapa (Cap. IV)
+   - MTTA:                creación → asignación (prom. horas)
+   - Tiempo de reacción:  asignación → inicio del trabajo
+   - Reparación bruta:    inicio → resolución
+   - Espera de repuestos: suma de intervalos "Esp. Repuesto"
+                          según bitácora (pausar → reanudar)
+   - Reparación activa:   bruta − espera de repuestos
+   - Tasa de cancelación: canceladas / creadas × 100
+   - Tasa de reapertura:  reabiertas / completadas × 100
+   - Filtros: fecha_desde, fecha_hasta (por fecha de creación).
+   - CSV: GET /reportes/tiempos-etapa?formato=csv
+          (una fila por OT, listo para Excel/SPSS/R).
+
+REFERENCIA RÁPIDA DE ENDPOINTS (v1.1.0)
+---------------------------------------
+  POST /ordenes/{id}/asignar     {"tecnico_asignado_id": 3, "comentario": "...", "usuario": "admin"}
+  POST /ordenes/{id}/iniciar     {"usuario": "tech"}
+  POST /ordenes/{id}/pausar      {"comentario": "Espera repuesto kit X", "usuario": "tech"}
+  POST /ordenes/{id}/reanudar    {"usuario": "tech"}
+  POST /ordenes/{id}/resolver    {"acciones_realizadas": "Cambio de bobina", "tiempo_real_invertido": 2.5, "unidad_tiempo": "horas", "usuario": "tech"}
+  POST /ordenes/{id}/cancelar    {"comentario": "Motivo...", "usuario": "admin"}
+  POST /ordenes/{id}/reabrir     {"comentario": "La falla persiste", "usuario": "admin"}
+  GET  /ordenes/{id}/bitacora    → historial completo de la OT
+  GET  /reportes/tiempos-etapa   → KPIs JSON | ?formato=csv
+
+  · El campo "usuario" es opcional y se toma del login (JWT).
+    Cuando se implemente H7 (v1.2) saldrá del token en el
+    backend; hoy viaja en el cuerpo para la bitácora.
+  · Reabrir una OT preventiva NO revierte las fechas de la
+    tarea preventiva (R6: mecanismo preventivo sin cambios).
+
+ARCHIVOS INCLUIDOS (13)
+-----------------------
+LEEME-PATCH-v1.1.txt                      (este archivo)
+backend/requirements.txt                  (sin cambios de contenido, referencia)
+backend/database.py                       (reemplazar — migración v1.1.0)
+backend/models/ordenes.py                 (reemplazar — sellos de tiempo + BitacoraOT)
+backend/models/__init__.py                (reemplazar — exporta BitacoraOT)
+backend/schemas/orden_trabajo.py          (reemplazar — R1, H2, esquemas de acciones)
+backend/api/routes/ordenes.py             (reemplazar — máquina de estados + acciones)
+backend/api/routes/reportes.py            (reemplazar — endpoint tiempos-etapa)
+backend/prueba_flujo_ot.py                (nuevo — prueba integral, usa BD TEMPORAL)
+backend/verificar_entorno_ia.py           (nuevo — diagnóstico del entorno Python)
+frontend/src/views/OrdenesView.vue        (reemplazar — flujo OT completo)
+frontend/src/views/AyudaView.vue          (reemplazar — pestaña "Hoja de Ruta" + pendientes)
+LEEME-PATCH-v1.0.2.txt                    (referencia — versión anterior)
+
+PASOS DE INSTALACIÓN (Windows) — ACTUALIZAR DESDE v1.0.x
+--------------------------------------------------------
+0. RECOMENDADO: respalde su base de datos:
+      copy D:\cmmsbioai\backend\cmms_bioai.db  cmms_bioai_backup_v110.db
+
+1. COPIE los archivos sobre D:\cmmsbioai manteniendo la
+   estructura de carpetas (reemplaza los existentes).
+
+2. La migración es AUTOMÁTICA: al arrancar el backend se
+   agregan las 3 columnas de sellos de tiempo y se crea la
+   tabla bitacora_ot. Sus datos existentes NO se tocan; las
+   OTs anteriores a v1.1.0 no tienen sellos ni bitácora y
+   aparecen con "—" en los KPIs (comportamiento esperado).
+
+3. Levante el sistema:
+      Terminal 1:  cd D:\cmmsbioai\backend
+                   venv\Scripts\activate
+                   python -m uvicorn main:app --reload
+      Terminal 2:  cd D:\cmmsbioai\frontend
+                   npm run build   (o npm run dev para desarrollo)
+
+4. VERIFICACIÓN (recomendada, NO toca su base de datos):
+      cd D:\cmmsbioai\backend
+      python prueba_flujo_ot.py
+   Debe terminar con "OK ✓" y ~37 verificaciones. La prueba
+   corre sobre una base de datos TEMPORAL y se limpia sola.
+
+   Diagnóstico del entorno Python (si algo falla al importar):
+      python verificar_entorno_ia.py
+   Indica paquete por paquete qué falta y el comando exacto.
+
+5. Compruebe en la app:
+   - Órdenes → botón ⚡ en una fila → Acciones de Flujo.
+   - Crear OT → ya no hay selector de estado (nace Abierta).
+   - Ver OT → sellos de tiempo + bitácora del flujo.
+   - Reportes → (los KPIs del flujo se consumen en
+     /reportes/tiempos-etapa; la pestaña visual puede
+     integrarse en la siguiente iteración).
+
+PASOS — INSTALACIÓN DESDE CERO (PC nueva / recuperación)
+--------------------------------------------------------
+   cd D:\cmmsbioai\backend
+   python -m venv venv
+   venv\Scripts\activate
+   python -m pip install --upgrade pip setuptools wheel
+   python -m pip install --only-binary=:all: -r requirements.txt
+   python verificar_entorno_ia.py          (debe decir TODO OK)
+   python prueba_flujo_ot.py               (debe decir OK ✓)
+   python -m uvicorn main:app --reload
+   (frontend)  npm install && npm run dev
+
+   Nota Python 3.14: el flag --only-binary=:all: fuerza
+   paquetes precompilados y evita el error de compilador
+   de C. Si algún paquete no tuviera wheel para 3.14, el
+   comando falla rápido y claro (avísame con el mensaje).
+
+NOTAS PARA LA TESIS (CAPÍTULO IV)
+---------------------------------
+- La cadena de sellos de tiempo permite medir el ciclo real:
+  reporte/creación → asignación (MTTA) → inicio (reacción) →
+  resolución (reparación activa vs. espera de repuestos).
+- El CSV de /reportes/tiempos-etapa trae las 19 columnas por
+  OT, incluyendo horas por etapa y nº de reaperturas.
+- Para el MTBF/MTTR/disponibilidad sigue existiendo
+  GET /reportes/mtbf-mttr (parche v1.0.2).
+- El tiempo en "Esp. Repuesto" se calcula desde la bitácora
+  (R4), evidencia auditable del intervalo de espera.
+
+HOJA DE RUTA ACORDADA (hilo de recuperación del chat)
+-----------------------------------------------------
+Conversación del 03/10/2026 — decisiones y alcance:
+
+- v1.2 — RED Y MÓVIL (≈12–17 h):
+  * Acceso multi-dispositivo en LAN/WiFi: uvicorn --host
+    0.0.0.0 + build de Vue servida por FastAPI (un solo
+    puerto) + baseURL dinámica + regla de firewall. Cualquier
+    PC o celular del hospital entra con http://IP-servidor:8000.
+  * Modo Técnico móvil (PWA instalable en Android): Mis OTs,
+    autoasignarse, iniciar/pausar/reanudar/resolver con
+    botones grandes. Usa los mismos endpoints de v1.1.0.
+  * H7: autorización por roles (admin/tecnico/solicitante)
+    tomando el usuario del JWT en el backend.
+
+- v1.3 — SOLICITANTES Y RESOLUCIÓN REMOTA (≈11–15 h):
+  * Modo Solicitante: encargados de unidad generan un TICKET
+    (equipo + descripción + foto) desde el celular; el
+    departamento lo acepta (→ OT Abierta, R1) o lo rechaza
+    con motivo. Cadena completa de sellos: reporte →
+    aceptación → asignación → llegada → resolución.
+  * Resolución remota telefónica: modalidad Presencial/
+    Remota en la OT + bitácora de indicaciones; cierre sin
+    presencia física; KPI % de resolución remota. Opcional:
+    confirmación del solicitante al cierre.
+  * Alerta RUL → OT automática (umbral rojo ≤ 30 días).
+
+- Tesis (paralelo): protocolo H2 con 5–8 expertos (Likert);
+  datos reales 2023–2025 cuando estén disponibles.
+
+- Red WiFi hospitalaria: confirmado factible (red cableada o
+  WiFi). Internet abierto (fuera de LAN) requeriría VPN/HTTPS
+  — fuera del alcance de la tesis.
+
+- La página Ayuda del Sistema incluye desde esta versión la
+  pestaña "🧭 Hoja de Ruta" con este mismo resumen.
+
+RESPALDO EN GITHUB
+------------------
+  cd D:\cmmsbioai
+  (verificar .gitignore: venv/, node_modules/, cmms_bioai.db, uploads/)
+  git init          (si no existe)
+  git add .
+  git commit -m "v1.1.0 Flujo de Trabajo OT (R1-R7 + KPIs + bitácora)"
+  git remote add origin <URL-de-tu-repo>
+  git push -u origin main
+
+HISTORIAL
+---------
+v1.1.0 (03/10/2026) Flujo de Trabajo OT: R1–R7, acciones endpoint,
+                    bitácora, sellos de tiempo, KPIs por etapa,
+                    Hoja de Ruta en Ayuda.
+v1.0.2 (02/10/2026) MTBF/MTTR/Disponibilidad + Guía de Usuario.
+v1.0.1              Compatibilidad Python 3.13/3.14 (NaiveDatetime).
+v1.0.0 (01/10/2026) RF07 Módulo Predictivo (PLN + RUL + XAI/SHAP).

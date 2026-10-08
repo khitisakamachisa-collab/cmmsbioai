@@ -1,0 +1,83 @@
+{
+  "nivel_produccion": "N3",
+  "clasificador": "TF-IDF(1500) + SVM calibrado",
+  "rul": "XGBoost",
+  "n_total": 220,
+  "n_train": 165,
+  "n_test": 55,
+  "clasificacion": {
+    "f1_macro": 0.9242,
+    "precision_macro": 0.9722,
+    "recall_macro": 0.9008,
+    "auc_roc_ovr": 0.9628
+  },
+  "regresion": {
+    "rmse_dias": 24.08,
+    "mae_dias": 17.51,
+    "r2": 0.4377
+  },
+  "importancia_global_shap": [
+    {
+      "feature": "prob_mecanica",
+      "importancia": 8.7285,
+      "etiqueta": "Riesgo textual de falla mecánica (PLN)"
+    },
+    {
+      "feature": "dias_desde_ultima_intervencion",
+      "importancia": 7.1758,
+      "etiqueta": "Días desde la última intervención"
+    },
+    {
+      "feature": "edad_anios",
+      "importancia": 5.8295,
+      "etiqueta": "Antigüedad del equipo (años)"
+    },
+    {
+      "feature": "prob_sensor",
+      "importancia": 2.7819,
+      "etiqueta": "Riesgo textual de falla de sensor (PLN)"
+    },
+    {
+      "feature": "prob_calibracion",
+      "importancia": 2.7284,
+      "etiqueta": "Riesgo de deriva metrológica (PLN)"
+    },
+    {
+      "feature": "criticidad_puntaje",
+      "importancia": 2.281,
+      "etiqueta": "Criticidad del equipo (1-3)"
+    },
+    {
+      "feature": "num_ot_previas_12m",
+      "importancia": 1.5628,
+      "etiqueta": "N.º de OTs correctivas previas (12 meses)"
+    },
+    {
+      "feature": "prob_electrica",
+      "importancia": 1.494,
+      "etiqueta": "Riesgo textual de falla eléctrica (PLN)"
+    }
+  ],
+  "categorias": [
+    "calibracion",
+    "electrica",
+    "mecanica",
+    "otra",
+    "sensor",
+    "software"
+  ],
+  "features_rul": [
+    "edad_anios",
+    "criticidad_puntaje",
+    "dias_desde_ultima_intervencion",
+    "num_ot_previas_12m",
+    "num_reportes_oclusion_previos",
+    "deriva_calibracion_previa",
+    "prob_electrica",
+    "prob_mecanica",
+    "prob_software",
+    "prob_sensor",
+    "prob_calibracion",
+    "prob_otra"
+  ]
+}

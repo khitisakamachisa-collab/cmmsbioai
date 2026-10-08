@@ -13,6 +13,7 @@ import ConfiguracionView from '../views/ConfiguracionView.vue'
 import ProveedoresView from '../views/ProveedoresView.vue'
 import ContratosView from '../views/ContratosView.vue'
 import PlanificacionView from '../views/PlanificacionView.vue'  // v0.9.13
+import PredictivoView from '../views/PredictivoView.vue'        // v1.0.0 — RF07 Módulo Predictivo
 
 
 const routes = [
@@ -55,6 +56,11 @@ const routes = [
     path: '/planificacion',
     name: 'planificacion',
     component: PlanificacionView
+  },
+  {
+    path: '/predictivo',
+    name: 'predictivo',
+    component: PredictivoView
   },
   {
     path: '/historial',

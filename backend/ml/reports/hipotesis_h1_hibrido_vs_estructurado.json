@@ -1,0 +1,67 @@
+{
+  "hipotesis": "H1: el modelo híbrido (PLN+RUL) supera en ≥15% el F1 del modelo solo estructurado",
+  "alpha": 0.05,
+  "cv_folds": 5,
+  "estratificacion": "por equipo (StratifiedGroupKFold)",
+  "f1_hibrido_media": 0.9214,
+  "f1_hibrido_std": 0.053,
+  "f1_estructurado_media": 0.2957,
+  "f1_estructurado_std": 0.0649,
+  "mejora_relativa_media": 2.2784,
+  "mejora_minima_requerida": 0.15,
+  "auc_hibrido_media": 0.9916,
+  "auc_estructurado_media": 0.6487,
+  "prueba_estadistica": "t de Student pareada (unilateral, híbrido > estructurado)",
+  "estadistico": 16.654,
+  "p_valor": 3.8e-05,
+  "shapiro_p_diferencias": 0.0524,
+  "h1_cumple": true,
+  "conclusion": "SE CUMPLE H1: mejora relativa ≥ 15% con significancia estadística (p < α).",
+  "detalle_por_pliegue": [
+    {
+      "pliegue": 1,
+      "n_train": 175,
+      "n_test": 45,
+      "f1_hibrido": 0.9848,
+      "f1_estructurado": 0.3026,
+      "auc_hibrido": 0.9991,
+      "auc_estructurado": 0.6157
+    },
+    {
+      "pliegue": 2,
+      "n_train": 175,
+      "n_test": 45,
+      "f1_hibrido": 0.8547,
+      "f1_estructurado": 0.3735,
+      "auc_hibrido": 0.9702,
+      "auc_estructurado": 0.6892
+    },
+    {
+      "pliegue": 3,
+      "n_train": 180,
+      "n_test": 40,
+      "f1_hibrido": 0.9814,
+      "f1_estructurado": 0.3517,
+      "auc_hibrido": 0.9982,
+      "auc_estructurado": 0.7077
+    },
+    {
+      "pliegue": 4,
+      "n_train": 175,
+      "n_test": 45,
+      "f1_hibrido": 0.8796,
+      "f1_estructurado": 0.1947,
+      "auc_hibrido": 0.9984,
+      "auc_estructurado": 0.5773
+    },
+    {
+      "pliegue": 5,
+      "n_train": 175,
+      "n_test": 45,
+      "f1_hibrido": 0.9064,
+      "f1_estructurado": 0.256,
+      "auc_hibrido": 0.992,
+      "auc_estructurado": 0.6534
+    }
+  ]
+}

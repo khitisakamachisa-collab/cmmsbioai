@@ -1,0 +1,153 @@
+{
+  "tabla_comparativa": [
+    {
+      "nivel": "N1",
+      "descripcion": "Texto crudo (solo tokenización básica)",
+      "f1_macro_media": 0.8578,
+      "f1_macro_std": 0.0587,
+      "auc_roc_ovr_media": 0.9865,
+      "auc_roc_ovr_std": 0.0137,
+      "rmse_dias_media": 24.324,
+      "rmse_dias_std": 2.0784,
+      "mae_dias_media": 18.482,
+      "mae_dias_std": 1.21
+    },
+    {
+      "nivel": "N2",
+      "descripcion": "Limpieza genérica agresiva (stop words + stemming Snowball español)",
+      "f1_macro_media": 0.8767,
+      "f1_macro_std": 0.0421,
+      "auc_roc_ovr_media": 0.9847,
+      "auc_roc_ovr_std": 0.0143,
+      "rmse_dias_media": 24.228,
+      "rmse_dias_std": 1.7683,
+      "mae_dias_media": 19.072,
+      "mae_dias_std": 1.2052
+    },
+    {
+      "nivel": "N3",
+      "descripcion": "Limpieza consciente del dominio (diccionario de sinónimos biomédicos)",
+      "f1_macro_media": 0.9231,
+      "f1_macro_std": 0.0423,
+      "auc_roc_ovr_media": 0.9915,
+      "auc_roc_ovr_std": 0.0095,
+      "rmse_dias_media": 24.322,
+      "rmse_dias_std": 1.4498,
+      "mae_dias_media": 18.334,
+      "mae_dias_std": 0.6999
+    }
+  ],
+  "prueba_estadistica_n3_vs_n2": {
+    "comparacion": "N3 vs N2 (F1-Score macro, pareado por pliegue, unilateral N3>N2)",
+    "alpha": 0.05,
+    "n_pliegues": 5,
+    "diferencias_por_pliegue": [
+      0.0329,
+      -0.0187,
+      0.0783,
+      0.0326,
+      0.1071
+    ],
+    "shapiro_wilk_p_diferencias": 0.8205,
+    "prueba_aplicada": "t de Student pareada (unilateral) — diferencias normales (Shapiro p ≥ α)",
+    "estadistico": 2.1521,
+    "p_valor": 0.048874,
+    "p_valor_primario": 0.048874,
+    "wilcoxon_p_referencial": 0.0625,
+    "conclusion": "N3 superior a N2 con significancia estadística unilateral (p < α) — valida la propuesta de la tesis."
+  },
+  "cv_folds": 5,
+  "estratificacion": "equipo (StratifiedGroupKFold sobre tipo de falla)",
+  "metricas_por_pliegue": {
+    "N1": {
+      "f1_macro": [
+        0.8746,
+        0.8676,
+        0.8292,
+        0.9483,
+        0.7693
+      ],
+      "auc_roc_ovr": [
+        0.9972,
+        0.9648,
+        0.9966,
+        0.9982,
+        0.9757
+      ],
+      "rmse_dias": [
+        22.66,
+        23.62,
+        23.9,
+        23.05,
+        28.39
+      ],
+      "mae_dias": [
+        17.46,
+        18.64,
+        18.45,
+        17.22,
+        20.64
+      ]
+    },
+    "N2": {
+      "f1_macro": [
+        0.8604,
+        0.8863,
+        0.8373,
+        0.9541,
+        0.8454
+      ],
+      "auc_roc_ovr": [
+        0.9928,
+        0.9596,
+        0.9942,
+        0.9987,
+        0.9782
+      ],
+      "rmse_dias": [
+        23.26,
+        23.75,
+        26.2,
+        21.68,
+        26.25
+      ],
+      "mae_dias": [
+        17.19,
+        19.8,
+        20.44,
+        18.16,
+        19.77
+      ]
+    },
+    "N3": {
+      "f1_macro": [
+        0.8933,
+        0.8676,
+        0.9156,
+        0.9867,
+        0.9525
+      ],
+      "auc_roc_ovr": [
+        0.998,
+        0.9746,
+        0.9972,
+        1.0,
+        0.9876
+      ],
+      "rmse_dias": [
+        26.35,
+        22.19,
+        24.41,
+        23.37,
+        25.29
+      ],
+      "mae_dias": [
+        18.74,
+        18.52,
+        17.95,
+        17.21,
+        19.25
+      ]
+    }
+  }
+}

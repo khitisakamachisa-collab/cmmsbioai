@@ -1,0 +1,54 @@
+{
+  "_descripcion": "Diccionario de sinónimos biomédicos en español para bombas de infusión. Cada clave es el término CANÓNICO (normalizado); cada valor es la lista de variantes, sinónimos, abreviaturas y errores ortográficos frecuentes que se mapean al término canónico durante el preprocesamiento Nivel 3 (limpieza consciente del dominio). Formato editable: agregar términos clave nuevos sin modificar el código.",
+  "_uso": "ml/preprocesamiento.py → normalizar_texto_dominio()",
+  "_version": "1.0",
+  "_fuente": "Tesis CMMS-BioAI — corpus técnico hospitalario (La Paz / El Alto, Bolivia)",
+
+  "oclusion": ["oclusión", "ocluido", "ocluida", "ocluidos", "ocluidas", "oclusiom", "oclucion", "obstrucción", "obstruccion", "obstruido", "obstruida", "obstruido", "tapado", "tapada", "atascado", "atascada", "atollado", "atollada", "bloqueo", "bloqueada", "bloqueado", "tupido", "no pasa el líquido", "no pasa el liquido", "no fluye"],
+
+  "burbuja": ["burbuja", "burbujas", "burbuga", "burbugas", "aire en línea", "aire en linea", "aire en la línea", "aire en la linea", "embolia", "embolismo", "aire"],
+
+  "alarma": ["alarma", "alrama", "alrma", "alarma sonora", "alarma sonora constante", "suena alarma", "suena la alarma", "bip", "pitido", "avisos", "aviso", "sonora"],
+
+  "bateria": ["batería", "bateria", "bateriaa", "bat", "bat.", "acumulador", "acumuladores", "pilas", "pila", "no carga", "no carga la batería", "no sostiene carga", "autonomía", "autonomia"],
+
+  "pantalla": ["pantalla", "pantall", "display", "lcd", "visor", "panel", "se congela", "congelada", "congelado", "se traba", "negra", "en negro", "no muestra", "parpadea", "parpadeo"],
+
+  "flujo": ["flujo", "caudal", "goteo", "gotea", "goteando", "infusión", "infusion", "infusa", "volumen infundido", "flujo irregular", "flujo inestable", "no regula el flujo", "varía el goteo", "varia el goteo"],
+
+  "calibracion": ["calibración", "calibracion", "calibrar", "calibracion anual", "verificación", "verificacion", "verificar", "patrón", "patron", "patron de calibracion", "análisis metrológico", "analisis metrologico"],
+
+  "deriva": ["deriva", "derivo", "derivar", "deriva de flujo", "deriva de volumen", "desviación", "desviacion", "desviado", "desviada", "fuera de rango", "fuera de tolerancia", "drift", "no coincide el volumen", "volumen errado", "error de volumen", "error de caudal", "sobreinfunde", "infunde de más", "infunde de mas", "infunde menos"],
+
+  "motor": ["motor", "mecanismo", "émbolo", "embolo", "pistón", "piston", "engranaje", "engranajes", "piñón", "pinon", "corona", "reductora", "trabado", "trabada", "se traba el mecanismo"],
+
+  "sensor": ["sensor", "sensores", "detector", "detectores", "sonda", "sondas", "fotocélula", "fotocelula", "célula", "celula", "no detecta", "no detecta burbujas", "no detecta oclusión", "no lee", "no sensa"],
+
+  "cable": ["cable", "cables", "cableado", "conector", "conectores", "enchufe", "clavija", "prolongador", "cable pelado", "cable suelto", "contacto flojo", "hace falso contacto", "falso contacto"],
+
+  "fusible": ["fusible", "fusibles", "quemado", "quemada", "se quemó", "se quemo", "chispea", "chispeando", "cortocircuito", "corto circuito"],
+
+  "software": ["software", "sistema", "firmware", "programa", "se reinicia", "se reinicia solo", "se cuelga", "cuelga", "error en pantalla", "código de error", "codigo de error", "e01", "e02", "e03", "e04", "e05", "no guarda configuración", "no guarda configuracion", "se resetea", "resetea"],
+
+  "puerta": ["puerta", "tapa", "tápula", "tapula", "compartimento", "cassette", "casete", "cámara de goteo", "camara de goteo", "no cierra", "no cierra bien", "picaporte", "seguro de la puerta"],
+
+  "presion": ["presión", "presion", "presión de oclusión", "presion de oclusion", "sensor de presión", "sensor de presion", "presostato"],
+
+  "volumen": ["volumen", "ml", "mililitros", "cc", "vaso", "vasos", "vaso medidor", "bolsa", "solución", "solucion", "suero"],
+
+  "teclado": ["teclado", "botones", "botón", "boton", "botonera", "perilla", "perillas", "knob", "no responde el teclado", "botones flojos", "no ajusta", "no sube ni baja"],
+
+  "encendido": ["enciende", "no enciende", "encender", "apaga", "no apaga", "apagar", "se apaga solo", "se apaga a veces", "power", "prendido", "apagado", "no prende", "prende"],
+
+  "ruido": ["ruido", "ruidos", "zumbido", "zumba", "vibración", "vibra", "vibrando", "hace ruido", "suena raro", "chirrido", "chirria"],
+
+  "mantenimiento": ["mantenimiento", "mantenimiento preventivo", "mp", "preventivo", "rutina", "rutinario", "limpieza", "limpiado", "revisión", "revision", "revisado", "chequeo", "inspección", "inspeccion", "servicio programado"],
+
+  "equipo_fuera_servicio": ["fuera de servicio", "dado de baja", "inoperativo", "inoperante", "no operativo", "parado", "detenido"],
+
+  "purga": ["purga", "purgado", "purgar", "cebar", "cebado", "cebando"],
+
+  "desinfeccion": ["desinfección", "desinfeccion", "desinfectar", "desinfectado", "asepsia", "esterilización", "esterilizacion"],
+
+  "accesorio": ["accesorio", "accesorios", "set", "sets", "equipo de infusión", "equipo de infusion", "línea de infusión", "linea de infusion", "llave de tres pasos", "extensión", "extension"]
+}

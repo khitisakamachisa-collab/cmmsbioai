@@ -21,6 +21,7 @@ const navLinks = [
   { path: '/ordenes',       label: 'Ordenes',       icon: '📋' },
   { path: '/preventivo',    label: 'Preventivo',    icon: '🛡️' },
   { path: '/planificacion', label: 'Planificacion',  icon: '📅' },
+  { path: '/predictivo',    label: 'Predictivo',    icon: '🧠' },
   { path: '/historial',     label: 'Historial',     icon: '📂' },
   { path: '/reportes',      label: 'Reportes',      icon: '📊' },
   { path: '/usuarios',      label: 'Usuarios',      icon: '👥' },

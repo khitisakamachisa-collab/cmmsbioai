@@ -1,5 +1,6 @@
 from typing import Optional
 from sqlmodel import Field, SQLModel
+from pydantic import NaiveDatetime
 from datetime import datetime
 
 
@@ -30,5 +31,6 @@ class DocumentoAdjunto(SQLModel, table=True):
     # Metadatos
     descripcion: Optional[str] = None            # Descripcion breve del documento
     categoria: Optional[str] = None              # Ej: manual, foto, reporte, garantia, otro
-    fecha_subida: datetime = Field(default_factory=datetime.now)
+    # NaiveDatetime: almacenamiento naive en SQLite (compat sqlmodel>=0.0.22)
+    fecha_subida: NaiveDatetime = Field(default_factory=datetime.now)
     subido_por: Optional[str] = None             # Username de quien subio el archivo

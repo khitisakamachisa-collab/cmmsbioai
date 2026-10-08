@@ -24,6 +24,8 @@ const costosData = ref({})
 const preventivoData = ref({ resumen: {}, detalle: [] })
 const disponibilidadData = ref({})
 const inventarioData = ref({})
+const mtbfData = ref(null)
+const etapasData = ref(null)   // v1.1.1: reporte Tiempos por Etapa (KPIs del flujo OT)
 
 // --- Tabs ---
 const tabs = [
@@ -32,7 +34,9 @@ const tabs = [
   { key: 'costos', label: 'Análisis de Costos' },
   { key: 'preventivo', label: 'Cumplimiento Preventivo' },
   { key: 'disponibilidad', label: 'Disponibilidad Equipos' },
-  { key: 'inventario', label: 'Inventario Repuestos' }
+  { key: 'inventario', label: 'Inventario Repuestos' },
+  { key: 'mtbf', label: 'MTBF / MTTR / Dispon.' },
+  { key: 'etapas', label: 'Tiempos por Etapa' }
 ]
 
 // --- Fetch functions ---
@@ -123,6 +127,52 @@ const fetchInventario = async () => {
   }
 }
 
+const fetchMTBF = async () => {
+  try {
+    loading.value = true
+    const params = {}
+    if (fechaDesde.value) params.fecha_desde = fechaDesde.value
+    if (fechaHasta.value) params.fecha_hasta = fechaHasta.value
+    const res = await apiClient.get('/reportes/mtbf-mttr', { params })
+    mtbfData.value = res.data
+  } catch (e) {
+    error_msg.value = 'Error al cargar indicadores MTBF/MTTR'
+  } finally {
+    loading.value = false
+  }
+}
+
+const exportarMTBFCsv = () => {
+  const params = new URLSearchParams({ formato: 'csv' })
+  if (fechaDesde.value) params.set('fecha_desde', fechaDesde.value)
+  if (fechaHasta.value) params.set('fecha_hasta', fechaHasta.value)
+  window.open(`http://127.0.0.1:8000/reportes/mtbf-mttr?${params.toString()}`, '_blank')
+}
+
+// v1.1.1: Tiempos por Etapa (MTTA, reacción, reparación, espera repuestos,
+// tasa de cancelación, reincidencias) — alimentado por la bitácora del flujo
+const fetchEtapas = async () => {
+  try {
+    loading.value = true
+    const params = {}
+    if (fechaDesde.value) params.fecha_desde = fechaDesde.value
+    if (fechaHasta.value) params.fecha_hasta = fechaHasta.value
+    const res = await apiClient.get('/reportes/tiempos-etapa', { params })
+    etapasData.value = res.data
+  } catch (e) {
+    error_msg.value = 'Error al cargar el reporte de Tiempos por Etapa'
+  } finally {
+    loading.value = false
+  }
+}
+
+const exportarEtapasCsv = () => {
+  const params = new URLSearchParams({ formato: 'csv' })
+  if (fechaDesde.value) params.set('fecha_desde', fechaDesde.value)
+  if (fechaHasta.value) params.set('fecha_hasta', fechaHasta.value)
+  window.open(`http://127.0.0.1:8000/reportes/tiempos-etapa?${params.toString()}`, '_blank')
+}
+
 // --- Cargar datos según tab activo ---
 const loadActiveReport = () => {
   error_msg.value = ''
@@ -133,10 +183,25 @@ const loadActiveReport = () => {
     case 'preventivo': fetchPreventivo(); break
     case 'disponibilidad': fetchDisponibilidad(); break
     case 'inventario': fetchInventario(); break
+    case 'mtbf': fetchMTBF(); break
+    case 'etapas': fetchEtapas(); break
   }
 }
 
 // --- Chart data computados ---
+
+// MTBF/MTTR: agregados del parque
+const promedioParque = computed(() => {
+  if (!mtbfData.value) return '—'
+  const conDisp = mtbfData.value.por_equipo.filter(r => r.disponibilidad_pct !== null)
+  if (!conDisp.length) return '—'
+  return (conDisp.reduce((s, r) => s + r.disponibilidad_pct, 0) / conDisp.length).toFixed(1) + '%'
+})
+const totalFallas = computed(() => {
+  if (!mtbfData.value) return 0
+  return mtbfData.value.por_equipo.reduce((s, r) => s + r.n_fallas_correctivas, 0)
+})
+const dispClase = (p) => p >= 95 ? 'disp--verde' : (p >= 85 ? 'disp--amarillo' : 'disp--rojo')
 
 // Mantenimiento: eventos por equipo (barras)
 const mantenimientoChartData = computed(() => {
@@ -688,6 +753,175 @@ onMounted(() => {
           No hay repuestos registrados en el inventario.
         </div>
       </div>
+
+      <!-- ============ TAB: MTBF / MTTR / DISPONIBILIDAD (v1.0.2) ============ -->
+      <div v-if="!loading && activeTab === 'mtbf'" class="report-section">
+        <div v-if="mtbfData" class="report-summary-cards">
+          <div class="summary-card">
+            <span class="summary-value">{{ promedioParque }}</span>
+            <span class="summary-label">Disponibilidad promedio del parque</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-value">{{ totalFallas }}</span>
+            <span class="summary-label">Fallas correctivas (periodo)</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-value">{{ mtbfData.por_equipo.length }}</span>
+            <span class="summary-label">Equipos evaluados</span>
+          </div>
+          <button class="btn btn-sec" @click="exportarMTBFCsv">📤 Exportar CSV (Cap. IV)</button>
+        </div>
+
+        <div v-if="mtbfData && mtbfData.definiciones" class="nota-metodologica">
+          <strong>Definiciones:</strong> {{ mtbfData.definiciones.falla }} ·
+          MTBF = {{ mtbfData.definiciones.mtbf }} ·
+          MTTR = {{ mtbfData.definiciones.mttr }} ·
+          Disponibilidad = {{ mtbfData.definiciones.disponibilidad }} (%).
+          Unidad: {{ mtbfData.definiciones.unidad_tiempo }}.
+        </div>
+
+        <table v-if="mtbfData && mtbfData.por_equipo.length" class="report-table">
+          <thead>
+            <tr>
+              <th>Equipo</th>
+              <th>Tipo</th>
+              <th>Fallas</th>
+              <th>Horas reparación</th>
+              <th>Horas operativas</th>
+              <th>MTBF (h)</th>
+              <th>MTTR (h)</th>
+              <th>Disponibilidad</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in mtbfData.por_equipo" :key="r.equipo_id">
+              <td>{{ r.nombre_corto }}</td>
+              <td>{{ r.tipo_equipo }}</td>
+              <td>{{ r.n_fallas_correctivas }}</td>
+              <td>{{ r.horas_reparacion }}</td>
+              <td>{{ r.horas_operativas }}</td>
+              <td>{{ r.mtbf_horas ?? '—' }}</td>
+              <td>{{ r.mttr_horas ?? '—' }}</td>
+              <td>
+                <span v-if="r.disponibilidad_pct !== null" class="disp-pill"
+                      :class="dispClase(r.disponibilidad_pct)">{{ r.disponibilidad_pct }}%</span>
+                <span v-else>—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 v-if="mtbfData && mtbfData.por_tipo_equipo.length" class="panel-title" style="margin-top:1.25rem">Agregado por Tipo de Equipo</h3>
+        <table v-if="mtbfData && mtbfData.por_tipo_equipo.length" class="report-table">
+          <thead>
+            <tr>
+              <th>Tipo de equipo</th>
+              <th>Equipos</th>
+              <th>Fallas</th>
+              <th>MTBF (h)</th>
+              <th>MTTR (h)</th>
+              <th>Disponibilidad</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="t in mtbfData.por_tipo_equipo" :key="t.tipo_equipo">
+              <td>{{ t.tipo_equipo }}</td>
+              <td>{{ t.n_equipos }}</td>
+              <td>{{ t.n_fallas_correctivas }}</td>
+              <td>{{ t.mtbf_horas ?? '—' }}</td>
+              <td>{{ t.mttr_horas ?? '—' }}</td>
+              <td>
+                <span v-if="t.disponibilidad_pct !== null" class="disp-pill"
+                      :class="dispClase(t.disponibilidad_pct)">{{ t.disponibilidad_pct }}%</span>
+                <span v-else>—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-if="mtbfData && !mtbfData.por_equipo.length" class="empty-state">
+          No hay equipos con ventana de observación definida en el periodo seleccionado.
+        </div>
+      </div>
+
+      <!-- ============ TAB: TIEMPOS POR ETAPA (v1.1.1 — flujo de trabajo OT) ============ -->
+      <div v-if="!loading && activeTab === 'etapas'" class="report-section">
+        <div v-if="etapasData" class="report-summary-cards">
+          <div class="summary-card">
+            <span class="summary-value">{{ etapasData.resumen.n_ots }}</span>
+            <span class="summary-label">OTs del periodo</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-value">{{ etapasData.resumen.mtta_horas ?? '—' }}</span>
+            <span class="summary-label">MTTA promedio (h)</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-value">{{ etapasData.resumen.tiempo_reaccion_horas ?? '—' }}</span>
+            <span class="summary-label">Reacción promedio (h)</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-value">{{ etapasData.resumen.reparacion_activa_horas ?? '—' }}</span>
+            <span class="summary-label">Reparación activa (h)</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-value">{{ etapasData.resumen.tasa_cancelacion_pct ?? '—' }}%</span>
+            <span class="summary-label">Tasa de cancelación</span>
+          </div>
+          <div class="summary-card">
+            <span class="summary-value">{{ etapasData.resumen.n_reincidencias }}</span>
+            <span class="summary-label">Reincidencias ({{ etapasData.resumen.tasa_reincidencia_pct ?? 0 }}%)</span>
+          </div>
+          <button class="btn btn-sec" @click="exportarEtapasCsv">📤 Exportar CSV (Cap. IV)</button>
+        </div>
+
+        <div v-if="etapasData && etapasData.definiciones" class="nota-metodologica">
+          <strong>Definiciones (cadena de sellos de tiempo del flujo):</strong>
+          MTTA = {{ etapasData.definiciones.mtta }} ·
+          Reacción = {{ etapasData.definiciones.tiempo_reaccion }} ·
+          Reparación bruta = {{ etapasData.definiciones.reparacion_bruta }} ·
+          Espera repuesto = {{ etapasData.definiciones.espera_repuesto }} ·
+          {{ etapasData.definiciones.tasa_cancelacion }} ·
+          {{ etapasData.definiciones.tasa_reincidencia }}.
+        </div>
+
+        <table v-if="etapasData && etapasData.por_ot.length" class="report-table">
+          <thead>
+            <tr>
+              <th>OT</th>
+              <th>Equipo</th>
+              <th>Tipo</th>
+              <th>Estado</th>
+              <th>Hasta asignación (h)</th>
+              <th>Reacción (h)</th>
+              <th>Reparación bruta (h)</th>
+              <th>Espera repuesto (h)</th>
+              <th>Reparación activa (h)</th>
+              <th>🔁 Sec.</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in etapasData.por_ot" :key="r.ot_id">
+              <td>#{{ r.ot_id }}<span v-if="r.preventiva"> 🛡️</span></td>
+              <td>{{ r.equipo }}</td>
+              <td>{{ r.titulo }}</td>
+              <td>{{ r.estado_actual }}</td>
+              <td>{{ r.horas_hasta_asignacion ?? '—' }}</td>
+              <td>{{ r.horas_reaccion ?? '—' }}</td>
+              <td>{{ r.horas_reparacion_brutas ?? '—' }}</td>
+              <td>{{ r.horas_espera_repuesto || 0 }}</td>
+              <td>{{ r.horas_reparacion_activas ?? '—' }}</td>
+              <td>
+                <span v-if="r.failure_sequence > 1" class="reinc-pill">{{ r.failure_sequence }}</span>
+                <span v-else>—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-if="etapasData && !etapasData.por_ot.length" class="empty-state">
+          No hay OTs en el periodo seleccionado ({{ etapasData.parametros.fecha_desde }} → {{ etapasData.parametros.fecha_hasta }}).
+        </div>
+      </div>
     </main>
   </div>
 </template>
@@ -695,6 +929,17 @@ onMounted(() => {
 <style scoped>
 .dashboard-container { padding: 0; }
 .content { padding: 2rem; }
+
+/* MTBF/MTTR (v1.0.2) */
+.nota-metodologica { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.82rem; color: #475569; margin-bottom: 1rem; line-height: 1.6; }
+/* Tiempos por Etapa (v1.1.1) */
+.reinc-pill { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-weight: 700; font-size: 0.8rem; background: #ccfbf1; color: #0f766e; }
+.disp-pill { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-weight: 700; font-size: 0.82rem; }
+.disp--verde { background: #dcfce7; color: #15803d; }
+.disp--amarillo { background: #fef9c3; color: #a16207; }
+.disp--rojo { background: #fee2e2; color: #b91c1c; }
+.btn-sec { padding: 0.45rem 0.9rem; border: 2px solid #cbd5e1; border-radius: 8px; background: white; font-weight: 600; font-size: 0.85rem; color: #475569; cursor: pointer; transition: all 0.2s; }
+.btn-sec:hover { border-color: #3b82f6; color: #2563eb; background: #eff6ff; }
 
 .top-bar {
   display: flex;

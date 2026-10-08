@@ -1,0 +1,27 @@
+TÍTULO: Refactorización del módulo de Órdenes de Trabajo (OT) para cierre definitivo y generación de nuevas OTs por reincidencia
+
+CONTEXTO DEL PROYECTO:
+Estoy desarrollando un CMMS (Sistema de Gestión de Mantenimiento Computarizado) para equipos médicos en Python/Django, orientado a clínicas e importadores en Bolivia. El sistema actualmente permite reabrir OTs cerradas, lo cual distorsiona los indicadores de mantenimiento (MTBF, MTTR, Disponibilidad).
+
+OBJETIVO:
+Modificar el modelo y la lógica del módulo de OTs para que:
+1. Una OT cerrada sea INMUTABLE (no se pueda reabrir ni modificar).
+2. Cada nueva intervención sobre el mismo equipo/falla genere una NUEVA OT.
+3. Se preserve el historial completo de intervenciones por equipo.
+
+REQUISITOS TÉCNICOS:
+- Modificar el modelo `WorkOrder` (o equivalente) para agregar estados finales: 'CERRADA', 'REPARADA', 'NO_REPARADA', 'EN_MONITOREO'.
+- Implementar una señal o validación que impida cambiar el estado una vez que la OT esté en un estado final.
+- Crear una vista/formulario que, al intentar "reabrir" una OT cerrada, automáticamente genere una nueva OT vinculada al mismo equipo y con referencia a la OT anterior (campo `related_to` o `parent_ot`).
+- Agregar un campo `failure_sequence` que cuente cuántas OTs se han generado por la misma falla en el mismo equipo (para detectar fallas crónicas).
+
+CRITERIOS DE ACEPTACIÓN:
+- Una OT con estado 'CERRADA' no puede ser editada (ni por admin, ni por API).
+- Al intentar reabrir, el sistema crea una nueva OT con ID distinto pero vinculado.
+- El historial de OTs de un equipo muestra la secuencia completa.
+- Los cálculos de MTTR solo consideran el tiempo entre `fecha_inicio` y `fecha_cierre` de cada OT individual.
+
+CONSIDERACIONES ADICIONALES:
+- Mantener compatibilidad con datos existentes (migración de datos si es necesario).
+- Documentar los cambios en el modelo para la tesis.
+- El código debe ser claro y comentado en español.

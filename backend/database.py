@@ -10,7 +10,7 @@ sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 # Configuración del motor de base de datos
 # connect_args={"check_same_thread": False} es necesario solo para SQLite
-engine = create_engine(sqlite_url, echo=True, connect_args={"check_same_thread": False})
+engine = create_engine(sqlite_url, echo=False, connect_args={"check_same_thread": False})
 
 
 # ============================================================
@@ -85,6 +85,63 @@ def _migrate_equipo_v090():
         conn.commit()
 
 
+def _migrate_equipo_ia():
+    """v1.0.0 (RF07): agrega tipo_equipo y criticidad a la tabla 'equipo'.
+    Campos requeridos por el módulo predictivo (tesis): tipo_equipo identifica
+    las bombas de infusión; criticidad es feature del modelo RUL."""
+    new_columns = [
+        ("tipo_equipo", "VARCHAR DEFAULT 'Otro'"),
+        ("criticidad", "VARCHAR DEFAULT 'Media'"),
+    ]
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(equipo)"))
+        existing = {row[1] for row in result.fetchall()}
+        for col_name, col_type in new_columns:
+            if col_name not in existing:
+                conn.execute(text(f"ALTER TABLE equipo ADD COLUMN {col_name} {col_type}"))
+                print(f"✅ Migración v1.0.0: columna '{col_name}' agregada a tabla 'equipo' (RF07)")
+        conn.commit()
+
+
+def _migrate_ordentrabajo_v110():
+    """v1.1.0 (Flujo de Trabajo OT): agrega sellos de tiempo a 'ordentrabajo'
+    (Regla R5: primera escritura inmutable). La tabla bitacora_ot se crea sola
+    con SQLModel.metadata.create_all()."""
+    new_columns = [
+        ("fecha_asignacion", "DATETIME"),
+        ("fecha_inicio_trabajo", "DATETIME"),
+        ("fecha_resolucion", "DATETIME"),
+    ]
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(ordentrabajo)"))
+        existing = {row[1] for row in result.fetchall()}
+        for col_name, col_type in new_columns:
+            if col_name not in existing:
+                conn.execute(text(f"ALTER TABLE ordentrabajo ADD COLUMN {col_name} {col_type}"))
+                print(f"✅ Migración v1.1.0: columna '{col_name}' agregada a tabla 'ordentrabajo'")
+        conn.commit()
+
+
+def _migrate_ordentrabajo_v111():
+    """v1.1.1 (Cierre Definitivo y Reincidencias):
+    - Agrega parent_ot_id y failure_sequence a 'ordentrabajo' (cadena de
+      reincidencias; la OT cerrada es inmutable y cada re-intervención es
+      una OT nueva vinculada).
+    NOTA: el estado de OT 'En Monitoreo' se siembra en seed_database() y NO
+    aquí, porque en una BD NUEVA esta migración corre antes del seed base de
+    los 5 estados y dejaría el catálogo sin 'Abierta/En Proceso/...'."""
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(ordentrabajo)"))
+        existing = {row[1] for row in result.fetchall()}
+        if "parent_ot_id" not in existing:
+            conn.execute(text("ALTER TABLE ordentrabajo ADD COLUMN parent_ot_id INTEGER REFERENCES ordentrabajo(id)"))
+            print("✅ Migración v1.1.1: columna 'parent_ot_id' agregada a tabla 'ordentrabajo'")
+        if "failure_sequence" not in existing:
+            conn.execute(text("ALTER TABLE ordentrabajo ADD COLUMN failure_sequence INTEGER DEFAULT 1"))
+            print("✅ Migración v1.1.1: columna 'failure_sequence' agregada a tabla 'ordentrabajo' (OTs existentes = 1)")
+        conn.commit()
+
+
 def create_db_and_tables():
     """Crea las tablas en la base de datos si no existen, y aplica migraciones."""
     SQLModel.metadata.create_all(engine)
@@ -93,6 +150,9 @@ def create_db_and_tables():
     _migrate_proveedor_ciudad()
     _migrate_equipo_v090()
     _migrate_proveedor_ultimo_id()  # v0.9.14
+    _migrate_equipo_ia()            # v1.0.0 — RF07 Módulo Predictivo (tipo_equipo + criticidad)
+    _migrate_ordentrabajo_v110()    # v1.1.0 — Flujo OT (sellos de tiempo R5)
+    _migrate_ordentrabajo_v111()    # v1.1.1 — Reincidencias (parent_ot_id, failure_sequence) + estado 'En Monitoreo'
     # v0.9.23: hora_creacion fue eliminada. fecha_creacion (DATETIME) se usa como campo editable.
     # Si la columna hora_creacion existe en BD anterior, se ignora (SQLModel no la lee si no está en el modelo).
 
@@ -194,5 +254,11 @@ def seed_database():
             for estado in estados_ot:
                 session.add(estado)
             print("✅ Seed: 5 estados de orden de trabajo creados (con 'Esp. Repuesto')")
+
+        # === 3.b v1.1.1: estado de OT 'En Monitoreo' (idempotente, corre SIEMPRE
+        # === para cubrir BDs nuevas y BDs existentes actualizadas) ===
+        if not session.exec(select(EstadoOT).where(EstadoOT.nombre_estado == "En Monitoreo")).first():
+            session.add(EstadoOT(nombre_estado="En Monitoreo", color="#00cec9"))
+            print("✅ Seed v1.1.1: estado de OT 'En Monitoreo' creado")
 
         session.commit()

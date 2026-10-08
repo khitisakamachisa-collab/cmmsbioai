@@ -4,11 +4,13 @@ import { ref, computed } from 'vue'
 const seccionActiva = ref('sistema')
 
 const secciones = [
+  { id: 'guia', emoji: '📖', label: 'Guía de Usuario' },
   { id: 'sistema', emoji: '🏥', label: 'El Sistema' },
   { id: 'modulos', emoji: '🧩', label: 'Modulos' },
   { id: 'entidades', emoji: '📦', label: 'Entidades' },
   { id: 'rf', emoji: '📋', label: 'Requisitos RF' },
   { id: 'archivos', emoji: '📁', label: 'Archivos' },
+  { id: 'hoja-ruta', emoji: '🧭', label: 'Hoja de Ruta' },
   { id: 'pendientes', emoji: '🚧', label: 'Pendientes' }
 ]
 
@@ -594,8 +596,13 @@ const rf10Relaciones = [
 const pendientes = [
   { emoji: '🛡️', nombre: 'MP > OT: Título "Preventivo" bloqueado en OT', prioridad: 'Alta', descripcion: 'Cuando se genera OT desde MP, el titulo pasa como "Preventivo" a la OT y se bloquea (readonly) en el formulario de OTs. El campo orden_preventiva_id ya existe en el modelo.', estado: 'No implementado', rf: 'v0.9.24' },
   { emoji: '🛡️', nombre: 'MP > OT: Responsable pasa a tecnico_asignado_id', prioridad: 'Alta', descripcion: 'El responsable del MP pasa como tecnico_asignado_id de la OT al generarla. Editable después de la creación.', estado: 'No implementado', rf: 'v0.9.24' },
-  { emoji: '🧠', nombre: 'Modulo IA (RF07)', prioridad: 'Alta', descripcion: 'Sugerencias automaticas basadas en descripcion de falla, historial e inventario usando NLP y modelos de clasificacion.', estado: 'No implementado', rf: 'RF07' },
-  { emoji: '🔒', nombre: 'Proteccion de rutas por autenticacion', prioridad: 'Alta', descripcion: 'Validar token JWT en endpoints y navigation guards en frontend.', estado: 'No implementado', rf: 'RNF04' },
+  { emoji: '🧠', nombre: 'Modulo IA (RF07)', prioridad: 'Alta', descripcion: 'PLN (TF-IDF + clasificadores) + RUL (XGBoost) + XAI/SHAP. Entrenado con dataset sintetico: F1=0.92, AUC=0.96. Panel predictivo operativo.', estado: 'Implementado v1.0.0', rf: 'RF07' },
+  { emoji: '🔒', nombre: 'Proteccion de rutas por autenticacion (H7)', prioridad: 'Alta', descripcion: 'Validar token JWT en endpoints sensibles y navigation guards en frontend. En v1.1.0 las acciones de flujo OT quedan protegidas por la maquina de estados en el backend; falta autorizacion por rol (admin/tecnico/solicitante).', estado: 'Parcial — planificado v1.2', rf: 'RNF04 / H7' },
+  { emoji: '📶', nombre: 'Acceso multi-dispositivo en red (LAN/WiFi)', prioridad: 'Alta', descripcion: 'Servir backend+frontend en un solo puerto (uvicorn --host 0.0.0.0 + build de Vue), baseURL dinamica y guia de firewall. Permite abrir el sistema desde otras PCs y celulares del hospital: http://IP-servidor:8000. Criterios ya definidos en conversacion del 03/10/2026.', estado: 'Planificado v1.2', rf: 'RNF' },
+  { emoji: '📱', nombre: 'Modo Técnico móvil (PWA)', prioridad: 'Alta', descripcion: 'Vista simplificada para el tecnico biomédico en el celular: Mis OTs, autoasignarse, iniciar/pausar/reanudar/resolver con botones grandes. Instalable como app (PWA) con manifiesto y service worker. Depende del flujo v1.1.0 (ya implementado).', estado: 'Planificado v1.2', rf: 'RNF' },
+  { emoji: '🎟️', nombre: 'Modo Solicitante: ticket → OT', prioridad: 'Media', descripcion: 'Encargados de unidad reportan fallas desde el celular (equipo + descripcion + foto) generando un TICKET que el departamento acepta (→ OT Abierta) o rechaza con motivo. Habilita la cadena completa de sellos de tiempo: reporte → aceptacion → asignacion → llegada → resolucion.', estado: 'Planificado v1.3', rf: 'RNF' },
+  { emoji: '☎️', nombre: 'Resolución remota (atención telefónica)', prioridad: 'Media', descripcion: 'Registrar modalidad de atencion Presencial/Remota en la OT; cierre sin presencia fisica con bitacora de indicaciones dadas por llamada. KPI nuevo: % de resolución remota. Opcional: confirmacion del solicitante al cierre.', estado: 'Planificado v1.3', rf: 'RNF' },
+  { emoji: '🤖', nombre: 'Alerta RUL → OT automatica', prioridad: 'Media', descripcion: 'Cuando el modelo RUL proyecte vida util por debajo del umbral rojo (≤30 dias), generar automaticamente una OT predictiva (nace Abierta, regla R1).', estado: 'Planificado v1.3', rf: 'RF07' },
   { emoji: '📄', nombre: 'Paginacion en listados', prioridad: 'Media', descripcion: 'Implementar offset/limit en endpoints de listado.', estado: 'No implementado', rf: 'RNF02' },
   { emoji: '🔐', nombre: 'Secret JWT configurable', prioridad: 'Media', descripcion: 'Mover secreto JWT a variable de entorno o config.json.', estado: 'No implementado', rf: 'RNF04' },
   { emoji: '📊', nombre: 'Reporte REP-07: Consumo de Repuestos', prioridad: 'Media', descripcion: 'Reporte detallado de repuestos utilizados por equipo, tecnico o periodo.', estado: 'No implementado', rf: 'RF06' },
@@ -684,6 +691,121 @@ function getEstadoClass(estado) {
           <span class="help-nav-label">{{ sec.label }}</span>
         </button>
       </nav>
+
+      <!-- GUÍA DE USUARIO (v1.0.2) -->
+      <section v-if="seccionActiva === 'guia'" class="help-section">
+        <div class="help-card help-card--hero">
+          <h3>¿Qué es este sistema y para qué sirve?</h3>
+          <p><strong>CMMS-BioAI</strong> ayuda a las unidades de Bioingeniería e Ingeniería Clínica a gestionar el mantenimiento de los equipos médicos del hospital: organiza la información de los equipos, registra las órdenes de trabajo y calcula los reportes de gestión (MTBF, MTTR, Disponibilidad) que hoy se elaboran a mano.</p>
+          <p><strong>Lo que lo hace diferente:</strong> además del CMMS tradicional, incluye un módulo de inteligencia artificial que <strong>lee las descripciones que los técnicos escriben en las OTs</strong> y las combina con el historial del equipo para estimar cuándo es probable que falle (mantenimiento predictivo).</p>
+          <p><strong>¿Necesito internet?</strong> No. El sistema funciona 100% <strong>offline</strong>: toda la IA corre en la computadora local, sin enviar datos a la nube.</p>
+        </div>
+
+        <div class="help-card help-card--info">
+          <h3>¿Por qué bombas de infusión?</h3>
+          <p>El módulo predictivo de esta versión está especializado en <strong>bombas de infusión</strong>: son equipos críticos (administrar medicamentos directo al paciente), generan OTs con descripciones ricas y su mantenimiento es interno (los datos están disponibles). El resto del CMMS funciona para <strong>todo</strong> tipo de equipos.</p>
+        </div>
+
+        <div class="help-card">
+          <h3>Qué se espera de usted como usuario</h3>
+          <ul class="guia-lista">
+            <li><strong>Registre OTs con detalle:</strong> escriba como siempre (síntomas, modo de falla, acciones). El sistema entiende abreviaturas, sinónimos, jerga y errores de tipeo. Cuanto más descriptiva la nota, mejor la predicción.</li>
+            <li><strong>Consulte el panel predictivo:</strong> revise periódicamente el semáforo de las bombas. Los equipos en rojo requieren atención prioritaria.</li>
+            <li><strong>Lea las explicaciones:</strong> el sistema no solo dice "fallará en X días" — explica qué factores acercan o alejan la falla. Úselo para planificar.</li>
+            <li><strong>Evalúe la utilidad:</strong> en la fase de prueba se le pedirá calificar (escala Likert 1–5) si las explicaciones le resultan útiles y comprensibles.</li>
+          </ul>
+        </div>
+
+        <div class="help-card">
+          <h3>🧩 Módulos del sistema</h3>
+          <ul class="guia-lista">
+            <li><strong>A · Inventario:</strong> todos los equipos biomédicos. El campo <strong>"Tipo de equipo"</strong> es clave: el módulo predictivo solo procesa equipos con tipo exacto "Bomba de Infusión".</li>
+            <li><strong>B · Órdenes de Trabajo:</strong> datos estructurados (fecha, tipo, tiempo, repuestos, costo) + <strong>texto libre</strong> de la falla (el campo más importante para la IA).</li>
+            <li><strong>C · Preventivos:</strong> programación por calendario con alertas de vencimiento.</li>
+            <li><strong>D · Panel Predictivo (🧠):</strong> semáforo RUL, tipo de falla probable y explicación SHAP — solo bombas de infusión.</li>
+            <li><strong>E · Reportes:</strong> MTBF, MTTR, Disponibilidad por equipo y por tipo (exportables en CSV), cumplimiento de preventivos, OTs por período, costos e inventario de repuestos.</li>
+          </ul>
+        </div>
+
+        <div class="help-card">
+          <h3>🚦 Semáforo del panel predictivo</h3>
+          <table class="guia-tabla">
+            <thead><tr><th>Nivel</th><th>RUL estimado</th><th>Significado</th></tr></thead>
+            <tbody>
+              <tr><td>🔴 Rojo — Crítico</td><td>≤ 30 días</td><td>Intervención urgente recomendada</td></tr>
+              <tr><td>🟡 Amarillo — Atención</td><td>31 – 90 días</td><td>Planificar intervención en las próximas semanas</td></tr>
+              <tr><td>🟢 Verde — Estable</td><td>&gt; 90 días</td><td>Sin riesgo inmediato</td></tr>
+              <tr><td>⚪ Sin datos</td><td>—</td><td>El equipo aún no tiene OTs suficientes para predecir</td></tr>
+            </tbody>
+          </table>
+          <p style="margin-top:0.6rem"><strong>Tipo de falla probable</strong> se clasifica en 6 categorías: calibración, eléctrica, mecánica, sensor, software u otra. La <strong>explicación SHAP</strong> muestra cuántos días aporta cada factor: "<em>Falla probable en ~53 días. Factores que acercan la falla: patrones textuales de falla de sensor (burbujas / presión) (−3.95 d)...</em>".</p>
+        </div>
+
+        <div class="help-card">
+          <h3>📤 Botones del panel predictivo</h3>
+          <ul class="guia-lista">
+            <li><strong>🔄 Reentrenar:</strong> utilidad técnica (solo tras editar el diccionario de sinónimos). No se usa en operación diaria.</li>
+            <li><strong>📤 CSV RUL:</strong> RUL real vs. predicho por OT (validación cruzada) — evidencia para el Capítulo IV.</li>
+            <li><strong>📤 CSV H3:</strong> tiempos de respuesta de cada predicción (ms) — prueba formal de la hipótesis H3 (&lt; 2 s).</li>
+            <li><strong>📤 JSON SHAP:</strong> contribuciones de cada factor — capítulo XAI + protocolo de evaluación con expertos (H2).</li>
+          </ul>
+        </div>
+
+        <div class="help-card">
+          <h3>❓ Preguntas frecuentes</h3>
+          <p><strong>¿El sistema reemplaza al ingeniero biomédico?</strong> No. Es apoyo a la decisión: usted sigue siendo el experto que decide.</p>
+          <p><strong>¿Por qué mi bomba no aparece en el panel?</strong> Verifique que en el inventario su campo "Tipo de equipo" sea exactamente <strong>"Bomba de Infusión"</strong>, y que tenga OTs registradas (si no, aparece como "Sin datos").</p>
+          <p><strong>¿Qué pasa si la predicción es incorrecta?</strong> Es una estimación con error típico de ±17 días (MAE). Por eso siempre viene con la explicación de los factores, para que usted la valide contra su conocimiento del equipo.</p>
+          <p><strong>¿Mis datos están seguros?</strong> Sí: todo corre offline en la computadora local y las exportaciones se generan anonimizadas (sin pacientes, técnicos ni series reales), conforme a la Ley N° 164.</p>
+          <p><strong>¿Necesito pulsar "Reentrenar"?</strong> No. Los modelos vienen pre-entrenados y funcionan de inmediato.</p>
+        </div>
+
+        <div class="help-card">
+          <h3>📚 Glosario esencial</h3>
+          <dl class="guia-glosario">
+            <dt>CMMS</dt><dd>Sistema Computarizado de Gestión de Mantenimiento: el tipo de software que está usando.</dd>
+            <dt>OT</dt><dd>Orden de Trabajo: registro de una intervención de mantenimiento (fecha, tipo, falla, acciones).</dd>
+            <dt>MTBF</dt><dd>Tiempo Medio Entre Fallas: horas operativas del periodo ÷ nº de fallas. Alto = equipo confiable. El sistema lo calcula en Reportes → MTBF/MTTR.</dd>
+            <dt>MTTR</dt><dd>Tiempo Medio de Reparación: suma de tiempos de reparación ÷ nº de fallas con tiempo registrado. Bajo = reparación rápida.</dd>
+            <dt>Disponibilidad</dt><dd>MTBF / (MTBF + MTTR) × 100. El sistema la reporta por equipo y por tipo, exportable en CSV.</dd>
+            <dt>Mantenimiento Correctivo</dt><dd>Intervención DESPUÉS de la falla: el más costoso y riesgoso.</dd>
+            <dt>Mantenimiento Preventivo</dt><dd>Intervención por calendario. Puede generar sobre- o sub-mantenimiento.</dd>
+            <dt>Mantenimiento Predictivo (PdM)</dt><dd>Estimar CUÁNDO fallará el equipo con datos y algoritmos: intervenir justo a tiempo. Es el enfoque del módulo IA.</dd>
+            <dt>PLN</dt><dd>Procesamiento de Lenguaje Natural: la IA "lee" el texto de las OTs (español, jerga, abreviaturas) y extrae patrones de falla.</dd>
+            <dt>RUL</dt><dd>Remaining Useful Life: días estimados hasta la próxima falla. Es una estimación, no una fecha exacta.</dd>
+            <dt>TF-IDF</dt><dd>Técnica que pondera la importancia de cada palabra del texto ("oclusión" pesa más que "revisión").</dd>
+            <dt>SVM</dt><dd>Máquina de Vectores de Soporte: algoritmo que clasifica el tipo de falla a partir del texto (versión lineal calibrada en probabilidades).</dd>
+            <dt>XGBoost</dt><dd>Algoritmo de árboles secuenciales que estima el RUL combinando datos estructurados y señales del texto (modelo "híbrido").</dd>
+            <dt>SHAP</dt><dd>Técnica que cuantifica cuánto contribuye cada factor a la predicción (en días). Genera la explicación que usted lee.</dd>
+            <dt>XAI</dt><dd>IA Explicable: predicciones comprensibles. En salud no es ético usar "cajas negras".</dd>
+            <dt>Estudio de Ablación</dt><dd>Técnica de validación que compara versiones del preprocesamiento de texto (crudo vs. limpieza genérica vs. limpieza consciente del dominio) para demostrar cuál produce mejores predicciones. En este sistema confirmó que la limpieza consciente del dominio (con diccionario de sinónimos biomédicos) logra el mejor F1-Score: N1=0.858 &lt; N2=0.877 &lt; N3=0.923.</dd>
+            <dt>F1-Score</dt><dd>Media armónica de precisión y sensibilidad (0 a 1). Valida la clasificación del tipo de falla. Valor actual del sistema: 0.92.</dd>
+            <dt>AUC-ROC</dt><dd>Capacidad de distinguir entre clases de falla (0.5 = azar, 1.0 = perfecto). Valor actual: 0.96.</dd>
+            <dt>RMSE / MAE</dt><dd>Error de las predicciones de RUL en días. Valores actuales: ≈24 / ≈17 días.</dd>
+            <dt>Validación Cruzada (5 pliegues)</dt><dd>Divide los datos en 5 grupos por equipo completo para probar el modelo sin sesgo ni fuga de información.</dd>
+            <dt>Offline-First</dt><dd>Diseñado para operar sin internet: la IA corre en la computadora local del hospital.</dd>
+          </dl>
+        </div>
+
+        <div class="help-card">
+          <h3>⚖️ Normas de referencia</h3>
+          <ul class="guia-lista">
+            <li><strong>ISO 55000</strong> — gestión de activos: decisiones basadas en datos (este sistema genera los reportes).</li>
+            <li><strong>ISO 13485</strong> — calidad en dispositivos médicos: trazabilidad auditable de cada intervención y predicción.</li>
+            <li><strong>IEC 60601-1</strong> — seguridad electromédica: justifica predecir fallas en equipos críticos.</li>
+            <li><strong>ISO/IEC 17025 + IBMETRO</strong> — trazabilidad metrológica de las calibraciones en Bolivia.</li>
+            <li><strong>DECIDE-AI</strong> (Nature Medicine, 2022) — evaluación temprana de IA en salud: transparencia, explicabilidad y evaluación con usuarios expertos.</li>
+            <li><strong>Ley N° 164 (Bolivia)</strong> — protección de datos: cumplimiento vía modo offline y exportaciones anonimizadas.</li>
+          </ul>
+        </div>
+
+        <div class="help-card help-card--warning">
+          <h3>📬 Soporte</h3>
+          <p>Dudas técnicas, reporte de errores o sugerencias: contacte al equipo de desarrollo.</p>
+          <p><strong>Investigador responsable:</strong> [Su nombre] · <strong>Institución:</strong> [Su universidad] · <strong>Correo:</strong> [Su correo]</p>
+          <p><strong>Versión del sistema:</strong> CMMS-BioAI v1.0.2</p>
+        </div>
+      </section>
 
       <!-- SISTEMA -->
       <section v-if="seccionActiva === 'sistema'" class="help-section">
@@ -933,6 +1055,83 @@ function getEstadoClass(estado) {
       </section>
 
       <!-- PENDIENTES -->
+      <section v-if="seccionActiva === 'hoja-ruta'" class="help-section">
+        <div class="help-card help-card--hero">
+          <h3>🧭 Hoja de Ruta del Proyecto — hilo de recuperación</h3>
+          <p>
+            Esta página resume el estado del proyecto y las decisiones tomadas, de modo que el hilo de
+            trabajo pueda recuperarse desde aqui y desde el archivo <code>LEEME-PATCH-v1.1.1.txt</code>,
+            incluso si se pierde la conversación original.
+          </p>
+          <p><strong>Versión actual: v1.1.1 (05/10/2026) — Cierre Definitivo, Reincidencias y Ajustes de pruebas reales.</strong>
+          Basada en v1.1.0 (Flujo de Trabajo OT, R1–R7) + feedback de las primeras pruebas con casos reales
+          y el prompt del usuario "Gestión de OTs con Cierre Definitivo y Reapertura" (adaptado de Django a
+          FastAPI/SQLModel). Nuevas reglas R7-v1.1.1 (OT cerrada inmutable + reincidencia) y R8 (repuestos/costos
+          dentro del flujo), y estado <strong>En Monitoreo</strong>.</p>
+        </div>
+
+        <div class="help-card help-card--info">
+          <h3>✅ Implementado en v1.1.0 (base)</h3>
+          <ul class="guia-lista">
+            <li><strong>R1:</strong> toda OT nace "Abierta" — ya no se puede crear en estado arbitrario (H1).</li>
+            <li><strong>R2:</strong> máquina de estados: Abierta → En Proceso → Esp. Repuesto → Completada/Cancelada (H2).</li>
+            <li><strong>R3:</strong> resolver exige acciones realizadas + tiempo invertido (H3).</li>
+            <li><strong>R4:</strong> bitácora completa por OT (visible en el detalle) (H5).</li>
+            <li><strong>R5:</strong> sellos de tiempo asignación/inicio/resolución, primera escritura inmutable (H4).</li>
+            <li><strong>R6:</strong> mecanismo preventivo intacto (la OT preventiva nace Abierta igual).</li>
+            <li><strong>H6:</strong> fecha de vencimiento visible en el listado (columna "Vence", en rojo si venció).</li>
+            <li>UI: botón ⚡ "Acciones de Flujo" en cada OT; el PUT genérico ya no cambia estados.</li>
+          </ul>
+        </div>
+
+        <div class="help-card help-card--info">
+          <h3>✅ Implementado en v1.1.1 (ajustes de pruebas reales + prompt de reincidencias)</h3>
+          <ul class="guia-lista">
+            <li><strong>FIX ERROR 422:</strong> el lápiz (Editar) volvió a funcionar — el schema del PUT ahora declara <code>equipo_id</code>; también se arregló el stock cuando la OT ya usa un repuesto y los mensajes de error muestran el detalle real del backend.</li>
+            <li><strong>R7-v1.1.1 (cierre definitivo):</strong> la OT Completada/Cancelada es INMUTABLE — el endpoint /reabrir fue ELIMINADO. Si la misma falla vuelve, la acción 🔁 "Generar OT de reincidencia" crea una OT NUEVA vinculada (<code>parent_ot_id</code>) con <code>failure_sequence</code> +1 (detecta fallas crónicas y protege MTBF/MTTR/Disponibilidad).</li>
+            <li><strong>En Monitoreo (nuevo estado activo):</strong> En Proceso → En Monitoreo (reparado en observación) → En Proceso (si recae) o Completada (cierre definitivo). Equivalencia con el prompt: Completada≈REPARADA, Cancelada≈NO_REPARADA/CERRADA.</li>
+            <li><strong>R8 (repuestos/costos en el flujo):</strong> en las acciones ↻ Reanudar (salir de Esp. Repuesto) y ✔ Resolver se pueden registrar repuestos del almacén y costos adicionales; el stock se valida y descuenta EN ESE MOMENTO (obliga a que el repuesto esté en inventario) y queda en bitácora.</li>
+            <li><strong>Bloqueo suave:</strong> al crear una OT sobre un equipo con OTs activas, el sistema advierte y exige confirmación (admite 2 fallas simultáneas como decisión consciente, ej. software + hardware).</li>
+            <li><strong>Calendario → ⚡:</strong> "Ir a órdenes" abre directamente el modal de Acciones de Flujo de esa OT (<code>/ordenes?ot=ID</code>).</li>
+            <li><strong>Contexto en ⚡:</strong> el modal de flujo muestra la descripción de la falla y las acciones ya realizadas (solo lectura) para decidir mejor.</li>
+            <li><strong>Bitácora exportable:</strong> en el detalle de la OT, botones "📤 Bitácora de la OT (CSV)" y "📤 Bitácora del equipo (CSV)" (<code>GET /reportes/bitacora-csv</code>).</li>
+            <li><strong>Reportes → pestaña "Tiempos por Etapa":</strong> MTTA, reacción, reparación bruta/activa, espera de repuestos, tasa de cancelación, reincidencias + Exportar CSV (Cap. IV).</li>
+            <li><strong>Reasignación de técnico:</strong> permitida en cualquier estado activo sin detener el flujo (por diseño).</li>
+          </ul>
+        </div>
+
+        <div class="help-card">
+          <h3>🛠️ Cómo recuperar el entorno desde cero (Windows)</h3>
+          <ul class="guia-lista">
+            <li>Backend: <code>cd D:\cmmsbioai\backend</code> → <code>python -m venv venv</code> → <code>venv\Scripts\activate</code></li>
+            <li>Instalar TODO: <code>python -m pip install --only-binary=:all: -r requirements.txt</code></li>
+            <li>Verificar entorno: <code>python verificar_entorno_ia.py</code> (dice qué falta y el comando exacto).</li>
+            <li>Verificar flujo OT: <code>python prueba_flujo_ot.py</code> y <code>python prueba_flujo_v111.py</code> (corren sobre BD temporal, son seguros).</li>
+            <li>Levantar: <code>python -m uvicorn main:app --reload</code> + frontend <code>npm run dev</code> (o <code>start.bat</code>).</li>
+            <li>Base de datos: <code>cmms_bioai.db</code> vive en backend/ — respaldarla antes de actualizar.</li>
+          </ul>
+        </div>
+
+        <div class="help-card">
+          <h3>🗺️ Hoja de ruta acordada (conversación 03/10/2026)</h3>
+          <ul class="guia-lista">
+            <li><strong>v1.2 — Red y móvil:</strong> acceso multi-dispositivo en LAN/WiFi (uvicorn --host 0.0.0.0 + build del frontend servida por FastAPI + baseURL dinámica + firewall); Modo Técnico móvil (PWA instalable); autorización por roles (H7).</li>
+            <li><strong>v1.3 — Solicitantes y remoto:</strong> Modo Solicitante (encargados de unidad generan TICKET → triage → OT); resolución remota telefónica (modalidad Presencial/Remota + bitácora de indicaciones + % resolución remota); confirmación de cierre por el solicitante; alerta RUL → OT automática.</li>
+            <li><strong>Tesis:</strong> protocolo H2 (5–8 expertos, escala Likert); datos reales 2023–2025 cuando estén disponibles.</li>
+          </ul>
+          <p style="margin-top:.5rem">Estimaciones: v1.2 ≈ 12–17 h · v1.3 ≈ 11–15 h (detalladas en la propuesta PDF v1.1 y en el LEEME).</p>
+        </div>
+
+        <div class="help-card">
+          <h3>📤 Respaldo en GitHub (pendiente de ejecutar por el usuario)</h3>
+          <ul class="guia-lista">
+            <li><code>git init</code> (si no existe) → crear <code>.gitignore</code> para <code>venv/, node_modules/, cmms_bioai.db, uploads/</code>.</li>
+            <li><code>git add .</code> → <code>git commit -m "v1.1.1 Cierre definitivo + reincidencias + fix 422 + R8"</code>.</li>
+            <li><code>git remote add origin &lt;URL&gt;</code> → <code>git push -u origin main</code>.</li>
+          </ul>
+        </div>
+      </section>
+
       <section v-if="seccionActiva === 'pendientes'" class="help-section">
         <div class="help-card help-card--warning">
           <h3>Funcionalidades Pendientes</h3>
@@ -983,6 +1182,16 @@ function getEstadoClass(estado) {
 .help-card--pendiente { border-left: 4px solid #ef4444; }
 
 /* Leyenda */
+/* Guía de Usuario (v1.0.2) */
+.guia-lista { margin: 0; padding-left: 1.2rem; color: #475569; font-size: 0.88rem; line-height: 1.75; }
+.guia-lista li { margin-bottom: 0.35rem; }
+.guia-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.guia-tabla th, .guia-tabla td { border: 1px solid #e2e8f0; padding: 0.5rem 0.7rem; text-align: left; color: #475569; }
+.guia-tabla th { background: #f8fafc; font-weight: 700; color: #1e293b; }
+.guia-glosario { margin: 0; }
+.guia-glosario dt { font-weight: 700; color: #1e293b; font-size: 0.86rem; margin-top: 0.55rem; }
+.guia-glosario dd { margin: 0.1rem 0 0 0; color: #475569; font-size: 0.85rem; line-height: 1.6; padding-left: 1rem; border-left: 3px solid #e2e8f0; }
+
 .leyenda { display: flex; gap: 1.25rem; flex-wrap: wrap; margin-top: 0.75rem; }
 .leyenda-item { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; color: #475569; }
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }

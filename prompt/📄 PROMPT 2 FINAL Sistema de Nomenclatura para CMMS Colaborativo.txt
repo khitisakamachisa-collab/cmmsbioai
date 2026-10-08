@@ -1,0 +1,119 @@
+TÍTULO: Implementación de sistema de nomenclatura escalable para Sistema Ciberfísico de Mantenimiento Biomédico Colaborativo
+
+CONTEXTO DEL PROYECTO:
+Estoy desarrollando un CMMS (Computerized Maintenance Management System) para equipos médicos en Python/Django, orientado a clínicas e importadores en Bolivia. Este sistema forma parte de una tesis de maestría y tiene una visión a largo plazo: convertirse en un "Sistema Ciberfísico de Mantenimiento Biomédico Colaborativo", donde múltiples instituciones (clínicas, hospitales, importadoras) puedan compartir conocimiento anonimizado para mejorar colectivamente la resolución de fallas mediante IA.
+
+OBJETIVO PRINCIPAL:
+Implementar un sistema de nomenclatura flexible y estandarizado que:
+1. Permita a cada clínica usar su propio código interno simple (facilidad de uso).
+2. Soporte opcionalmente nomenclaturas internacionales (EMDN, UMDNS) como referencia para interoperabilidad futura.
+3. Estructure los datos de forma estricta para permitir el futuro intercambio de conocimiento anonimizado entre instituciones (Inteligencia Colectiva).
+4. Sea legalmente seguro (sin dependencias de licencias restrictivas).
+
+NOTA IMPORTANTE:
+Aún no se ha decidido si se implementarán las 3 nomenclaturas (local + EMDN + UMDNS) o solo 2 (local + EMDN). Por lo tanto, el diseño debe ser lo suficientemente flexible para soportar cualquiera de estas combinaciones sin requerir refactorización mayor.
+
+REQUISITOS TÉCNICOS:
+
+1. MODELO DE DATOS - CATEGORÍAS PROPIAS:
+   - Crear un modelo `EquipmentCategory` con campos:
+     * `code` (CharField, único) - Código propio del sistema (ej. "INF-01", "MON-01")
+     * `name` (CharField) - Nombre de la categoría (ej. "Equipos de Infusión", "Monitoreo Vital")
+     * `description` (TextField) - Descripción detallada
+     * `default_patient_impact` (CharField, choices: VITAL, DIAGNOSTICO, SOPORTE)
+     * `default_operational_impact` (CharField, choices: ALTO, MEDIO, BAJO)
+     * `is_active` (BooleanField, default=True)
+   - Precargar con las siguientes 25 categorías base (puedes ajustar nombres/descripciones):
+     * ANE-01: Anestesia
+     * CAR-01: Cardiología Diagnóstica
+     * CAR-02: Cardiología Terapéutica
+     * CIR-01: Quirófano General
+     * CIR-02: Electrocirugía
+     * DEN-01: Odontología
+     * DIA-01: Diálisis
+     * END-01: Endoscopía
+     * EST-01: Esterilización
+     * GAS-01: Gases Medicinales
+     * IMG-01: Imagenología Rayos X
+     * IMG-02: Tomografía/Resonancia
+     * IMG-03: Ultrasonido
+     * LAB-01: Laboratorio Análisis
+     * LAB-02: Banco de Sangre
+     * MON-01: Monitoreo Vital
+     * NEO-01: Neonatología
+     * OFI-01: Oficina/General
+     * RES-01: Respiratorio
+     * TER-01: Terapia Física
+     * URG-01: Emergencia
+     * INF-01: Infusión
+     * FRM-01: Farmacia
+     * MOB-01: Mobiliario Clínico
+     * OTR-01: Otros Equipos
+
+2. MODELO DE DATOS - REFERENCIAS INTERNACIONALES (OPCIONAL):
+   - Crear un modelo `InternationalNomenclature` con campos:
+     * `system_name` (CharField, choices: EMDN, UMDNS, GMDN) - Qué sistema de nomenclatura
+     * `code` (CharField) - Código específico (ej. "16-280" para UMDNS, o código EMDN)
+     * `description` (TextField)
+     * `is_active` (BooleanField, default=True)
+   - Crear un modelo `EquipmentNomenclatureMapping` para mapear categorías propias a códigos internacionales:
+     * `equipment_category` (ForeignKey a EquipmentCategory)
+     * `international_nomenclature` (ForeignKey a InternationalNomenclature)
+     * `confidence_level` (FloatField) - Qué tan seguro es el mapeo (0.0 a 1.0)
+   - Esto permite que una categoría propia (ej. "INF-01") tenga múltiples referencias internacionales (EMDN, UMDNS) si en el futuro se decide usar ambas.
+
+3. MODELO DE DATOS - EQUIPOS:
+   - Modificar el modelo `Equipment` para incluir:
+     * `internal_code` (CharField, único por institución) - Código simple de la clínica
+     * `category` (ForeignKey a EquipmentCategory) - Categoría propia obligatoria
+     * `name` (CharField) - Nombre descriptivo
+     * `description` (TextField, blank=True)
+     * `serial_number` (CharField, blank=True)
+     * `manufacturer` (CharField, blank=True)
+     * `model` (CharField, blank=True)
+     * `international_code_reference` (CharField, blank=True) - Campo de texto libre para referencia internacional si el usuario quiere llenarlo manualmente (opcional)
+
+4. CATÁLOGO DE SÍNTOMAS ESTANDARIZADOS (CRÍTICO PARA IA COLABORATIVA):
+   - Crear un modelo `StandardSymptom` con campos:
+     * `code` (CharField, único) - Código del síntoma (ej. "SYM-001")
+     * `name` (CharField) - Nombre estandarizado (ej. "No enciende", "Alarma de oclusión", "Error de sensor")
+     * `description` (TextField)
+     * `applicable_categories` (ManyToManyField a EquipmentCategory) - Qué categorías pueden usar este síntoma
+   - Precargar con al menos 30 síntomas comunes (ej. "No enciende", "Pantalla en negro", "Alarma sonora continua", "Fuga de fluido", "Error de calibración", etc.)
+   - Esto es CRÍTICO: para que la IA colaborativa funcione, los síntomas deben estar estandarizados. Si cada clínica describe los síntomas de forma diferente, la IA no podrá vincular experiencias.
+
+5. VISTAS Y FORMULARIOS:
+   - Formulario de registro de equipos:
+     * Campo obligatorio: `internal_code`, `category`, `name`
+     * Campo opcional: `international_code_reference` (texto libre)
+     * Al seleccionar `category`, pre-cargar automáticamente los valores de `patient_impact` y `operational_impact` desde la categoría (pero permitir edición si el usuario justifica)
+   - Formulario de creación de OT:
+     * Al seleccionar el equipo, mostrar un dropdown con los `StandardSymptom` aplicables a esa categoría
+     * Permitir también "Otro síntoma" (texto libre), pero marcarlo como "no estandarizado" para que la IA lo ignore en el análisis colaborativo
+   - Vista de administración para gestionar `EquipmentCategory`, `InternationalNomenclature`, y `StandardSymptom`
+
+6. PREPARACIÓN PARA IA COLABORATIVA (FUTURO):
+   - Agregar campos en el modelo `Equipment` para facilitar la anonimización futura:
+     * `institution_hash` (CharField, blank=True) - Hash único de la institución (para anonimizar en exportaciones)
+     * `is_knowledge_sharing_enabled` (BooleanField, default=False) - Si esta institución permite compartir conocimiento anonimizado
+   - Crear un modelo `KnowledgeExportLog` para registrar qué conocimiento se ha exportado (solo para auditoría):
+     * `institution` (ForeignKey a Institution)
+     * `export_date` (DateTimeField)
+     * `records_exported` (IntegerField)
+     * `symptoms_included` (JSONField) - Lista de códigos de síntomas exportados (anonimizados)
+
+CRITERIOS DE ACEPTACIÓN:
+- El usuario puede registrar un equipo usando solo `internal_code`, `category` y `name`.
+- El sistema pre-carga automáticamente los valores de criticidad basados en la categoría seleccionada.
+- El usuario puede agregar una referencia internacional manualmente (texto libre) si lo desea.
+- Al crear una OT, el sistema sugiere síntomas estandarizados basados en la categoría del equipo.
+- La estructura de datos permite agregar fácilmente nuevas nomenclaturas internacionales en el futuro sin romper el sistema.
+- Los síntomas están catalogados de forma estricta para permitir análisis colaborativo futuro.
+- Existen campos preparados para la anonimización y exportación de conocimiento.
+
+CONSIDERACIONES ADICIONALES:
+- Incluir un script de seed (fixtures) para precargar las 25 categorías base y los 30 síntomas comunes.
+- Documentar la estructura para la tesis, explicando cómo esta nomenclatura habilita la inteligencia colectiva.
+- El código debe ser claro, comentado en español, y seguir buenas prácticas de Django.
+- Pensar en escalabilidad: el sistema debe soportar miles de equipos y síntomas sin lentitud.
+- Considerar que en el futuro se podría implementar un endpoint API para exportar/importar conocimiento anonimizado entre instituciones (preparar la estructura para esto, aunque no se implemente aún).

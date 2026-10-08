@@ -1,0 +1,6 @@
+{
+  "predicciones_vs_realidad": "/home/z/my-project/repo_cmmsbioai/backend/ml/reports/predicciones_vs_realidad.csv",
+  "matriz_confusion": "/home/z/my-project/repo_cmmsbioai/backend/ml/reports/matriz_confusion.csv",
+  "tiempos_inferencia": "/home/z/my-project/repo_cmmsbioai/backend/ml/reports/tiempos_inferencia.csv",
+  "valores_shap": "/home/z/my-project/repo_cmmsbioai/backend/ml/reports/valores_shap.csv"
+}

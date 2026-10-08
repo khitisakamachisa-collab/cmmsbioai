@@ -7,3 +7,10 @@
 | v0.5.0 | **Reportes** | 6 reportes con graficos (costos, disponibilidad, cumplimiento, etc.) |
 | v0.6.0 | **Documentos** | Subida/descarga/eliminacion de archivos, drag-and-drop, categorias |
 
+| v0.7.0 | **Contratos + Proveedores v2** | RF12 contratos, contactos de proveedor, vigencias |
+| v0.9.0+ | **Fases 1-3a** | Equipos v2, planificacion, costos RF11, herramientas |
+| v1.0.0 | **RF07 Modulo IA** | PLN + RUL + XAI/SHAP, panel predictivo (F1=0.92, AUC=0.96) |
+| v1.0.1 | **Compat Python 3.13/3.14** | NaiveDatetime en modelos, sqlmodel>=0.0.24 |
+| v1.0.2 | **MTBF/MTTR + Guia** | Endpoint /reportes/mtbf-mttr + CSV, Guia de Usuario en Ayuda |
+| v1.1.0 | **Flujo de Trabajo OT** | Reglas R1-R7, 7 acciones endpoint, bitacora de OT, sellos de tiempo inmutables, KPIs /reportes/tiempos-etapa (+CSV), pestaña Hoja de Ruta en Ayuda |
+| v1.1.1 | **Cierre Definitivo + Reincidencias** | FIX 422 del lápiz (equipo_id en PUT); R7-v1.1.1: OT cerrada inmutable, /reabrir eliminado, /reincidencia crea OT nueva vinculada (parent_ot_id + failure_sequence); estado En Monitoreo; R8: repuestos/costos dentro del flujo (reanudar/resolver) con descuento de stock; bloqueo suave de OTs activas por equipo; calendario abre ⚡ directo; bitácora exportable CSV (por OT y por equipo); pestaña Tiempos por Etapa en Reportes |

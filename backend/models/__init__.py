@@ -2,7 +2,7 @@
 from .users import Usuario
 from .equipos import Equipo
 from .estados import EstadoEquipo
-from .ordenes import OrdenTrabajo, EstadoOT
+from .ordenes import OrdenTrabajo, EstadoOT, BitacoraOT
 from .repuestos import Repuesto, OtRepuestoUtilizado
 from .preventivo import TareaPreventiva, TareaRepuesto
 from .historial import EventoHistorial
@@ -14,7 +14,7 @@ from .contratos import Contrato, ContratoEquipo  # v0.9.2: RF12
 
 __all__ = [
     "Usuario", "Equipo", "EstadoEquipo",
-    "OrdenTrabajo", "EstadoOT",
+    "OrdenTrabajo", "EstadoOT", "BitacoraOT",
     "Repuesto", "OtRepuestoUtilizado",
     "TareaPreventiva", "TareaRepuesto",
     "EventoHistorial",

@@ -1,0 +1,117 @@
+TÍTULO: Implementación de matriz de criticidad ponderada con cálculo automático basado en normas ISO y AAMI
+
+CONTEXTO DEL PROYECTO:
+Estoy desarrollando un CMMS para equipos médicos en Python/Django. Este sistema forma parte de una tesis de maestría y debe implementar una matriz de criticidad objetiva, basada en estándares internacionales (ISO 55000, ISO 31000, AAMI), que permita priorizar automáticamente las órdenes de trabajo y eliminar la subjetividad en la clasificación de equipos.
+
+OBJETIVO PRINCIPAL:
+Implementar una matriz de criticidad con fórmula matemática que:
+1. Evalúe cada equipo según 5 criterios ponderados.
+2. Calcule automáticamente un Índice de Criticidad (IC) de 0 a 5.
+3. Clasifique los equipos en 3 niveles: Alta (≥4.0), Media (2.5-3.9), Baja (<2.5).
+4. Pre-cargue valores iniciales basados en la categoría del equipo (para facilitar el registro).
+5. Permita ajustes manuales con justificación (para casos especiales).
+6. Se actualice dinámicamente con datos históricos reales (MTBF, frecuencia de uso).
+
+REQUISITOS TÉCNICOS:
+
+1. MODELO DE DATOS - CRITERIOS DE CRITICIDAD:
+   - Crear un modelo `CriticalityCriterion` con campos:
+     * `code` (CharField, único) - Código del criterio (ej. "IMPACTO_CLINICO", "REDUNDANCIA")
+     * `name` (CharField) - Nombre descriptivo
+     * `description` (TextField) - Descripción detallada
+     * `weight` (FloatField) - Peso en fracción (ej. 0.40 para 40%)
+     * `scale_min` (IntegerField, default=1) - Valor mínimo de la escala
+     * `scale_max` (IntegerField, default=5) - Valor máximo de la escala
+     * `is_active` (BooleanField, default=True)
+   - Precargar con los 5 criterios base:
+     * IMPACTO_CLINICO: peso=0.40, escala 1-5 (1=bajo riesgo, 5=vital)
+     * REDUNDANCIA: peso=0.20, escala 1-5 (1=muchos sustitutos, 5=ninguno)
+     * FRECUENCIA_USO: peso=0.15, escala 1-5 (1=ocasional, 5=diario)
+     * HISTORIAL_FALLAS: peso=0.15, escala 1-5 (1=muy confiable, 5=falla frecuente)
+     * COSTO_TIEMPO: peso=0.10, escala 1-5 (1=barato/rápido, 5=caro/lento)
+
+2. MODELO DE DATOS - VALORES POR DEFECTO POR CATEGORÍA:
+   - Crear un modelo `CategoryCriticalityDefaults` con campos:
+     * `equipment_category` (ForeignKey a EquipmentCategory)
+     * `criterion` (ForeignKey a CriticalityCriterion)
+     * `default_value` (IntegerField) - Valor por defecto (1-5)
+     * `justification` (TextField) - Por qué se asigna ese valor por defecto
+   - Precargar con valores por defecto para las 25 categorías del Prompt 2. Ejemplos:
+     * RES-01 (Respiratorio): IMPACTO_CLINICO=5, REDUNDANCIA=4, FRECUENCIA_USO=5, HISTORIAL_FALLAS=3, COSTO_TIEMPO=4
+     * INF-01 (Infusión): IMPACTO_CLINICO=5, REDUNDANCIA=3, FRECUENCIA_USO=5, HISTORIAL_FALLAS=3, COSTO_TIEMPO=3
+     * OFI-01 (Oficina): IMPACTO_CLINICO=1, REDUNDANCIA=2, FRECUENCIA_USO=4, HISTORIAL_FALLAS=2, COSTO_TIEMPO=2
+
+3. MODELO DE DATOS - CRITICIDAD DE EQUIPOS:
+   - Modificar el modelo `Equipment` para incluir:
+     * `impacto_clinico` (IntegerField) - Valor asignado (1-5)
+     * `redundancia` (IntegerField) - Valor asignado (1-5)
+     * `frecuencia_uso` (IntegerField) - Valor asignado (1-5)
+     * `historial_fallas` (IntegerField) - Valor asignado (1-5)
+     * `costo_tiempo` (IntegerField) - Valor asignado (1-5)
+     * `criticality_index` (FloatField) - IC calculado automáticamente
+     * `criticality_level` (CharField, choices: ALTA, MEDIA, BAJA) - Clasificación basada en IC
+     * `manual_adjustment_justification` (TextField, blank=True) - Justificación si el usuario ajustó manualmente
+     * `last_auto_update` (DateTimeField, blank=True) - Fecha de la última actualización automática
+
+4. LÓGICA DE CÁLCULO AUTOMÁTICO:
+   - Crear una función `calculate_criticality_index(equipment)` que:
+     * Obtenga los 5 valores del equipo
+     * Obtenga los pesos de los criterios
+     * Calcule: IC = Σ(valor × peso)
+     * Determine el nivel: ALTA (≥4.0), MEDIA (2.5-3.9), BAJA (<2.5)
+     * Actualice los campos `criticality_index` y `criticality_level`
+   - Llamar esta función automáticamente:
+     * Al crear un equipo nuevo (después de pre-cargar valores por defecto)
+     * Al actualizar cualquier valor de criticidad
+     * Periódicamente (tarea programada) para actualizar "historial_fallas" basado en MTBF real
+
+5. VISTAS Y FORMULARIOS:
+   - Formulario de registro de equipos:
+     * Al seleccionar la categoría, pre-cargar automáticamente los 5 valores desde `CategoryCriticalityDefaults`
+     * Mostrar el IC calculado en tiempo real (usando JavaScript)
+     * Mostrar el nivel de criticidad (ALTA/MEDIA/BAJA) con código de colores (rojo/amarillo/verde)
+     * Permitir edición manual de cada valor
+     * Si el usuario cambia algún valor, requerir justificación en `manual_adjustment_justification`
+   - Vista de lista de equipos:
+     * Mostrar columna "Criticidad" con el nivel y código de colores
+     * Permitir ordenar por IC (de mayor a menor)
+     * Mostrar filtro rápido: "Solo equipos críticos (IC ≥ 4.0)"
+   - Vista de detalle de equipo:
+     * Mostrar gráfico de radar con los 5 criterios (visualización impactante)
+     * Mostrar historial de ajustes manuales (auditoría)
+
+6. ACTUALIZACIÓN DINÁMICA CON DATOS REALES:
+   - Crear una tarea programada (Celery o cron job) que:
+     * Calcule el MTBF real de cada equipo basado en las OTs cerradas
+     * Actualice automáticamente el criterio "HISTORIAL_FALLAS":
+       - MTBF > 365 días → valor = 1
+       - MTBF 180-365 días → valor = 2
+       - MTBF 90-180 días → valor = 3
+       - MTBF 30-90 días → valor = 4
+       - MTBF < 30 días → valor = 5
+     * Recalcule el IC después de actualizar
+   - Esto permite que la criticidad evolucione con el tiempo basado en datos reales
+
+7. REPORTES Y EXPORTACIÓN:
+   - Crear un reporte "Distribución de Criticidad" que muestre:
+     * Cantidad de equipos por nivel (ALTA/MEDIA/BAJA)
+     * Gráfico de torta con porcentajes
+     * Lista de equipos críticos (IC ≥ 4.0) ordenados por IC descendente
+   - Crear un reporte "Evolución de Criticidad" que muestre:
+     * Cómo ha cambiado el IC de un equipo específico en el tiempo
+     * Gráfico de línea con el IC histórico
+
+CRITERIOS DE ACEPTACIÓN:
+- El sistema calcula automáticamente el IC al registrar un equipo nuevo.
+- Los valores por defecto se pre-cargan basados en la categoría seleccionada.
+- El usuario puede ajustar manualmente los valores, pero debe justificarlo.
+- El IC se actualiza dinámicamente cuando cambian los valores o el historial de fallas.
+- Los reportes muestran la distribución de criticidad del parque instalado.
+- La fórmula matemática está documentada y es transparente para el usuario.
+
+CONSIDERACIONES ADICIONALES:
+- Incluir un script de seed para precargar los 5 criterios y los valores por defecto de las 25 categorías.
+- Documentar la base normativa (ISO 55000, ISO 31000, AAMI) para la tesis.
+- El código debe ser claro, comentado en español, y seguir buenas prácticas de Django.
+- Pensar en escalabilidad: el cálculo del IC debe ser rápido incluso con miles de equipos.
+- Considerar que en el futuro se podría permitir que cada institución ajuste los pesos de los criterios (pero por ahora, usar los pesos estándar).

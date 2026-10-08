@@ -1,0 +1,106 @@
+¡Excelente iniciativa, Raul! Tu esquema base es muy bueno, pero para que la **IA de programación** lo entienda sin ambigüedades y para que tu **tesis** tenga un marco lógico defendible, necesitamos convertirlo en una **Matriz Maestra de Transiciones de Estado**. 
+
+He refinado tu propuesta agregando precisión técnica: definimos **qué relojes corren**, **qué datos se bloquean** y **qué impacto tiene en la IA**. Además, agregué una transición crítica que faltaba: la posibilidad de **cancelar una OT mientras espera repuesto** (ej. si el equipo se da de baja por obsoleto).
+
+Aquí tienes el flujograma estructurado como matriz, listo para ser el núcleo de tu Mega-Prompt:
+
+---
+
+### 🔄 MATRIZ MAESTRA DE TRANSICIONES DE LA OT
+
+#### 1. 🟡 OPEN (Abierta)
+| Pregunta | Respuesta / Lógica |
+| :--- | :--- |
+| **¿Quién inicia?** | `Solicitante` (vía UI o QR) o `Sistema` (OT Predictiva/Preventiva automática generada por IA). |
+| **¿Qué acción se INICIA?** | 1. Se crea el registro en BD.<br>2. 🟢 **Inicia Reloj MTTA** (Tiempo de Asignación/Reacción).<br>3. 🟢 **Inicia Reloj MDT** (Tiempo de Inactividad del equipo).<br>4. Se notifica al `Coordinador`. |
+| **¿Qué acción se DETIENE?** | Ninguna. |
+| **¿Qué acción se PAUSA?** | Ninguna. |
+| **Estado del Activo** | `No Operativo` (si es correctiva) o `Operativo` (si es preventiva). |
+| **Propósito** | Registrar la existencia de la necesidad. Capturar el texto inicial para el **NLP**. |
+| **Impacto en Métricas** | Alimenta el **MTTA** y el **MDT**. |
+| **Transiciones posibles** | → `IN PROGRESS` (Asignada e iniciada)<br>→ `CANCELED` (Falsa alarma detectada rápido) |
+
+#### 2. 🔵 IN PROGRESS (En Proceso / Diagnóstico)
+| Pregunta | Respuesta / Lógica |
+| :--- | :--- |
+| **¿Quién inicia?** | `Técnico Biomédico` (al llegar al equipo y empezar a trabajar). |
+| **¿Qué acción se INICIA?** | 1. 🟢 **Inicia Reloj MTTR** (Tiempo de Reparación Activa / Manos a la obra).<br>2. Se habilita la carga de repuestos usados. |
+| **¿Qué acción se DETIENE?** | 🔴 **Se DETIENE el Reloj MTTA** (ya fue atendido). |
+| **¿Qué acción se PAUSA?** | El Reloj MDT sigue corriendo (el equipo sigue fuera de servicio). |
+| **Estado del Activo** | `No Operativo` (generalmente). |
+| **Propósito** | Ejecutar la intervención técnica. El técnico documenta hallazgos en tiempo real. |
+| **Impacto en Métricas** | Alimenta el **MTTR** (eficiencia técnica). |
+| **Transiciones posibles** | → `WAITING FOR SPARE` (Requiere repuesto)<br>→ `COMPLETED` (Reparación exitosa sin repuesto)<br>→ `CANCELED` (Diagnóstico: no vale la pena reparar) |
+
+#### 3. 🟠 WAITING FOR SPARE (Esperando Repuesto / Pausa Logística)
+| Pregunta | Respuesta / Lógica |
+| :--- | :--- |
+| **¿Quién inicia?** | `Técnico` (reporta necesidad) → `Coordinador` (valida y autoriza la compra/pedido). |
+| **¿Qué acción se INICIA?** | 1. 🟢 **Inicia Reloj LOGÍSTICO** (Tiempo de espera de repuesto).<br>2. Se genera alerta de SLA de compras. |
+| **¿Qué acción se DETIENE?** | 🔴 **Se DETIENE el Reloj MTTR** (el técnico no puede trabajar). |
+| **¿Qué acción se PAUSA?** | El Reloj MDT **SIGUE CORRIENDO** (el equipo sigue fuera de servicio). |
+| **Estado del Activo** | `No Operativo` (bloqueado por logística). |
+| **Propósito** | Proteger la métrica del técnico (MTTR) sin ocultar la realidad del hospital (MDT). Permite solicitar **N repuestos** si el primero falla. |
+| **Impacto en Métricas** | Alimenta el **MDT** y la **Disponibilidad**. Genera la métrica hermana: **Tiempo de Logística**. |
+| **Transiciones posibles** | → `IN PROGRESS` (Llegó el repuesto, se reanuda MTTR)<br>→ `COMPLETED` (Se decide no reparar, equipo dado de baja)<br>→ `CANCELED` (Equipo obsoleto, se compra nuevo) |
+
+#### 4. 🟢 COMPLETED (Completada)
+| Pregunta | Respuesta / Lógica |
+| :--- | :--- |
+| **¿Quién inicia?** | `Técnico` (al finalizar) → `Coordinador` (valida y cierra definitivamente). |
+| **¿Qué acción se INICIA?** | 1. Se dispara el proceso de **Feedback Predictivo** (¿la IA acertó?).<br>2. Se actualiza el historial del activo. |
+| **¿Qué acción se DETIENE?** | 🔴 **Se DETIENEN TODOS los relojes** (MTTR, MDT, Logística). |
+| **¿Qué acción se PAUSA?** | Ninguna. |
+| **Estado del Activo** | Se actualiza a: `Óptimo (100%)`, `Degradado (50-80%)` o `No Operativo/Baja`. |
+| **Propósito** | Cerrar el ciclo. **BLOQUEO TOTAL**: La OT se vuelve inmutable. Si falla de nuevo, se crea una **Nueva OT (Reincidencia/Hija)**. |
+| **Impacto en Métricas** | Consolida **MTBF, MTTR, MDT, Disponibilidad**. |
+| **Campos obligatorios** | Código de Falla, Causa Raíz, Repuestos usados, Estado final del activo, Informe técnico (PDF/Texto). |
+| **Transiciones posibles** | → **FIN DEL FLUJO** (Inmutable). Solo genera nueva OT si hay reincidencia. |
+
+#### 5. ⚫ CANCELED (Cancelada)
+| Pregunta | Respuesta / Lógica |
+| :--- | :--- |
+| **¿Quién inicia?** | `Solicitante`, `Técnico` o `Coordinador` (con justificación obligatoria). |
+| **¿Qué acción se INICIA?** | Se guarda el motivo de cancelación en la BD (para auditoría y NLP). |
+| **¿Qué acción se DETIENE?** | 🔴 **Se DETIENEN TODOS los relojes**. |
+| **¿Qué acción se PAUSA?** | Ninguna. |
+| **Estado del Activo** | Vuelve al estado previo a la OT (generalmente `Operativo`). |
+| **Propósito** | Descartar falsas alarmas, duplicados o equipos dados de baja. **NO se borra de la BD** (se mantiene para NLP). |
+| **Impacto en Métricas** | **EXCLUIDA** de MTBF, MTTR y Disponibilidad (no contamina los datos). |
+| **Impacto en IA** | Oro puro para el **NLP**: entrena al modelo a reconocer falsas alarmas. |
+| **Transiciones posibles** | → **FIN DEL FLUJO** (Inmutable). |
+
+---
+
+### ⏱️ RESUMEN VISUAL DE LOS "RELOJES" (Contadores)
+
+Para que la IA de programación lo entienda perfecto, dile que debe implementar **3 contadores independientes** en cada OT:
+
+| Reloj | ¿Cuándo corre? | ¿Qué métrica alimenta? | ¿A quién evalúa? |
+| :--- | :--- | :--- | :--- |
+| **MTTA** (Asignación) | Desde `OPEN` hasta `IN PROGRESS` | Tiempo de Respuesta | Al Coordinador / Sistema |
+| **MTTR** (Reparación) | Solo en `IN PROGRESS` (se pausa en Logística) | Eficiencia Técnica | Al Técnico Biomédico |
+| **MDT** (Inactividad) | Desde `OPEN` hasta `COMPLETED`/`CANCELED` (NUNCA se pausa) | Disponibilidad Real | Al Hospital / Gerencia |
+| **LOGÍSTICA** (Repuestos) | Solo en `WAITING FOR SPARE` | Cuello de botella de compras | Al Depto. de Compras/Presupuesto |
+
+---
+
+### 💡 Mejoras que hice a tu Flujograma Original:
+
+1. **Agregué la transición `WAITING FOR SPARE` → `CANCELED`**: En la vida real, a veces el repuesto tarda 6 meses y el hospital decide comprar un equipo nuevo. La OT debe poder cancelarse en ese punto sin romper las métricas.
+2. **Definí el "Bloqueo de Inmutabilidad"**: En `COMPLETED` y `CANCELED`, la OT se convierte en **solo lectura**. Esto blinda tu tesis.
+3. **Separé los Relojes**: Tu pregunta sobre "¿pausar el MTTR afecta las métricas?" se responde aquí. El MTTR se pausa para proteger al técnico, pero el MDT sigue corriendo para proteger la realidad del hospital.
+4. **Agregué el "Feedback Predictivo"**: Al llegar a `COMPLETED`, el sistema debe preguntar si la IA predijo bien la falla. Esto alimenta tu modelo RUL.
+
+---
+
+### 🧪 Próximos Pasos: ¡A Probar Casos!
+
+Este flujograma ya es una **máquina lógica**. Ahora, como bien dijiste, vamos a "correr casos" sobre él para ver si aguanta la realidad. 
+
+Te propongo que me lances **3 o 4 escenarios reales o hipotéticos** que te preocupen, por ejemplo:
+- *"Caso 1: Un equipo falla, el técnico lo diagnostica, pide un repuesto, pero a los 2 meses el hospital decide donar el equipo y darlo de baja. ¿Cómo fluye la OT?"*
+- *"Caso 2: Una enfermera reporta una falla, pero antes de que el técnico llegue, el equipo vuelve a funcionar solo. ¿Qué pasa con los relojes?"*
+- *"Caso 3: El modelo de IA predice una falla (OT Predictiva), el técnico va, revisa y determina que la IA se equivocó (falsa alarma). ¿Cómo se cierra?"*
+
+Lánzame los casos que quieras, Raul. Los correremos paso a paso por esta matriz y veremos si hay fugas lógicas. ¡Estoy listo! 🚀

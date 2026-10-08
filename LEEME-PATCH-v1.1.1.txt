@@ -1,0 +1,201 @@
+========================================================================
+ CMMS-BioAI — PARCHE v1.1.1
+ Cierre Definitivo de OT, Reincidencias y Ajustes de Pruebas Reales
+ Fecha: 05/10/2026
+========================================================================
+
+QUE ES ESTA VERSION
+-------------------
+v1.1.1 se construye sobre v1.1.0 (Flujo de Trabajo OT) con dos insumos:
+
+  1) El feedback de las PRIMERAS PRUEBAS CON CASOS REALES del usuario
+     (bug del ERROR 422, inventario en "Esp. Repuesto", calendario,
+     bitacora exportable, varias OT por equipo, tipos de OT).
+  2) El prompt del usuario "PROMPT 1 - Gestion de OTs con Cierre
+     Definitivo y Reapertura" (escrito para Django/WorkOrder y ADAPTADO
+     a este proyecto FastAPI + SQLModel + Vue).
+
+CAMBIOS PRINCIPALES (RESUMEN)
+-----------------------------
+ A. FIX ERROR 422 (critico, regreso de v1.1.0)
+    - El modal Editar (lapiz) envia el campo equipo_id y el schema del
+      PUT no lo declaraba (extra="forbid") -> TODO guardado del lapiz
+      respondia 422 y no se podian editar repuestos ni costos.
+    - CORREGIDO: OrdenTrabajoUpdate ahora declara equipo_id.
+    - Ademas: el "stock efectivo" ya considera lo que la misma OT tiene
+      en la lista, y los mensajes de error muestran el detalle real del
+      backend (ya no un generico "Error al actualizar").
+
+ B. R7-v1.1.1: CIERRE DEFINITIVO + REINCIDENCIAS (prompt del usuario)
+    - La OT cerrada (Completada/Cancelada) es INMUTABLE: ya NO se reabre.
+    - El endpoint /reabrir fue ELIMINADO.
+    - Nueva accion /reincidencia: crea una OT NUEVA vinculada:
+        * parent_ot_id      -> referencia a la OT anterior
+        * failure_sequence  -> contador de reincidencias de la misma
+                               falla (1 = primera). Detecta fallas
+                               cronicas.
+      La OT nueva nace Abierta (R1), hereda equipo, tipo, prioridad,
+      tecnico y descripcion, y lleva el motivo en la descripcion.
+      Equivalencias con el prompt: Completada ~ REPARADA,
+      Cancelada ~ NO_REPARADA/CERRADA.
+    - Beneficio para la tesis: cada OT individual conserva su propio
+      inicio/cierre -> MTBF, MTTR y Disponibilidad no se distorsionan.
+
+ C. ESTADO NUEVO "En Monitoreo" (activo, no cerrado)
+    - En Proceso -> En Monitoreo (reparado, en observacion).
+    - En Monitoreo -> En Proceso (si recae) o -> Completada (cierre).
+    - Una OT En Monitoreo sigue editable y admite reasignar tecnico.
+
+ D. R8: REPUESTOS Y COSTOS DENTRO DEL FLUJO (recomendacion del usuario)
+    - En el modal de Acciones de Flujo, las acciones "Reanudar" (salir
+      de Esp. Repuesto) y "Resolver" permiten registrar REPUESTOS DEL
+      ALMACEN y COSTOS ADICIONALES.
+    - El stock se valida y se descuenta EN ESE MOMENTO: se obliga a que
+      el repuesto este en inventario, y el descuento queda en bitacora.
+    - Nota tecnica: otrepuestoutilizado tiene PK compuesta (ot,
+      repuesto), por lo que si el mismo repuesto se entrega dos veces
+      en el flujo, se ACUMULA la cantidad (no se duplica fila).
+
+ E. BLOQUEO SUAVE de OTs activas por equipo (decision del usuario)
+    - Al crear una OT sobre un equipo que ya tiene OTs en Abierta /
+      En Proceso / Esp. Repuesto / En Monitoreo, el sistema muestra un
+      aviso (con la lista) y pide confirmacion explicita.
+    - Motivo: un equipo SI puede tener 2 fallas simultaneas (ej.
+      software + hardware), pero debe ser una decision consciente.
+
+ F. CALENDARIO -> ACCIONES DE FLUJO DIRECTO
+    - "Ir a ordenes" del Calendario ahora abre DIRECTAMENTE el modal
+      de Acciones de Flujo de esa OT (via /ordenes?ot=ID).
+
+ G. CONTEXTO EN EL MODAL DE FLUJO
+    - El modal muestra la DESCRIPCION DE LA FALLA y las ACCIONES YA
+      REALIZADAS (solo lectura) para que el tecnico decida mejor.
+
+ H. BITACORA EXPORTABLE (CSV)
+    - En el detalle (ojo) de cada OT: botones
+        "Bitacora de la OT (CSV)" y "Bitacora del equipo (CSV)".
+    - Nuevo endpoint: GET /reportes/bitacora-csv?ot_id=X  |  ?equipo_id=Y
+    - Donde vive la bitacora: tabla bitacora_ot dentro de
+      backend/cmms_bioai.db (se respalda junto con el .db en GitHub).
+
+ I. REPORTE "TIEMPOS POR ETAPA" CON PESTANA EN LA UI
+    - Reportes -> pestaña "Tiempos por Etapa": MTTA, reaccion,
+      reparacion bruta/activa, espera de repuestos, tasa de
+      CANCELACION, reincidencias (+ Exportar CSV).
+    - (El endpoint ya existia desde v1.1.0; ahora tiene pestaña.)
+
+ARCHIVOS DEL PARCHE (12)
+------------------------
+  COPIAR SOBRE D:\cmmsbioai (respaldar antes cmms_bioai.db):
+
+  BACKEND
+   1. backend/schemas/orden_trabajo.py      (fix 422 + esquemas nuevos)
+   2. backend/models/ordenes.py             (parent_ot_id, failure_sequence)
+   3. backend/database.py                   (migracion v1.1.1 + seed En Monitoreo)
+   4. backend/api/routes/ordenes.py         (transiciones, monitorear,
+                                             reanudar/resolver con R8,
+                                             reincidencia; /reabrir eliminado)
+   5. backend/api/routes/reportes.py        (bitacora-csv + reincidencias
+                                             en tiempos-etapa)
+   6. backend/prueba_flujo_v111.py          (NUEVO - prueba integral, BD temporal)
+  FRONTEND
+   7. frontend/src/views/OrdenesView.vue
+   8. frontend/src/views/PlanificacionView.vue
+   9. frontend/src/views/ReportesView.vue
+  10. frontend/src/views/AyudaView.vue
+  RAIZ
+  11. versiones.txt
+  12. LEEME-PATCH-v1.1.1.txt               (este archivo)
+
+  NOTA: el frontend se recompila localmente (paso 4). No se incluye dist/.
+
+INSTALACION / ACTUALIZACION (Windows)
+-------------------------------------
+  0) Respaldo: copiar backend/cmms_bioai.db a una carpeta segura.
+
+  1) Copiar los archivos del parche sobre D:\cmmsbioai (reemplazar).
+
+  2) Backend — NO hace falta reinstalar dependencias (no hay nuevas):
+        cd D:\cmmsbioai\backend
+        venv\Scripts\activate
+        (opcional) python verificar_entorno_ia.py   -> 17/17 OK
+
+  3) Probar el parche (BD TEMPORAL, seguro, no toca tu BD real):
+        python prueba_flujo_v111.py
+        Resultado esperado: 51/51 verificaciones OK y "OK ✓"
+        (al arrancar veras: "Migracion v1.1.1 ... parent_ot_id /
+         failure_sequence agregadas" y "Seed v1.1.1: estado
+         'En Monitoreo' creado" — asi sabras que la migracion corrio).
+
+  4) Frontend (si no copiaste dist/):
+        cd D:\cmmsbioai\frontend
+        npm run build
+
+  5) Levantar el sistema:
+        backend:  python -m uvicorn main:app --reload
+        frontend: npm run dev   (o usar start.bat)
+     Al arrancar el backend, la migracion v1.1.1 agrega las columnas
+     parent_ot_id y failure_sequence (OTs existentes quedan con
+     secuencia 1) y siembra el estado "En Monitoreo".
+
+  6) Comprobacion rapida en la app:
+        a. Editar (lapiz) una OT abierta y guardar -> ya NO da 422.
+        b. Resolver una OT -> cerrada; intentar reabrir -> la accion
+           ya no existe; usar "Generar OT de reincidencia".
+        c. En Proceso -> "Enviar a monitoreo" -> nuevo estado cian.
+        d. Pausar (Esp. Repuesto) -> Reanudar -> seccion de repuestos
+           del almacen + costos -> confirmar -> stock descontado.
+        e. Crear 2a OT del mismo equipo -> aviso amarillo + confirmacion.
+        f. Calendario -> seleccionar OT -> Ir a ordenes -> abre el ⚡.
+        g. Detalle (ojo) -> exportar bitacora OT / equipo (CSV).
+        h. Reportes -> "Tiempos por Etapa" -> tasa de cancelacion.
+
+ENDPOINTS NUEVOS / CAMBIADOS
+----------------------------
+  POST /ordenes/{id}/monitorear        NUEVO  En Proceso -> En Monitoreo
+  POST /ordenes/{id}/reincidencia     NUEVO  OT cerrada -> OT nueva vinculada
+                                              {comentario obligatorio}
+  POST /ordenes/{id}/reanudar         R8: acepta repuestos_utilizados y
+                                              costos_adicionales (opcionales)
+  POST /ordenes/{id}/resolver         R8: igual que reanudar
+  POST /ordenes/{id}/reabrir          ELIMINADO (404)
+  GET  /reportes/bitacora-csv         NUEVO  ?ot_id=X | ?equipo_id=Y
+  GET  /reportes/tiempos-etapa        +parent_ot_id +failure_sequence
+                                              (JSON y CSV)
+  PUT  /ordenes/{id}                  FIX: acepta equipo_id (422 resuelto)
+
+MIGRACION DE DATOS EXISTENTES
+-----------------------------
+  - Automatica al arrancar el backend (ALTER TABLE). No requiere acciones.
+  - OTs anteriores: parent_ot_id = NULL, failure_sequence = 1.
+  - La bitacora v1.1.0 (tabla bitacora_ot) se conserva intacta.
+  - "reabiertas" historicas: siguen en bitacora; el KPI tasa_reapertura
+    queda como historico y se agrega tasa_reincidencia.
+
+PRUEBAS
+-------
+  prueba_flujo_v111.py  -> 51 verificaciones (fix 422, inmutabilidad,
+  reincidencia en cadena, En Monitoreo, R8 con stock, reportes y CSV).
+  Corre sobre BD temporal: es seguro en produccion.
+  prueba_flujo_ot.py (v1.1.0) sigue incluido; su parte de reabrir ya no
+  aplica (el endpoint fue eliminado por diseño en v1.1.1).
+
+RESPALDO EN GITHUB (despues de verificar)
+-----------------------------------------
+  git add .
+  git commit -m "v1.1.1 Cierre definitivo + reincidencias + fix 422 + R8"
+  git push origin main
+  (con .gitignore: venv/, node_modules/, cmms_bioai.db, uploads/, dist/ opcional)
+
+HOJA DE RUTA (sin cambios)
+--------------------------
+  v1.2: Fase A red multi-dispositivo (host 0.0.0.0 + baseURL dinamica +
+        firewall) -> Fase B responsivo -> Fase C Modo Tecnico PWA; H7 roles.
+  v1.3: Modo Solicitante (TICKET -> triage -> OT) + atencion remota
+        telefonica + confirmacion de cierre por el solicitante.
+  Tesis: protocolo H2 (5-8 expertos, Likert); datos reales 2023-2025.
+
+  El hilo completo de trabajo queda documentado en:
+    - Este LEEME
+    - Ayuda del Sistema -> pestaña "Hoja de Ruta" (dentro de la app)
+========================================================================

@@ -68,6 +68,15 @@ const CONDICIONES_ORIGEN = [
   'Leasing', 'Renta', 'Comodato', 'Otro'
 ]
 
+// v1.0.0 (RF07): catálogo editable de tipos de equipo. "Bomba de Infusión" activa el módulo predictivo
+const TIPOS_EQUIPO = [
+  'Bomba de Infusión', 'Monitor de Signos Vitales', 'Ventilador Mecánico',
+  'Electrocardiógrafo', 'Desfibrilador', 'Monitor Fetal', 'Incubadora',
+  'Bomba de Jeringa', 'Aspirador de Secreciones', 'Lámpara Cielítca',
+  'Electrobisturí', 'Máquina de Anestesia', 'Dializadora', 'Otro'
+]
+const CRITICIDADES = ['Baja', 'Media', 'Alta']
+
 // Función para abrir el modal de detalles
 const openDetailModal = async (equipo) => {
   selectedEquipo.value = equipo
@@ -325,6 +334,8 @@ const openCreateModal = () => {
     fecha_fin_garantia: '',
     ubicacion_actual: '',
     estado_id: 1,
+    tipo_equipo: 'Otro',           // v1.0.0 (RF07): activa el módulo predictivo si es Bomba de Infusión
+    criticidad: 'Media',           // v1.0.0 (RF07): feature del modelo RUL
     proveedor_principal_id: null,  // v0.9.0: FK (era texto)
     condicion_origen: '',          // v0.9.0: nuevo
     descripcion: '',
@@ -942,6 +953,22 @@ onMounted(() => {
                   <tr>
                     <td class="detail-label">Nº Material</td>
                     <td><input v-model="formData.numero_material" type="text" class="detail-field" placeholder="Variante del modelo"></td>
+                  </tr>
+                  <tr>
+                    <td class="detail-label">Tipo de Equipo</td>
+                    <td>
+                      <select v-model="formData.tipo_equipo" class="detail-field">
+                        <option v-for="t in TIPOS_EQUIPO" :key="t" :value="t">{{ t }}</option>
+                      </select>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="detail-label">Criticidad</td>
+                    <td>
+                      <select v-model="formData.criticidad" class="detail-field">
+                        <option v-for="c in CRITICIDADES" :key="c" :value="c">{{ c }}</option>
+                      </select>
+                    </td>
                   </tr>
                   <tr>
                     <td class="detail-label">Condición de Origen</td>

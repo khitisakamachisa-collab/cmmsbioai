@@ -9,13 +9,17 @@ from datetime import date
 
 class Equipo(SQLModel, table=True):
     """
-    Tabla Equipos - RF01 v0.9.0 (Universal, sin contexto Bolivia).
+    Tabla Equipos - RF01 v0.9.0 (Universal, sin contexto Bolivia) + v1.0.0 (RF07 IA).
 
     Cambios vs v0.8.3:
     - ELIMINADOS: registro_sanitario_bolivia, calibracion_proxima, responsable_tecnico_id, proveedor_principal (texto)
     - AÑADIDOS: observaciones, fecha_inicio_garantia, condicion_origen, proveedor_principal_id (FK)
     - CAMBIO OBLIGATORIEDAD: nombre_corto ahora es NOT NULL, fecha_adquisicion ahora es opcional
     - RESTRICCIONES: modelo, marca, numero_serie NO modificables después de creado (validación en backend + frontend)
+
+    Cambios v1.0.0 (RF07 — Módulo Predictivo IA):
+    - AÑADIDO: tipo_equipo (catálogo editable; "Bomba de Infusión" activa el módulo predictivo)
+    - AÑADIDO: criticidad (Baja/Media/Alta — feature del modelo RUL, tesis §1.9)
     """
     id: Optional[int] = Field(default=None, primary_key=True)
 
@@ -25,6 +29,10 @@ class Equipo(SQLModel, table=True):
     numero_serie: str = Field(unique=True, index=True)         # NOT NULL, unique (no editable después)
     numero_material: Optional[str] = None
     marca: str                                                 # NOT NULL (no editable después de creado)
+
+    # === Tipo y criticidad (RF07 — núcleo del módulo predictivo) ===
+    tipo_equipo: Optional[str] = Field(default="Otro")         # Bomba de Infusión / Monitor / ... (catálogo editable)
+    criticidad: Optional[str] = Field(default="Media")         # Baja / Media / Alta (RUL feature)
 
     # === Fechas ===
     fecha_adquisicion: Optional[date] = None                   # Opcional (era obligatorio)

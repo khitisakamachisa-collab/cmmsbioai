@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select, func
 from typing import Optional
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, time, timedelta
 from database import get_session
 from models.equipos import Equipo
 from models.ordenes import OrdenTrabajo, EstadoOT, BitacoraOT
@@ -455,62 +455,218 @@ def _a_horas(tiempo: Optional[float], unidad: Optional[str]) -> float:
     return float(tiempo) * factor
 
 
-@router.get("/mtbf-mttr")
-def reporte_mtbf_mttr(
-    fecha_desde: Optional[date] = Query(None, description="Inicio del periodo (YYYY-MM-DD)"),
-    fecha_hasta: Optional[date] = Query(None, description="Fin del periodo (YYYY-MM-DD)"),
-    formato: str = Query("json", description="json | csv (por equipo, para análisis estadístico)"),
-    session: Session = Depends(get_session)
-):
-    """
-    Calcula MTBF, MTTR y Disponibilidad por equipo y por tipo de equipo,
-    a partir de las OTs correctivas completadas registradas en el sistema.
-    Exportable en CSV para el análisis estadístico de la tesis (Capítulo IV).
-    """
+# =================================================================
+# v2.1 — Motor de métricas MTBF / MTTR / Disponibilidad
+# (Reglas de Negocio v2.1 sobre las banderas del dataset importado)
+#
+#   Regla 3  → ventana_garantia_reparacion=True: reincidencia dentro
+#              de la ventana de garantía (<72h). NO cuenta como falla
+#              nueva → sale del denominador del MTBF.
+#   Regla 6  → excluida_de_MTTR=True (p.ej. cierre administrativo):
+#              sale del promedio de MTTR.
+#   Regla 4  → mdt_excluido_disponibilidad=True (Falsa_Alarma,
+#              Duplicado, Error_Usuario): su MDT NO se suma a la
+#              indisponibilidad. Las canceladas por Baja_Equipo SÍ
+#              suman MDT (el equipo sí estuvo fuera de servicio).
+#   Reglas 11-14 → el MTTR usa HORAS ACTIVAS: reparación bruta −
+#              pausas técnicas (tiempo_pausa_acumulado) − espera de
+#              repuestos (bitácora). La logística y las pausas no
+#              penalizan la eficiencia del técnico.
+#
+# Compatibilidad histórica (NO se borra la lógica antigua):
+#   - OTs sin sellos de tiempo R5 aportan con tiempo_real_invertido
+#     (×24 si unidad_tiempo="dias"), igual que en v1.0.2.
+#   - La clave "horas_reparacion" mantiene su significado histórico
+#     (suma de tiempo registrado) para trazabilidad.
+#   - Preventivas vinculadas (orden_preventiva_id) y OTs
+#     tipo_origen_ot='Programado' NO son fallas correctivas.
+# =================================================================
+
+def _es_programada(ot) -> bool:
+    """True si la OT es preventiva/programada (no es falla correctiva)."""
+    if ot.orden_preventiva_id is not None:
+        return True
+    return (ot.tipo_origen_ot or "Usuario") == "Programado"
+
+
+def _pausa_total_horas(ot, espera_bitacora: float) -> float:
+    """Pausa total a descontar de la reparación bruta (Reglas 11-14).
+    La bitácora (pausada→reanudada) ya refleja pausas técnicas y espera
+    de repuestos; si la columna tiempo_pausa_acumulado declara más de lo
+    que la bitácora registra, se suma el faltante (defensa)."""
+    pausa_col = float(ot.tiempo_pausa_acumulado or 0.0)
+    if espera_bitacora >= pausa_col:
+        return espera_bitacora
+    return espera_bitacora + pausa_col
+
+
+def _horas_ot_v21(ot, espera_bitacora: float) -> Optional[dict]:
+    """Horas de reparación BRUTAS y ACTIVAS de una OT cerrada.
+    - Con sellos R5: brutas = inicio→resolución; activas = brutas − pausas.
+    - Históricas (sin sellos): tiempo_real_invertido registrado
+      (compatibilidad v1.0.2); activas = registrado − pausa declarada."""
+    brutas_sello = _horas_entre(ot.fecha_inicio_trabajo, ot.fecha_resolucion)
+    if brutas_sello is not None:
+        activas = max(brutas_sello - _pausa_total_horas(ot, espera_bitacora), 0.0)
+        return {"brutas": brutas_sello, "activas": round(activas, 2)}
+    registrado = _a_horas(ot.tiempo_real_invertido, ot.unidad_tiempo)
+    if registrado > 0:
+        pausa = min(float(ot.tiempo_pausa_acumulado or 0.0), registrado)
+        return {"brutas": round(registrado, 2), "activas": round(max(registrado - pausa, 0.0), 2)}
+    return None
+
+
+def _mdt_horas(ot) -> Optional[float]:
+    """MDT de una OT cerrada: resolución − creación (sellos R5).
+    Fallback histórico: tiempo_real_invertido registrado."""
+    mdt_sello = _horas_entre(ot.fecha_creacion, ot.fecha_resolucion)
+    if mdt_sello is not None:
+        return mdt_sello
+    registrado = _a_horas(ot.tiempo_real_invertido, ot.unidad_tiempo)
+    return round(registrado, 2) if registrado > 0 else None
+
+
+_ADVERTENCIA_MTBF = "Basado en {n} fallas (mínimo recomendado: 3)"
+
+
+def _calcular_indicadores_v21(session: Session,
+                              fecha_desde: Optional[date],
+                              fecha_hasta: Optional[date]) -> dict:
+    """Núcleo v2.1 compartido por /mtbf-mttr, /mtbf, /mttr y /disponibilidad."""
     hoy = date.today()
     window_end = fecha_hasta or hoy
 
     equipos = session.exec(select(Equipo)).all()
-    ots = session.exec(
-        select(OrdenTrabajo).where(OrdenTrabajo.estado_id == 4)  # Completada
+    ots_cerradas = session.exec(
+        select(OrdenTrabajo).where(OrdenTrabajo.estado_id.in_([4, 5]))  # Completada | Cancelada
     ).all()
 
-    # Solo correctivas (sin orden_preventiva_id)
-    correctivas_por_equipo: dict = {}
-    for ot in ots:
-        if ot.orden_preventiva_id is not None:
+    # Espera de repuestos/pausas por OT desde la bitácora (pausada → reanudada).
+    # Se agrupa POR OT antes de recorrer: en el orden global por fecha los
+    # eventos de otras OTs intercalan y romperían los pares pausada→reanudada.
+    espera_por_ot: dict[int, float] = {}
+    ids_cerradas = [o.id for o in ots_cerradas]
+    if ids_cerradas:
+        entradas = session.exec(
+            select(BitacoraOT)
+            .where(BitacoraOT.orden_trabajo_id.in_(ids_cerradas))
+            .order_by(BitacoraOT.fecha.asc(), BitacoraOT.id.asc())
+        ).all()
+        bitacora_por_ot: dict[int, list] = {}
+        for ent in entradas:
+            bitacora_por_ot.setdefault(ent.orden_trabajo_id, []).append(ent)
+        for ot_id, evs in bitacora_por_ot.items():
+            pausa_desde = None
+            for ent in evs:
+                if ent.accion == "pausada":
+                    pausa_desde = ent.fecha
+                elif ent.accion == "reanudada" and pausa_desde is not None:
+                    d = (ent.fecha - pausa_desde).total_seconds() / 3600.0
+                    if d >= 0:
+                        espera_por_ot[ot_id] = espera_por_ot.get(ot_id, 0.0) + d
+                    pausa_desde = None
+
+    # Clasificación de OTs cerradas dentro de la ventana
+    fallas_eq: dict[int, list] = {}      # correctivas COMPLETADAS (MTBF/MTTR)
+    canceladas_eq: dict[int, list] = {}  # correctivas CANCELADAS (solo MDT)
+    programadas_eq: dict[int, list] = {} # informativo (no son fallas)
+    for ot in ots_cerradas:
+        if not ot.fecha_creacion:
             continue
-        if ot.fecha_creacion and ot.fecha_creacion.date() > window_end:
+        if ot.fecha_creacion.date() > window_end:
             continue
-        if fecha_desde and ot.fecha_creacion and ot.fecha_creacion.date() < fecha_desde:
+        if fecha_desde and ot.fecha_creacion.date() < fecha_desde:
             continue
-        correctivas_por_equipo.setdefault(ot.equipo_id, []).append(ot)
+        if _es_programada(ot):
+            if ot.estado_id == 4:
+                programadas_eq.setdefault(ot.equipo_id, []).append(ot)
+            continue
+        if ot.estado_id == 4:
+            fallas_eq.setdefault(ot.equipo_id, []).append(ot)
+        else:
+            canceladas_eq.setdefault(ot.equipo_id, []).append(ot)
 
     por_equipo = []
     for eq in equipos:
-        ots_eq = correctivas_por_equipo.get(eq.id, [])
-        n_fallas = len(ots_eq)
-        horas_reparacion = sum(_a_horas(ot.tiempo_real_invertido, ot.unidad_tiempo) for ot in ots_eq)
-        n_con_tiempo = sum(1 for ot in ots_eq if ot.tiempo_real_invertido is not None and ot.tiempo_real_invertido > 0)
+        fallas_raw = fallas_eq.get(eq.id, [])
+        canceladas = canceladas_eq.get(eq.id, [])
+        programadas = programadas_eq.get(eq.id, [])
 
-        # Ventana de observación: fecha_desde → fecha_adquisicion → primera correctiva
-        fechas = [ot.fecha_creacion.date() for ot in ots_eq if ot.fecha_creacion]
-        inicio = fecha_desde or eq.fecha_adquisicion or (min(fechas) if fechas else None)
-        if inicio is None:
+        # Regla 3: reincidencias en ventana de garantía no son fallas nuevas
+        excl_garantia = [o for o in fallas_raw if o.ventana_garantia_reparacion]
+        fallas_reales = [o for o in fallas_raw if not o.ventana_garantia_reparacion]
+        # Regla 6: cierres administrativos fuera del MTTR.
+        # Nota: las reincidencias en ventana de garantía (Regla 3) salen del
+        # denominador del MTBF, pero SÍ aportan al MTTR (fue una reparación real).
+        validas_mttr = [o for o in fallas_raw if not o.excluida_de_MTTR]
+        n_excl_mttr = sum(1 for o in fallas_raw if o.excluida_de_MTTR)
+
+        horas_reparacion_legacy = sum(_a_horas(o.tiempo_real_invertido, o.unidad_tiempo) for o in fallas_raw)
+        sum_activas = 0.0
+        for o in validas_mttr:
+            h = _horas_ot_v21(o, espera_por_ot.get(o.id, 0.0))
+            if h:
+                sum_activas += h["activas"]
+        n_con_tiempo = sum(1 for o in fallas_raw
+                           if o.tiempo_real_invertido is not None and o.tiempo_real_invertido > 0)
+
+        # Regla 4: MDT válido (completadas + canceladas; excluye banderas)
+        candidatos_mdt = fallas_raw + canceladas
+        mdt_valido = 0.0
+        mdt_excluido = 0.0
+        for o in candidatos_mdt:
+            m = _mdt_horas(o)
+            if m is None:
+                continue
+            if o.mdt_excluido_disponibilidad:
+                mdt_excluido += m
+            else:
+                mdt_valido += m
+
+        # Ventana de observación (misma convención v1.0.2: días completos).
+        # v2.1.2: la fuente de la ventana se reporta (ventana_fuente) y, si la
+        # ventana da 0 días (p.ej. equipo sin fecha_adquisicion cuya primera
+        # OT es de HOY), se recalcula con PRECISIÓN HORARIA: la disponibilidad
+        # deja de congelarse en None y el MDT real (p.ej. una Baja_Equipo)
+        # no queda oculto tras un 100% implícito. Las OTs programadas
+        # completadas también delimitan la ventana (equipo observado).
+        fechas_dt = [o.fecha_creacion for o in (candidatos_mdt + programadas) if o.fecha_creacion]
+        fechas = [d.date() for d in fechas_dt]
+        if fecha_desde:
+            inicio, fuente_ventana = fecha_desde, "fecha_desde"
+        elif eq.fecha_adquisicion:
+            inicio, fuente_ventana = eq.fecha_adquisicion, "fecha_adquisicion"
+        elif fechas:
+            inicio, fuente_ventana = min(fechas), "primera_OT"
+        else:
             continue  # sin forma de definir ventana de observación
 
         dias_calendario = max((window_end - inicio).days, 0)
-        horas_calendario = dias_calendario * 24.0
-        horas_operativas = max(horas_calendario - horas_reparacion, 0.0)
+        if dias_calendario > 0:
+            horas_calendario = dias_calendario * 24.0
+        else:
+            # v2.1.2 — precisión horaria para ventanas menores a 24h
+            fin_dt = datetime.combine(window_end, time.min) + timedelta(days=1)
+            if fuente_ventana == "primera_OT" and fechas_dt:
+                inicio_dt = min(fechas_dt)  # conserva la hora real de creación
+            elif isinstance(inicio, datetime):
+                inicio_dt = inicio
+            else:
+                inicio_dt = datetime.combine(inicio, time.min)
+            horas_calendario = max((fin_dt - inicio_dt).total_seconds() / 3600.0, 0.0)
+        horas_operativas = max(horas_calendario - mdt_valido, 0.0)
 
-        mtbf = round(horas_operativas / n_fallas, 1) if n_fallas > 0 and horas_operativas > 0 else None
-        mttr = round(horas_reparacion / n_con_tiempo, 1) if n_con_tiempo > 0 else None
-        if mtbf is not None and mttr is not None and (mtbf + mttr) > 0:
-            disponibilidad = round(mtbf / (mtbf + mttr) * 100.0, 1)
-        elif n_fallas == 0 and horas_operativas > 0:
-            disponibilidad = 100.0  # sin fallas registradas en el periodo
+        n_reales = len(fallas_reales)
+        mtbf = round(horas_operativas / n_reales, 1) if n_reales > 0 and horas_operativas > 0 else None
+        mttr = round(sum_activas / len(validas_mttr), 1) if validas_mttr else None
+        if horas_calendario > 0:
+            disponibilidad = round(max(horas_calendario - mdt_valido, 0.0) / horas_calendario * 100.0, 1)
+        elif mdt_valido > 0:
+            disponibilidad = 0.0  # v2.1.2: hay MDT real; una ventana nula no puede exhibir 100%
         else:
             disponibilidad = None
+
+        advertencia = _ADVERTENCIA_MTBF.format(n=n_reales) if n_reales < 3 else None
 
         por_equipo.append({
             "equipo_id": eq.id,
@@ -519,81 +675,159 @@ def reporte_mtbf_mttr(
             "tipo_equipo": eq.tipo_equipo or "Otro",
             "periodo_inicio": str(inicio),
             "periodo_fin": str(window_end),
-            "n_fallas_correctivas": n_fallas,
+            # v1.0.2 (compatibilidad de claves)
+            "n_fallas_correctivas": len(fallas_raw),
             "n_con_tiempo_registrado": n_con_tiempo,
-            "horas_reparacion": round(horas_reparacion, 1),
+            "horas_reparacion": round(horas_reparacion_legacy, 1),
             "horas_operativas": round(horas_operativas, 1),
+            # v2.1
+            "n_fallas_reales": n_reales,
+            "n_excluidas_garantia": len(excl_garantia),
+            "n_excluidas_mttr": n_excl_mttr,
+            "n_validas_mttr": len(validas_mttr),
+            "n_programadas": len(programadas),
+            "horas_reparacion_activas": round(sum_activas, 1),
+            "mdt_valido_horas": round(mdt_valido, 1),
+            "mdt_excluido_horas": round(mdt_excluido, 1),
+            "horas_calendario": round(horas_calendario, 1),
+            "ventana_fuente": fuente_ventana,
             "mtbf_horas": mtbf,
             "mttr_horas": mttr,
             "disponibilidad_pct": disponibilidad,
+            "advertencia_mtbf": advertencia,
         })
 
     por_equipo.sort(key=lambda x: (-(x["disponibilidad_pct"] or 0), x["nombre_corto"] or ""))
 
-    # Agregación por tipo de equipo (suma de horas y fallas)
+    # Agregación por tipo de equipo (v2.1)
+    claves_suma = ["n_fallas_correctivas", "n_fallas_reales", "n_excluidas_garantia",
+                   "n_excluidas_mttr", "n_validas_mttr", "n_programadas",
+                   "n_con_tiempo_registrado", "horas_reparacion", "horas_reparacion_activas",
+                   "mdt_valido_horas", "mdt_excluido_horas", "horas_calendario", "horas_operativas"]
     por_tipo = {}
     for r in por_equipo:
-        t = por_tipo.setdefault(r["tipo_equipo"], {
-            "tipo_equipo": r["tipo_equipo"], "n_equipos": 0, "n_fallas_correctivas": 0,
-            "n_con_tiempo_registrado": 0, "horas_reparacion": 0.0, "horas_operativas": 0.0,
-        })
+        t = por_tipo.setdefault(r["tipo_equipo"], {"tipo_equipo": r["tipo_equipo"], "n_equipos": 0})
         t["n_equipos"] += 1
-        t["n_fallas_correctivas"] += r["n_fallas_correctivas"]
-        t["n_con_tiempo_registrado"] += r["n_con_tiempo_registrado"]
-        t["horas_reparacion"] += r["horas_reparacion"]
-        t["horas_operativas"] += r["horas_operativas"]
+        for k in claves_suma:
+            t[k] = t.get(k, 0.0) + (r[k] or 0.0)
 
     por_tipo_out = []
     for t in por_tipo.values():
-        t["horas_reparacion"] = round(t["horas_reparacion"], 1)
-        t["horas_operativas"] = round(t["horas_operativas"], 1)
-        t["mtbf_horas"] = round(t["horas_operativas"] / t["n_fallas_correctivas"], 1) if t["n_fallas_correctivas"] > 0 and t["horas_operativas"] > 0 else None
-        t["mttr_horas"] = round(t["horas_reparacion"] / t["n_con_tiempo_registrado"], 1) if t["n_con_tiempo_registrado"] > 0 else None
-        if t["mtbf_horas"] is not None and t["mttr_horas"] is not None and (t["mtbf_horas"] + t["mttr_horas"]) > 0:
-            t["disponibilidad_pct"] = round(t["mtbf_horas"] / (t["mtbf_horas"] + t["mttr_horas"]) * 100.0, 1)
-        elif t["n_fallas_correctivas"] == 0 and t["horas_operativas"] > 0:
-            t["disponibilidad_pct"] = 100.0
-        else:
-            t["disponibilidad_pct"] = None
+        for k in claves_suma:
+            t[k] = round(t[k], 1)
+        t["mtbf_horas"] = round(t["horas_operativas"] / t["n_fallas_reales"], 1) if t["n_fallas_reales"] > 0 and t["horas_operativas"] > 0 else None
+        t["mttr_horas"] = round(t["horas_reparacion_activas"] / t["n_validas_mttr"], 1) if t["n_validas_mttr"] > 0 else None
+        t["disponibilidad_pct"] = round(max(t["horas_calendario"] - t["mdt_valido_horas"], 0.0) / t["horas_calendario"] * 100.0, 1) if t["horas_calendario"] > 0 else None
+        t["advertencia_mtbf"] = _ADVERTENCIA_MTBF.format(n=int(t["n_fallas_reales"])) if t["n_fallas_reales"] < 3 else None
         por_tipo_out.append(t)
 
     por_tipo_out.sort(key=lambda x: x["tipo_equipo"])
 
-    resultado = {
+    return {
         "definiciones": {
-            "falla": "OT correctiva completada (sin orden preventiva asociada)",
-            "mtbf": "horas operativas del periodo / nº de fallas",
-            "mttr": "suma de tiempos de reparación / nº de fallas con tiempo registrado",
-            "disponibilidad": "MTBF / (MTBF + MTTR) × 100",
+            "version_motor": "v2.1.2",
+            "falla": "OT correctiva completada (sin orden preventiva asociada; tipo_origen_ot != 'Programado')",
+            "fallas_reales": "fallas correctivas menos reincidencias en ventana de garantía (Regla 3: ventana_garantia_reparacion=True no es falla nueva)",
+            "mtbf": "horas operativas / fallas reales — horas operativas = horas calendario − MDT válido",
+            "mttr": "suma de horas de reparación ACTIVAS / nº de OTs completadas válidas (Regla 6: excluye excluida_de_MTTR=True; Reglas 11-14: activas = brutas − pausas − espera repuestos)",
+            "mdt_valido": "suma de (resolución − creación) de OTs con mdt_excluido_disponibilidad=False — incluye canceladas por Baja_Equipo (Regla 4)",
+            "disponibilidad": "(horas calendario − MDT válido) / horas calendario × 100",
+            "ventana_calendario": "horas entre fecha_adquisicion (o, en su defecto, la primera OT cerrada del equipo) y la fecha de corte; días completos, con precisión horaria si la ventana es menor a 24h (v2.1.2). ventana_fuente indica el origen usado",
+            "compatibilidad": "OTs históricas sin sellos de tiempo (R5) aportan con tiempo_real_invertido (horas; días ×24). 'horas_reparacion' conserva su significado histórico (tiempo registrado)",
             "unidad_tiempo": "horas",
         },
         "parametros": {"fecha_desde": str(fecha_desde) if fecha_desde else None,
                         "fecha_hasta": str(window_end)},
+        "reglas_v21": {
+            "regla_3_garantia": "ventana_garantia_reparacion=True → fuera del denominador MTBF",
+            "regla_6_cierre_admin": "excluida_de_MTTR=True → fuera del promedio MTTR",
+            "regla_4_mdt": "mdt_excluido_disponibilidad=True → MDT no suma a indisponibilidad; Baja_Equipo SÍ suma",
+            "reglas_11_14_horas_activas": "MTTR usa activas: brutas − tiempo_pausa_acumulado − espera de repuestos (bitácora)",
+            "excluidas_garantia": sum(r["n_excluidas_garantia"] for r in por_equipo),
+            "excluidas_mttr": sum(r["n_excluidas_mttr"] for r in por_equipo),
+            "mdt_excluido_horas": round(sum(r["mdt_excluido_horas"] for r in por_equipo), 1),
+        },
         "por_equipo": por_equipo,
         "por_tipo_equipo": por_tipo_out,
     }
 
+
+_COLS_CSV_V21 = ["equipo_id", "nombre_corto", "modelo", "tipo_equipo",
+                 "periodo_inicio", "periodo_fin", "n_fallas_correctivas",
+                 "n_fallas_reales", "n_excluidas_garantia", "n_excluidas_mttr",
+                 "n_validas_mttr", "n_programadas", "n_con_tiempo_registrado",
+                 "horas_reparacion", "horas_reparacion_activas", "mdt_valido_horas",
+                 "mdt_excluido_horas", "horas_calendario", "horas_operativas",
+                 "mtbf_horas", "mttr_horas", "disponibilidad_pct", "advertencia_mtbf",
+                 "ventana_fuente"]
+
+
+@router.get("/mtbf-mttr")
+def reporte_mtbf_mttr(
+    fecha_desde: Optional[date] = Query(None, description="Inicio del periodo (YYYY-MM-DD)"),
+    fecha_hasta: Optional[date] = Query(None, description="Fin del periodo (YYYY-MM-DD)"),
+    formato: str = Query("json", description="json | csv (por equipo, para análisis estadístico)"),
+    session: Session = Depends(get_session)
+):
+    """
+    Calcula MTBF, MTTR y Disponibilidad por equipo y por tipo de equipo
+    aplicando las Reglas de Negocio v2.1 (banderas: ventana_garantia_reparacion,
+    excluida_de_MTTR, mdt_excluido_disponibilidad, tiempo_pausa_acumulado).
+    Exportable en CSV para el análisis estadístico de la tesis (Capítulo IV).
+    Payload idéntico disponible en /reportes/mtbf, /reportes/mttr y
+    /reportes/disponibilidad.
+    """
+    resultado = _calcular_indicadores_v21(session, fecha_desde, fecha_hasta)
+    hoy = date.today()
+
     if (formato or "json").lower() == "csv":
         buffer = _io.StringIO()
         w = _csv.writer(buffer)
-        w.writerow(["equipo_id", "nombre_corto", "modelo", "tipo_equipo",
-                    "periodo_inicio", "periodo_fin", "n_fallas_correctivas",
-                    "n_con_tiempo_registrado", "horas_reparacion", "horas_operativas",
-                    "mtbf_horas", "mttr_horas", "disponibilidad_pct"])
-        for r in por_equipo:
-            w.writerow([r[c] for c in ["equipo_id", "nombre_corto", "modelo", "tipo_equipo",
-                                        "periodo_inicio", "periodo_fin", "n_fallas_correctivas",
-                                        "n_con_tiempo_registrado", "horas_reparacion",
-                                        "horas_operativas", "mtbf_horas", "mttr_horas",
-                                        "disponibilidad_pct"]])
+        w.writerow(_COLS_CSV_V21)
+        for r in resultado["por_equipo"]:
+            w.writerow([r.get(c) for c in _COLS_CSV_V21])
         buffer.seek(0)
         return StreamingResponse(
             iter([buffer.getvalue()]),
             media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="cmmsbioai_mtbf_mttr_{hoy}.csv"'},
+            headers={"Content-Disposition": f'attachment; filename="cmmsbioai_mtbf_mttr_v21_{hoy}.csv"'},
         )
 
     return resultado
+
+
+# --- Aliases v2.1 (mismo payload; consulta directa por indicador) ---
+@router.get("/mtbf")
+def reporte_mtbf(
+    fecha_desde: Optional[date] = Query(None, description="Inicio del periodo (YYYY-MM-DD)"),
+    fecha_hasta: Optional[date] = Query(None, description="Fin del periodo (YYYY-MM-DD)"),
+    session: Session = Depends(get_session)
+):
+    """Alias de /reportes/mtbf-mttr — foco MTBF (Regla 3: reincidencias en
+    ventana de garantía no cuentan como fallas nuevas)."""
+    return _calcular_indicadores_v21(session, fecha_desde, fecha_hasta)
+
+
+@router.get("/mttr")
+def reporte_mttr(
+    fecha_desde: Optional[date] = Query(None, description="Inicio del periodo (YYYY-MM-DD)"),
+    fecha_hasta: Optional[date] = Query(None, description="Fin del periodo (YYYY-MM-DD)"),
+    session: Session = Depends(get_session)
+):
+    """Alias de /reportes/mtbf-mttr — foco MTTR (Regla 6: excluye cierres
+    administrativos; Reglas 11-14: horas activas)."""
+    return _calcular_indicadores_v21(session, fecha_desde, fecha_hasta)
+
+
+@router.get("/disponibilidad")
+def reporte_disponibilidad(
+    fecha_desde: Optional[date] = Query(None, description="Inicio del periodo (YYYY-MM-DD)"),
+    fecha_hasta: Optional[date] = Query(None, description="Fin del periodo (YYYY-MM-DD)"),
+    session: Session = Depends(get_session)
+):
+    """Alias de /reportes/mtbf-mttr — foco Disponibilidad (Regla 4: el MDT de
+    falsas alarmas/duplicados/errores de usuario no resta; Baja_Equipo sí)."""
+    return _calcular_indicadores_v21(session, fecha_desde, fecha_hasta)
 
 
 # =================================================================
@@ -729,6 +963,15 @@ def reporte_tiempos_etapa(
             # v1.1.1: cadena de reincidencias (cierre definitivo + OT nueva vinculada)
             "parent_ot_id": ot.parent_ot_id,
             "failure_sequence": ot.failure_sequence or 1,
+            # v2.1: banderas del dataset (informativo para el análisis Cap. IV)
+            "tipo_origen_ot": ot.tipo_origen_ot,
+            "tipo_impacto": ot.tipo_impacto,
+            "ventana_garantia_reparacion": ot.ventana_garantia_reparacion,
+            "es_reparacion_inefectiva": ot.es_reparacion_inefectiva,
+            "excluida_de_MTTR": ot.excluida_de_MTTR,
+            "mdt_excluido_disponibilidad": ot.mdt_excluido_disponibilidad,
+            "cierre_administrativo": ot.cierre_administrativo,
+            "motivo_cancelacion": ot.motivo_cancelacion,
         })
 
     def _prom(lista):
@@ -775,7 +1018,11 @@ def reporte_tiempos_etapa(
                 "fecha_resolucion", "horas_hasta_asignacion", "horas_reaccion",
                 "horas_reparacion_brutas", "horas_espera_repuesto", "horas_reparacion_activas",
                 "tiempo_invertido_registrado", "unidad_tiempo", "n_reaperturas",
-                "parent_ot_id", "failure_sequence"]
+                "parent_ot_id", "failure_sequence",
+                "tipo_origen_ot", "tipo_impacto", "ventana_garantia_reparacion",
+                "es_reparacion_inefectiva", "excluida_de_MTTR",
+                "mdt_excluido_disponibilidad", "cierre_administrativo",
+                "motivo_cancelacion"]
         w.writerow(cols)
         for r in por_ot:
             w.writerow([r[c] for c in cols])

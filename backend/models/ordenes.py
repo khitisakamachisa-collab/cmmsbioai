@@ -71,6 +71,27 @@ class OrdenTrabajo(SQLModel, table=True):
     parent_ot_id: Optional[int] = Field(default=None, foreign_key="ordentrabajo.id")
     failure_sequence: int = Field(default=1)
 
+    # ==========================================================
+    # v2.1 — Dataset de Prueba / Rediseño de flujos (15 campos)
+    # Defaults seguros: filas existentes quedan como 'Usuario/REAL'
+    # sin pausas ni exclusiones (compatibilidad total).
+    # ==========================================================
+    tipo_origen_ot: str = Field(default="Usuario")        # Usuario | Sistema/IA | Programado
+    tipo_impacto: str = Field(default="REAL")             # REAL | PRECAUTORIO | PROGRAMADO
+    sub_estado_logistica: Optional[str] = None            # Esperando_Cotización | En_Proceso_Compra | En_Aduana | En_Transito
+    ventana_garantia_reparacion: bool = Field(default=False)   # True si falla en <72h de OT anterior
+    es_reparacion_inefectiva: bool = Field(default=False)      # True si falla infantil / repuesto defectuoso
+    en_pausa_tecnica: bool = Field(default=False)              # True si pausada por emergencia
+    motivo_pausa: Optional[str] = None                         # Emergencia_Clinica | Reasignacion_Coordinador | ...
+    tiempo_pausa_acumulado: float = Field(default=0.0)         # Horas totales en pausa
+    cierre_administrativo: bool = Field(default=False)         # True si fue forzado por Coordinador
+    excluida_de_MTTR: bool = Field(default=False)              # True si no cuenta para eficiencia técnica
+    mdt_excluido_disponibilidad: bool = Field(default=False)   # True si MDT no se suma a Disponibilidad
+    codigo_falla: Optional[str] = None                         # Código estructurado de falla (F-101, ...)
+    causa_raiz: Optional[str] = None                           # Código estructurado de causa
+    accion_tomada: Optional[str] = None                        # Código estructurado de acción
+    motivo_cancelacion: Optional[str] = None                   # Falsa_Alarma | Duplicado | Error_Usuario | Baja_Equipo | No_Reparable | Riesgo_Aceptado
+
 
 # ==============================================================
 # v1.1.0 — Bitácora de transiciones (Regla R4)

@@ -1,0 +1,114 @@
+================================================================
+ CMMS-BioAI — PATCH v2.1.0-prep: Dataset de Prueba v2.1
+ "Reset Controlado con Seed Enriquecido"
+================================================================
+
+QUÉ ES
+------
+Importa 15 OTs de prueba (ids 101-115) que cubren las reglas críticas
+del flujo v2.1: reincidencia con repuesto defectuoso (102), falsa
+alarma (103), error de usuario (104), logística internacional (105),
+pausa técnica por emergencia clínica (106), OT predictiva de la IA
+con síntomas y feedback (109), baja de equipo (110), MP programado
+(111), cierre administrativo (108), correctivas estándar (112-115).
+
+AGREGA (sin borrar ni modificar nada existente):
+  - 15 columnas nuevas en 'ordentrabajo' (defaults seguros: lo previo
+    queda como Usuario/REAL sin pausas ni exclusiones).
+  - 3 tablas nuevas: symptoms, feedback_predictivo, hitos_ciclo_vida.
+  - Script backend/importar_dataset_v21.py.
+
+NO TOCA: routers/endpoints, máquina de estados (6 estados), módulo ML,
+frontend, prueba_flujo_v111.py.
+
+ARCHIVOS DEL PATCH (7)
+----------------------
+  backend/database.py                    (MODIFICADO: migración v2.1)
+  backend/models/ordenes.py              (MODIFICADO: 15 campos v2.1)
+  backend/models/__init__.py             (MODIFICADO: exporta modelos v21)
+  backend/models/v21.py                  (NUEVO: 3 tablas)
+  backend/importar_dataset_v21.py        (NUEVO: importador + reporte)
+  dataset_prueba_v21.csv                 (NUEVO: el dataset)
+  LEEME-PATCH-v2.1-dataset.txt           (este archivo)
+
+INSTALACIÓN
+-----------
+  1) RESPALDA tu BD:  copia backend\cmms_bioai.db  a un lugar seguro.
+  2) Copia los 6 archivos sobre D:\cmmsbioai\ respetando rutas:
+       backend\database.py
+       backend\models\ordenes.py
+       backend\models\__init__.py
+       backend\models\v21.py
+       backend\importar_dataset_v21.py
+       dataset_prueba_v21.csv   ← déjalo en D:\cmmsbioai\backend\
+  3) Corre el importador:
+       cd D:\cmmsbioai\backend
+       venv\Scripts\activate
+       python importar_dataset_v21.py
+     (busca el CSV junto al script; también acepta --csv RUTA)
+  4) Verificación:
+       - El script imprime el REPORTE DE VALIDACIÓN con 8 checks ✅.
+       - python prueba_flujo_v111.py  → debe seguir 51/51.
+       - Levanta el backend: python -m uvicorn main:app --reload
+       - En Reportes → Tiempos por Etapa verás las 15 OTs (rango
+         01/10/2026 al 13/10/2026).
+
+MODOS DEL IMPORTADOR
+--------------------
+  python importar_dataset_v21.py               → si la OT ya existe, la OMITE
+                                                 (idempotente, seguro re-correr)
+  python importar_dataset_v21.py --reemplazar  → borra las OTs del CSV (con su
+                                                 bitácora/síntomas/feedback) y
+                                                 las reimporta limpias
+
+REGLAS DE CÁLCULO (resumen — detalladas en el script)
+-----------------------------------------------------
+  Estados: el CSV usa códigos v2.1; el mapeo es POR NOMBRE contra el
+  catálogo real (el spec traía IDs desplazados):
+    OPEN→Abierta(1) IN_PROGRESS→En Proceso(2) WAITING_SPARE→Esp. Repuesto(3)
+    COMPLETED→Completada(4) CANCELED→Cancelada(5) MONITORING→En Monitoreo(6)
+  Relojes (fuente de verdad = sellos de tiempo R5; los campos horas_*
+  NO son columnas: los calcula /reportes/tiempos-etapa):
+    hasta_asignacion = asignación - creación      (semántica del reporte vivo)
+    reacción         = inicio - asignación
+    brutas           = resolución - inicio
+    MTTA variante spec = inicio - creación (= asig + reacción)
+    MDT              = resolución - creación
+  Partición: brutas = activas + pausa + espera_logística
+    - pausa: columna CSV opcional; si no viene y en_pausa_tecnica=True,
+      se extrae del informe ("pausó Xh") — caso 106.
+    - logística (sub_estado_logistica ≠ NULL sin marcas WAITING_SPARE):
+      ventana completa - pausa = espera, activas=0 — caso 105.
+  Regla forzada: CANCELED con motivo Falsa_Alarma/Duplicado/Error_Usuario
+    → mdt_excluido_disponibilidad=True.
+
+DISCREPANCIAS DETECTADAS EN EL CSV (el importador las lista y sigue)
+--------------------------------------------------------------------
+  1) Filas 101, 103, 104, 106, 110 traen comas de más (coma estructural
+     extra en 103 y comas sin entrecomillar dentro del texto del
+     informe). El importador las REPARA automáticamente con validación
+     estricta. Recomendado: corregir el CSV fuente (entrecomillar el
+     texto del informe) para futuras corridas.
+  2) OT 106: el informe dice "MTTR Hombre = 3h" pero con la pausa
+     declarada de 4h las activas calculadas son 2.5h (la pausa
+     implícita por 3h sería 3.5h). Decidir: pausa 3.5h en el CSV o
+     aceptar 2.5h.
+  3) OT 110: la columna excluida_de_MTTR dice False pero el informe
+     declara "MTTR excluido". Se importó FIEL AL CSV. Si manda el
+     informe, cambiar la columna a True.
+  4) OT 105: sin marcas de entrada/salida de WAITING_SPARE → la espera
+     logística se asumió = ventana completa (267.5h ≈ 11 días). Para el
+     split fino, agregar columnas espera_inicio/espera_fin al CSV.
+
+NOTA SOBRE hitos_ciclo_vida
+---------------------------
+La tabla se crea vacía: el dataset no incluye hitos (EOS/RECALL/...).
+Queda lista para la siguiente fase de flujos v2.1.
+
+PRÓXIMOS PASOS SUGERIDOS
+------------------------
+  - Motor de métricas v2.1: usar los campos de exclusión
+    (excluida_de_MTTR, mdt_excluido_disponibilidad, cierre_administrativo)
+    en /reportes (tarea futura, NO incluida en este patch).
+  - Commit + push a GitHub (X1 sigue pendiente).
+================================================================

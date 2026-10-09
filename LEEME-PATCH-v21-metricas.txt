@@ -1,0 +1,85 @@
+================================================================
+ CMMS-BioAI — PATCH v2.1.1: Motor de Métricas v2.1 en /reportes
+ "MTBF / MTTR / Disponibilidad con Reglas de Negocio v2.1"
+================================================================
+
+QUÉ ES
+------
+Actualiza los cálculos de /reportes/mtbf-mttr (y añade los aliases
+/reportes/mtbf, /reportes/mttr y /reportes/disponibilidad) para que
+respeten estrictamente las Reglas de Negocio v2.1 usando las banderas
+que ya trae tu BD (importadas con dataset_prueba_v21.csv):
+
+  Regla 3  → MTBF:  OTs con ventana_garantia_reparacion=True (reinci-
+            dencia <72h, ej. OT 102) NO cuentan como fallas nuevas en
+            el denominador. Si las fallas reales son < 3, cada fila
+            trae "advertencia_mtbf": "Basado en N fallas (mínimo
+            recomendado: 3)".
+  Regla 6  → MTTR:  OTs con excluida_de_MTTR=True (ej. OT 108 cierre
+            administrativo) NO entran al promedio.
+  Regla 4  → Disponibilidad = (Horas_Calendario − MDT_válido) / Hora-
+            s_Calendario × 100. El MDT de OTs con mdt_excluido_dispo-
+            nibilidad=True (falsa alarma 103, error de usuario 104)
+            NO se suma; el de Baja_Equipo (OT 110) SÍ se suma.
+  Reglas 11-14 → MTTR usa HORAS ACTIVAS: reparación bruta − tiempo_
+            pausa_acumulado − espera de repuestos (bitácora). La pausa
+            de 4h (OT 106) y la logística de 267.5h (OT 105) ya no
+            inflan la eficiencia del técnico.
+
+DECISIONES DE DISEÑO (por si quieres ajustar algo)
+--------------------------------------------------
+  - Las reincidencias en garantía (Regla 3) salen del MTBF pero SÍ
+    aportan al MTTR: fue una reparación real con horas de técnico.
+  - Las OTs tipo_origen_ot='Programado' (ej. OT 111, MP) y las
+    preventivas vinculadas NO son "fallas correctivas": no cuentan
+    en MTBF, MTTR ni MDT (trato uniforme con lo que ya hacía v1.0.2).
+  - Compatibilidad histórica: las OTs antiguas sin sellos de tiempo
+    (R5) siguen aportando con tiempo_real_invertido (días ×24) y las
+    claves v1.0.2 (n_fallas_correctivas, horas_reparacion, etc.) se
+    conservan con su significado histórico. Verificado: prueba_mtbf.py
+    da los mismos números que antes (MTBF 8010.8 == 8010.8).
+
+NO TOCA: estructura de la BD (0 migraciones), routers de OT, máquina
+de estados, módulo ML, frontend, prueba_flujo_v111.py.
+
+ARCHIVOS DEL PATCH (4)
+----------------------
+  backend/api/routes/reportes.py    (MODIFICADO: motor v2.1 + aliases)
+  backend/prueba_metricas_v21.py    (NUEVO: 37 verificaciones)
+  versiones.txt                     (MODIFICADO: fila v2.1.1)
+  LEEME-PATCH-v21-metricas.txt      (este archivo)
+
+INSTALACIÓN
+-----------
+  1) RESPALDA tu BD:  copia backend\cmms_bioai.db  a un lugar seguro.
+  2) Copia sobre D:\cmmsbioai\ respetando rutas:
+       backend\api\routes\reportes.py
+       backend\prueba_metricas_v21.py
+       versiones.txt
+  3) No requiere reiniciar nada si uvicorn corre con --reload.
+
+VERIFICACIÓN (en D:\cmmsbioai\backend con venv activo)
+------------------------------------------------------
+  python prueba_metricas_v21.py
+      → requiere el dataset v2.1 ya importado (si no:
+        python importar_dataset_v21.py primero). NO modifica la BD.
+      → imprime los tres veredictos clave:
+          ✅ MTBF excluye reincidencias
+          ✅ MTTR excluye cierres admin
+          ✅ Disponibilidad ignora falsas alarmas
+        y al final: "RESULTADO: 37/37 verificaciones OK"
+
+  python prueba_flujo_v111.py      → 51/51 (BD temporal, sin cambios)
+  python prueba_v112_limpieza.py   → 10/10
+  python prueba_mtbf.py            → compatibilidad v1.0.2 "OK ✓"
+
+NOTAS
+-----
+  - Los aliases /reportes/mtbf, /reportes/mttr y /reportes/disponibi-
+    lidad devuelven el MISMO payload completo (por equipo y por tipo);
+    existen para consulta directa por indicador.
+  - /reportes/tiempos-etapa sigue intacto en su lógica de relojes y
+    ahora incluye las banderas v2.1 por OT (JSON y CSV) para el
+    análisis estadístico del Capítulo IV.
+  - El CSV de mtbf-mttr ganó columnas v2.1 (n_fallas_reales, mdt_-
+    valido_horas, mdt_excluido_horas, advertencia_mtbf, etc.).

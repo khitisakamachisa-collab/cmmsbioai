@@ -1,0 +1,114 @@
+================================================================
+CMMS-BioAI — PATCH v2.1.2 «Ventana Calendario» (Motor de Métricas)
+================================================================
+Fecha: 2026-10-09          Base: v2.1.1 (Motor de Métricas)
+Riesgo: BAJO — solo cambia el cálculo de la ventana calendario en
+/reportes/mtbf-mttr (+aliases). No toca modelos, migraciones, ML,
+flujos v1.1.x ni frontend. Claves v1.0.2/v2.1 del payload intactas
+(solo se AÑADEN: ventana_fuente y definiciones.ventana_calendario).
+
+----------------------------------------------------------------
+1) QUÉ CORRIGE (el 35/37 de tu máquina)
+----------------------------------------------------------------
+SÍNTOMA: solo fallaba "Desfibrilador: disponibilidad < 100%" (contado
+2 veces: check individual + veredicto de sección).
+
+CAUSA RAÍZ (confirmada reproduciéndola en sandbox):
+  - El motor calculaba la ventana calendario en DÍAS ENTEROS:
+        dias_calendario = max((window_end - inicio).days, 0)
+  - El Desfibrilador no tiene fecha_adquisicion → la ventana arranca
+    en la creación de su única OT (la Baja 110, creada 2026-10-08
+    09:00). Si corres la prueba el MISMO día: dias = 0 →
+    horas_calendario = 0 → disponibilidad_pct = None → FALLO.
+  - Es decir: el check fallaba SEGÚN LA HORA del día en que lo
+    corrieras. El MDT de 99h sí se sumaba (check OK), pero la
+    disponibilidad no podía reflejarlo al no haber ventana.
+
+FIX v2.1.2 (quirúrgico, 3 cambios en _calcular_indicadores_v21):
+  a) PRECISIÓN HORARIA solo cuando la ventana da 0 días: se calcula
+     con la hora real de creación de la primera OT (fin de día como
+     corte). El resto de equipos conserva la convención v1.0.2 de
+     días completos → prueba_mtbf.py (compat) sigue OK.
+  b) Defensa: si la ventana sigue siendo nula y hay MDT > 0, la
+     disponibilidad es 0.0 (jamás un 100% implícito).
+  c) Transparencia: cada fila reporta ventana_fuente =
+     "fecha_desde" | "fecha_adquisicion" | "primera_OT" (JSON y CSV),
+     y version_motor pasa a "v2.1.2" (útil para verificar que el
+     servidor cargó el archivo nuevo).
+
+MEJORA ADICIONAL: las OTs PROGRAMADAS completadas también delimitan
+la ventana. Un equipo cuya única OT cerrada es un preventivo (p.ej.
+Centrífuga con OT 111) ahora SÍ aparece en el reporte, antes se
+saltaba por completo.
+
+----------------------------------------------------------------
+2) ARCHIVOS DEL PATCH
+----------------------------------------------------------------
+  backend/api/routes/reportes.py            (REEMPLAZA el v2.1.1)
+  backend/diagnostico_metricas_v21.py       (REEMPLAZA — sin SyntaxWarning,
+                                             espejo exacto del motor v2.1.2)
+  backend/completar_fechas_adquisicion_demo.py (NUEVO — opcional)
+  versiones.txt                             (REEMPLAZA — fila v2.1.2)
+  LEEME-PATCH-v2.1.2-ventana.txt            (este archivo)
+
+  SIN CAMBIOS: prueba_metricas_v21.py (mismas 37 verificaciones),
+  modelos, importador del dataset, ML, frontend.
+
+----------------------------------------------------------------
+3) INSTALACIÓN (2 minutos)
+----------------------------------------------------------------
+  1. Copia backend/api/routes/reportes.py sobre el tuyo.
+  2. (Recomendado) Copia también diagnostico_metricas_v21.py y
+     completar_fechas_adquisicion_demo.py a backend/.
+  3. Si tu uvicorn está levantado, reinícialo (Ctrl+C y subir de
+     nuevo). La prueba usa TestClient en proceso, así que corre
+     aunque no reinicies; el servidor sí necesita restart.
+  4. Corre de nuevo:
+        cd D:\cmmsbioai\backend
+        python prueba_metricas_v21.py
+     → RESULTADO ESPERADO: 37/37 verificaciones OK.
+  5. (Opcional) python diagnostico_metricas_v21.py — ahora muestra,
+     por equipo, ventana_fuente / horas_calendario / MDT válido /
+     disponibilidad esperada, sin el SyntaxWarning del \c.
+
+----------------------------------------------------------------
+4) QUÉ VERÁS CON TU BD ACTUAL (solo dataset, sin fechas demo)
+----------------------------------------------------------------
+El check del Desfibrilador pasa siempre, a cualquier hora:
+  [OK] Desfibrilador: disponibilidad < 100% (el equipo sí estuvo fuera)
+Valores con ventana de respaldo (primera_OT), ventanas cortas:
+  Bomba 99.9% (tiene fecha_adquisicion), Monitor 100.0%,
+  Rayos X ~89%, Hemodiálisis ~97%, Ventilador ~83%,
+  Ecógrafo / Resonancia / Desfibrilador 0.0%  ← VENTANAS DE HORAS-DÍAS
+  vs MDT de 270h/128h/99h: honesto, pero extremo.
+
+----------------------------------------------------------------
+5) OPCIONAL RECOMENDADO — fechas de adquisición demo
+----------------------------------------------------------------
+Los 12 equipos del dataset se crearon SIN fecha_adquisicion; la
+ventana real debería ser la fecha en que el hospital adquirió el
+equipo. Ejecuta:
+        python completar_fechas_adquisicion_demo.py
+  - SOLO completa si está vacía (nunca sobrescribe; idempotente).
+  - Centrífuga Eppendorf queda excluida a propósito: su OT 111 es del
+    2026-10-09 07:00 y mientras no entre en ventana, asignarle fecha
+    haría aparecer su fila sin OTs en ventana.
+  - Resultado: ventanas de 1 a 4 años → Disponibilidad 98.6-100%,
+    MTBF de miles de horas, valores presentables para la demo y el
+    Cap. IV (validado en sandbox: 37/37 también con fechas).
+
+----------------------------------------------------------------
+6) NOTAS PARA LA TESIS (Cap. IV)
+----------------------------------------------------------------
+  - Convención de ventana documentada en el propio payload
+    (definiciones.ventana_calendario): "horas entre fecha_adquisicion
+    (o, en su defecto, la primera OT cerrada del equipo) y la fecha
+    de corte; días completos, con precisión horaria si la ventana es
+    menor a 24h".
+  - ventana_fuente en el CSV te permite filtrar/justificar qué filas
+    usan ventana real (fecha_adquisicion) y cuáles de respaldo
+    (primera_OT) — útil como control de calidad del dato.
+  - Validación de esta versión: 37/37 (prueba_metricas_v21.py) en
+    ambos escenarios + espejo v1.0.2 OK (prueba_mtbf.py) + caso
+    degenerado reproducido y corregido (equipo sin fecha con Baja
+    creada hoy: antes disponibilidad None, ahora 0.0%).

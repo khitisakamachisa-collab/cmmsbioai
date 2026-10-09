@@ -11,6 +11,7 @@ from .herramientas import Herramienta
 from .proveedores import Proveedor, ContactoProveedor
 from .costos import OtCostoAdicional  # v0.9.1: RF11
 from .contratos import Contrato, ContratoEquipo  # v0.9.2: RF12
+from .v21 import SintomaOT, FeedbackPredictivo, HitoCicloVida  # v2.1: dataset de prueba
 
 __all__ = [
     "Usuario", "Equipo", "EstadoEquipo",
@@ -23,4 +24,5 @@ __all__ = [
     "Proveedor", "ContactoProveedor",
     "OtCostoAdicional",
     "Contrato", "ContratoEquipo",
+    "SintomaOT", "FeedbackPredictivo", "HitoCicloVida",  # v2.1
 ]

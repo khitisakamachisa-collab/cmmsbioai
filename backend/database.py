@@ -122,6 +122,40 @@ def _migrate_ordentrabajo_v110():
         conn.commit()
 
 
+def _migrate_ordentrabajo_v21():
+    """v2.1 (Dataset de Prueba / Rediseño de flujos):
+    Agrega 15 columnas a 'ordentrabajo' sin borrar ni modificar las existentes.
+    Defaults seguros: filas previas quedan como tipo_origen_ot='Usuario',
+    tipo_impacto='REAL', sin pausas ni exclusiones de métricas.
+    Las tablas symptoms / feedback_predictivo / hitos_ciclo_vida se crean solas
+    con SQLModel.metadata.create_all() (models/v21.py)."""
+    new_columns = [
+        ("tipo_origen_ot", "VARCHAR DEFAULT 'Usuario'"),
+        ("tipo_impacto", "VARCHAR DEFAULT 'REAL'"),
+        ("sub_estado_logistica", "VARCHAR"),
+        ("ventana_garantia_reparacion", "BOOLEAN DEFAULT 0"),
+        ("es_reparacion_inefectiva", "BOOLEAN DEFAULT 0"),
+        ("en_pausa_tecnica", "BOOLEAN DEFAULT 0"),
+        ("motivo_pausa", "VARCHAR"),
+        ("tiempo_pausa_acumulado", "FLOAT DEFAULT 0.0"),
+        ("cierre_administrativo", "BOOLEAN DEFAULT 0"),
+        ("excluida_de_MTTR", "BOOLEAN DEFAULT 0"),
+        ("mdt_excluido_disponibilidad", "BOOLEAN DEFAULT 0"),
+        ("codigo_falla", "VARCHAR"),
+        ("causa_raiz", "VARCHAR"),
+        ("accion_tomada", "VARCHAR"),
+        ("motivo_cancelacion", "VARCHAR"),
+    ]
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(ordentrabajo)"))
+        existing = {row[1] for row in result.fetchall()}
+        for col_name, col_type in new_columns:
+            if col_name not in existing:
+                conn.execute(text(f"ALTER TABLE ordentrabajo ADD COLUMN {col_name} {col_type}"))
+                print(f"✅ Migración v2.1: columna '{col_name}' agregada a tabla 'ordentrabajo'")
+        conn.commit()
+
+
 def _migrate_ordentrabajo_v111():
     """v1.1.1 (Cierre Definitivo y Reincidencias):
     - Agrega parent_ot_id y failure_sequence a 'ordentrabajo' (cadena de
@@ -153,6 +187,7 @@ def create_db_and_tables():
     _migrate_equipo_ia()            # v1.0.0 — RF07 Módulo Predictivo (tipo_equipo + criticidad)
     _migrate_ordentrabajo_v110()    # v1.1.0 — Flujo OT (sellos de tiempo R5)
     _migrate_ordentrabajo_v111()    # v1.1.1 — Reincidencias (parent_ot_id, failure_sequence) + estado 'En Monitoreo'
+    _migrate_ordentrabajo_v21()     # v2.1 — Dataset de prueba (15 campos nuevos de flujo/métricas)
     # v0.9.23: hora_creacion fue eliminada. fecha_creacion (DATETIME) se usa como campo editable.
     # Si la columna hora_creacion existe en BD anterior, se ignora (SQLModel no la lee si no está en el modelo).
 

@@ -79,7 +79,8 @@ class OrdenTrabajoUpdate(BaseModel):
 # ============================================================
 
 class AccionSimple(BaseModel):
-    """Iniciar / Reanudar / Monitorear — sin datos obligatorios.
+    """Iniciar / Reanudar — sin datos obligatorios.
+    (v2.1.3: /monitorear eliminado junto con el estado 'En Monitoreo'.)
     v1.1.1: reanudar/resolver pueden recibir repuestos y costos para
     registrarlos DENTRO del flujo (el repuesto se descuenta del almacén
     en ese momento y queda en bitácora)."""

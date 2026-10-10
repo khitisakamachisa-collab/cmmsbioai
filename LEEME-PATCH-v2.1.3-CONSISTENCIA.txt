@@ -1,0 +1,110 @@
+==============================================================================
+ CMMS-BioAI — PARCHE v2.1.3 — CONSISTENCIA MTTR/PAUSAS + PURGA DE BITÁCORA
+==============================================================================
+Fecha: 2026-10-10
+Reemplaza: backend/api/routes/reportes.py (v2.1.2 → v2.1.3)
+           generar_demo_v21.py (v1 → v2 de la fábrica)
+Evidencia: reproducido y verificado en sandbox (copias exactas del backend
+           real + BD real del usuario).
+
+------------------------------------------------------------------------------
+1. SÍNTOMAS QUE REPORTASTE (36/38 en `generar_demo_v21.py --importar`)
+------------------------------------------------------------------------------
+  OT 105 (Ecógrafo 4D):  esperado activas=0.0, espera=267.5
+                         real    activas=0.72, espera=266.78
+  OT 106 (Rayos X):      esperado espera=4.0/pausa=4.0, activas=2.5, MTTR=2.5
+                         real    espera=3.28, activas=3.22,
+                                 MTTR=0.0 en mtbf_mttr vs 3.22 en tiempos_etapa
+
+------------------------------------------------------------------------------
+2. CAUSA RAÍZ (investigada, no parcheada)
+------------------------------------------------------------------------------
+RESPUESTA A TUS HIPÓTESIS:
+  H1) ¿El motor recalcula y no usa los campos horas_*? → SÍ, POR DISEÑO.
+      "horas_reparacion_brutas/activas" y "horas_espera_repuesto" NO son
+      columnas de la BD (la tabla ordentrabajo no las tiene). Son CALCULADAS:
+      brutas = fecha_inicio_trabajo→fecha_resolucion (sellos R5);
+      espera = pares pausada→reanudada de la bitácora;
+      activas = brutas − max(tiempo_pausa_acumulado, espera_bitácora).
+      La única columna real es tiempo_pausa_acumulado (y en v2.1.1/v2.1.2
+      ni siquiera se leía bien — ver BUG B).
+  H2) ¿Precisión de segundos en las fechas? → NO. Los offsets del demo son
+      minutos exactos; la diferencia era EXACTAMENTE el Δt entre DOS
+      CORRIDAS del import (43.2 min en tu caso).
+  H3) ¿Redondeo u horas laborales? → NO. El motor no aplica jornadas.
+
+BUG A — DOS GENERACIONES DE BITÁCORA (la causa de ambos "reales"):
+  Ejecutaste `--importar` DOS veces separadas ~43.2 min y en tu BD quedaron
+  los eventos de AMBAS corridas (la limpieza antigua solo borraba los hijos
+  de OTs EXISTENTES; cualquier resto huérfano/remanente sobrevivía).
+  El emparejador del motor (el ÚLTIMO pausada gana; lo cierra el PRIMER
+  reanudada) con 2 generaciones da EXACTAMENTE:
+      espera = esperado − Δt     activas = brutas − espera = esperado_act + Δt
+  Verificado numéricamente en sandbox (Δt=43.2 min):
+      OT 105: 267.5 − 0.72 = 266.78 (activas 0.72)  ✓ tu número
+      OT 106:   4.0 − 0.72 =   3.28 (activas 3.22)  ✓ tu número
+  Ambos valores "raros" se reproducen al 100 % con ese mecanismo.
+
+BUG B — DOBLE CONTEO en _pausa_total_horas (motor):
+  El docstring decía "si la columna declara más que la bitácora, se suma el
+  FALTANTE", pero el código devolvía espera_bitacora + pausa_col COMPLETA.
+  Con la bitácora sucia (3.28) y columna 4.0: 6.5 − (3.28+4.0) → activas 0
+  → MTTR Rayos X = 0.0. Por eso mtbf_mttr decía 0.0.
+
+BUG C — INCONSISTENCIA ENTRE REPORTES:
+  /mtbf-mttr descontaba bitácora+columna (BUG B) mientras /tiempos-etapa
+  descontaba solo bitácora → 0.0 vs 3.22 para la MISMA OT.
+
+BUG D (cosmético, detectado de paso):
+  SPAN_TOTAL_MIN=19440 < offset de cierre de la OT 105 (22200) → la OT 105
+  quedaba con fecha_resolucion ~45 h EN EL FUTURO. Corregido (SPAN=22200).
+
+------------------------------------------------------------------------------
+3. CORRECCIONES APLICADAS (motor v2.1.3 + fábrica demo v2)
+------------------------------------------------------------------------------
+reportes.py (v2.1.3):
+  A) _pausa_total_horas → total = max(espera_bitácora, pausa_declarada).
+     La columna actúa como PISO (defensa contra bitácora incompleta), nunca
+     como sumando. Con bitácora limpia el resultado es idéntico a v2.1.2.
+  B) /reportes/tiempos-etapa aplica el MISMO piso a su espera → activas
+     CONSISTENTES entre ambos reportes siempre (incluso con suciedad).
+  C) version_motor="v2.1.3" + definiciones/reglas actualizadas.
+
+generar_demo_v21.py (fábrica v2):
+  D) PURGA INCONDICIONAL: antes de insertar, borra TODA bitácora/síntoma/
+     feedback con orden_trabajo_id/ot_id en 101-115, exista o no la OT padre
+     (mata huérfanas y generaciones heredadas). Idempotencia real.
+  E) AUDITORÍA DE BITÁCORA tras la validación: recalcula los pares de las
+     OTs 105/106 y compara (267.5 / 4.0). Si no cuadra, VUELCA el detalle
+     completo de eventos (id, fecha, acción, comentario) para diagnóstico.
+  F) SPAN corregido: ninguna OT cierra en el futuro (banner y docstring
+     actualizados: dataset ~15.8 días).
+
+------------------------------------------------------------------------------
+4. VALIDACIÓN (sandbox, copia exacta de tu BD + tu backend)
+------------------------------------------------------------------------------
+  [✓] BD SUCIA (2 generaciones inyectadas) + nuevo import → purga (70 filas)
+      + 38/38 checks + auditoría bitácora OK (267.50 / 4.00)
+  [✓] Motor v2.1.3 con BD sucia SIN reimportar: MTTR Rayos X = 2.5 (antes
+      0.0) y tiempos_etapa OT 106 = 4.0/2.5 → reportes CONSISTENTES
+  [✓] BD nueva → 38/38  ·  2ª corrida (idempotencia) → 38/38
+  [✓] Regresión: prueba_metricas_v21.py 37/37 con motor v2.1.3
+  [✓] Sin fechas futuras: MAX(fecha_resolucion) < ahora
+
+------------------------------------------------------------------------------
+5. INSTALACIÓN (D:\cmmsbioai)
+------------------------------------------------------------------------------
+  1) Copia backend/api/routes/reportes.py sobre el tuyo (v2.1.2 → v2.1.3).
+  2) Reemplaza generar_demo_v21.py por esta versión.
+  3) Reinicia uvicorn.
+  4) Ejecuta de nuevo:   python generar_demo_v21.py --importar
+     → esperado: purga inicial (verás "🧹 Purga incondicional: N filas hijo"),
+       38/38 checks y auditoría "Bitácora limpia". Los datos se pueden
+       recargar libremente: la purga garantiza estado limpio en cada corrida.
+  5) (Opcional) python prueba_metricas_v21.py → 37/37 esperado.
+  6) Commit + push como v2.1.3.
+
+NOTA: NO hay que tocar la BD a mano ni borrar nada: la primera corrida del
+script nuevo limpia sola las generaciones heredadas del rango demo 101-115.
+Otras OTs (fuera de ese rango) NUNCA se tocan.
+==============================================================================

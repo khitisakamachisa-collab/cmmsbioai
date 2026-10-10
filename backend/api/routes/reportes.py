@@ -469,9 +469,9 @@ def _a_horas(tiempo: Optional[float], unidad: Optional[str]) -> float:
 #              indisponibilidad. Las canceladas por Baja_Equipo SÍ
 #              suman MDT (el equipo sí estuvo fuera de servicio).
 #   Reglas 11-14 → el MTTR usa HORAS ACTIVAS: reparación bruta −
-#              pausas técnicas (tiempo_pausa_acumulado) − espera de
-#              repuestos (bitácora). La logística y las pausas no
-#              penalizan la eficiencia del técnico.
+#              max(pausas declaradas, espera de repuestos por bitácora)
+#              (v2.1.3: piso, sin doble conteo). La logística y las
+#              pausas no penalizan la eficiencia del técnico.
 #
 # Compatibilidad histórica (NO se borra la lógica antigua):
 #   - OTs sin sellos de tiempo R5 aportan con tiempo_real_invertido
@@ -490,14 +490,14 @@ def _es_programada(ot) -> bool:
 
 
 def _pausa_total_horas(ot, espera_bitacora: float) -> float:
-    """Pausa total a descontar de la reparación bruta (Reglas 11-14).
-    La bitácora (pausada→reanudada) ya refleja pausas técnicas y espera
-    de repuestos; si la columna tiempo_pausa_acumulado declara más de lo
-    que la bitácora registra, se suma el faltante (defensa)."""
+    """Pausa total a descontar de la reparación bruta (Reglas 11-14). [v2.1.3]
+    La bitácora (pausada→reanudada) ya refleja pausas técnicas y espera de
+    repuestos. La columna tiempo_pausa_acumulado actúa como PISO (defensa
+    contra bitácora incompleta): total = max(espera_bitácora, pausa_declarada).
+    (En v2.1.1/v2.1.2 se sumaba la columna COMPLETA cuando la bitácora
+    registraba menos → doble conteo que dejaba activas=0. Corregido.)"""
     pausa_col = float(ot.tiempo_pausa_acumulado or 0.0)
-    if espera_bitacora >= pausa_col:
-        return espera_bitacora
-    return espera_bitacora + pausa_col
+    return max(espera_bitacora, pausa_col)
 
 
 def _horas_ot_v21(ot, espera_bitacora: float) -> Optional[dict]:
@@ -725,11 +725,11 @@ def _calcular_indicadores_v21(session: Session,
 
     return {
         "definiciones": {
-            "version_motor": "v2.1.2",
+            "version_motor": "v2.1.3",
             "falla": "OT correctiva completada (sin orden preventiva asociada; tipo_origen_ot != 'Programado')",
             "fallas_reales": "fallas correctivas menos reincidencias en ventana de garantía (Regla 3: ventana_garantia_reparacion=True no es falla nueva)",
             "mtbf": "horas operativas / fallas reales — horas operativas = horas calendario − MDT válido",
-            "mttr": "suma de horas de reparación ACTIVAS / nº de OTs completadas válidas (Regla 6: excluye excluida_de_MTTR=True; Reglas 11-14: activas = brutas − pausas − espera repuestos)",
+            "mttr": "suma de horas de reparación ACTIVAS / nº de OTs completadas válidas (Regla 6: excluye excluida_de_MTTR=True; Reglas 11-14: activas = brutas − max(tiempo_pausa_acumulado, espera bitácora), sin doble conteo — v2.1.3)",
             "mdt_valido": "suma de (resolución − creación) de OTs con mdt_excluido_disponibilidad=False — incluye canceladas por Baja_Equipo (Regla 4)",
             "disponibilidad": "(horas calendario − MDT válido) / horas calendario × 100",
             "ventana_calendario": "horas entre fecha_adquisicion (o, en su defecto, la primera OT cerrada del equipo) y la fecha de corte; días completos, con precisión horaria si la ventana es menor a 24h (v2.1.2). ventana_fuente indica el origen usado",
@@ -742,7 +742,7 @@ def _calcular_indicadores_v21(session: Session,
             "regla_3_garantia": "ventana_garantia_reparacion=True → fuera del denominador MTBF",
             "regla_6_cierre_admin": "excluida_de_MTTR=True → fuera del promedio MTTR",
             "regla_4_mdt": "mdt_excluido_disponibilidad=True → MDT no suma a indisponibilidad; Baja_Equipo SÍ suma",
-            "reglas_11_14_horas_activas": "MTTR usa activas: brutas − tiempo_pausa_acumulado − espera de repuestos (bitácora)",
+            "reglas_11_14_horas_activas": "MTTR usa activas: brutas − max(tiempo_pausa_acumulado, espera de repuestos por bitácora) — piso sin doble conteo (v2.1.3)",
             "excluidas_garantia": sum(r["n_excluidas_garantia"] for r in por_equipo),
             "excluidas_mttr": sum(r["n_excluidas_mttr"] for r in por_equipo),
             "mdt_excluido_horas": round(sum(r["mdt_excluido_horas"] for r in por_equipo), 1),
@@ -917,6 +917,11 @@ def reporte_tiempos_etapa(
             d = (ahora - pausa_desde).total_seconds() / 3600.0
             if d >= 0:
                 h_espera += d
+        # v2.1.3: mismo criterio que mtbf-mttr (_pausa_total_horas) — la
+        # pausa declarada actúa como PISO (no se suma: evita el doble
+        # conteo) y garantiza que horas_reparacion_activas sea CONSISTENTE
+        # entre este reporte y /mtbf-mttr para la misma OT.
+        h_espera = max(h_espera, float(ot.tiempo_pausa_acumulado or 0.0))
         h_espera = round(h_espera, 2) if h_rep is not None or h_espera > 0 else 0.0
 
         h_activa = None

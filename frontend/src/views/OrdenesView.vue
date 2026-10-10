@@ -117,7 +117,7 @@ const selectedOT = ref({}) // OT seleccionada
 // ═══ v1.1.0 — Flujo de Trabajo OT (máquina de estados R2) ═══
 const showFlowModal = ref(false)      // Modal Acciones de Flujo
 const flowOT = ref(null)              // OT sobre la que se ejecuta la acción
-const flowAccion = ref(null)          // asignar|iniciar|pausar|reanudar|monitorear|resolver|cancelar|reincidencia
+const flowAccion = ref(null)          // asignar|iniciar|pausar|reanudar|resolver|cancelar|reincidencia
 const flowBusy = ref(false)
 const bitacoraOT = ref([])            // bitácora para el modal Ver (R4)
 const usuarioActual = (() => {
@@ -129,12 +129,11 @@ const usuarioActual = (() => {
   } catch { return null }
 })()
 
-// Debe reflejar TRANSICIONES_VALIDAS del backend (ordenes.py) — v1.1.1
+// Debe reflejar TRANSICIONES_VALIDAS del backend (ordenes.py) — v2.1.3 (5 estados)
 const ACCIONES_POR_ESTADO = {
   'Abierta':       ['asignar', 'iniciar', 'cancelar'],
-  'En Proceso':    ['asignar', 'pausar', 'monitorear', 'resolver', 'cancelar'],
+  'En Proceso':    ['asignar', 'pausar', 'resolver', 'cancelar'],
   'Esp. Repuesto': ['asignar', 'reanudar', 'cancelar'],
-  'En Monitoreo':  ['asignar', 'reanudar', 'resolver', 'cancelar'],
   'Completada':    ['reincidencia'],
   'Cancelada':     ['reincidencia']
 }
@@ -143,8 +142,7 @@ const META_ACCIONES = {
   asignar:      { label: '👨‍🔧 Asignar técnico', desc: 'Define o reasigna el responsable (puede cambiarse en cualquier momento sin detener el flujo). Fija la fecha de asignación (MTTA) la primera vez.' },
   iniciar:      { label: '▶ Iniciar trabajo', desc: 'Abierta → En Proceso. Requiere técnico asignado; fija la fecha de inicio (tiempo de reacción).' },
   pausar:       { label: '⏸ Pausar (Esp. Repuesto)', desc: 'En Proceso → Esp. Repuesto. Motivo obligatorio; el intervalo alimenta el KPI de espera de repuestos.' },
-  reanudar:     { label: '↻ Reanudar', desc: 'Esp. Repuesto/En Monitoreo → En Proceso. Cierra el intervalo de espera. Puede registrar los repuestos entregados del almacén (se descuentan aquí).' },
-  monitorear:   { label: '👁 Enviar a monitoreo', desc: 'En Proceso → En Monitoreo. El equipo quedó reparado y queda en observación antes del cierre definitivo (v1.1.1).' },
+  reanudar:     { label: '↻ Reanudar', desc: 'Esp. Repuesto → En Proceso. Cierra el intervalo de espera. Puede registrar los repuestos entregados del almacén (se descuentan aquí).' },
   resolver:     { label: '✔ Resolver y completar', desc: '→ Completada. Exige solución y tiempo invertido (R3); fija fecha de resolución. Cierre DEFINITIVO: para re-intervenciones use Reincidencia. Puede registrar repuestos/costos aquí.' },
   cancelar:     { label: '✕ Cancelar', desc: 'Cierra la OT como cancelada. Motivo obligatorio. Cierre DEFINITIVO.' },
   reincidencia: { label: '🔁 Generar OT de reincidencia', desc: 'La OT cerrada es INMUTABLE (v1.1.1). Si la misma falla vuelve, se crea una OT NUEVA vinculada (secuencia de falla +1) que nace Abierta y hereda técnico y datos.' }
@@ -757,7 +755,7 @@ const ejecutarAccion = async () => {
     if (!f.tecnico_asignado_id) return alert('Seleccione un técnico')
     url = `/ordenes/${otId}/asignar`
     payload = { ...payload, tecnico_asignado_id: f.tecnico_asignado_id, comentario: f.comentario || null }
-  } else if (a === 'iniciar' || a === 'reanudar' || a === 'monitorear') {
+  } else if (a === 'iniciar' || a === 'reanudar') {
     url = `/ordenes/${otId}/${a}`
     payload = { ...payload, comentario: f.comentario || null }
   } else if (a === 'pausar' || a === 'cancelar') {
@@ -1059,9 +1057,9 @@ onMounted(async () => {
             <input v-model="flowForm.comentario" type="text" class="detail-field" placeholder="Ej: reasignado por disponibilidad">
           </div>
 
-          <div v-else-if="flowAccion === 'iniciar' || flowAccion === 'reanudar' || flowAccion === 'monitorear'" class="flow-field">
+          <div v-else-if="flowAccion === 'iniciar' || flowAccion === 'reanudar'" class="flow-field">
             <label>Comentario (opcional)</label>
-            <input v-model="flowForm.comentario" type="text" class="detail-field" :placeholder="flowAccion === 'monitorear' ? 'Ej: estable, en observación 72h' : 'Ej: inicio de intervención en sitio'">
+            <input v-model="flowForm.comentario" type="text" class="detail-field" placeholder="Ej: inicio de intervención en sitio">
           </div>
 
           <div v-else-if="flowAccion === 'pausar' || flowAccion === 'cancelar'" class="flow-field">

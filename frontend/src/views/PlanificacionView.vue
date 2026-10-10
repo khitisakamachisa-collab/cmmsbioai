@@ -140,9 +140,9 @@ const eventosUnificados = computed(() => {
 
   // Procesar MPs: dos eventos por tarea (ultima_fecha y proxima_fecha)
   if (filterTipo.value !== 'ot') {
-    // v1.1.2 (I2): estados activos por NOMBRE (no por ids hardcodeados) —
-    // incluye 'En Monitoreo' (v1.1.1). Catálogo cargado en estadosOT.
-    const nombresActivos = ['abierta', 'en proceso', 'esp. repuesto', 'en monitoreo']
+    // v1.1.2 (I2): estados activos por NOMBRE (no por ids hardcodeados).
+    // v2.1.3: el catálogo tiene 5 estados — 'En Monitoreo' fue eliminado.
+    const nombresActivos = ['abierta', 'en proceso', 'esp. repuesto']
     const idsEstadoActivo = new Set(
       estadosOT.value
         .filter(e => nombresActivos.includes((e.nombre_estado || '').trim().toLowerCase()))

@@ -41,23 +41,21 @@ router = APIRouter(prefix="/ordenes", tags=["Ordenes de Trabajo"])
 # H4: sellos de tiempo agregados al modelo (ver models/ordenes.py).
 # H5: bitácora consultable en GET /ordenes/{id}/bitacora.
 #
-# Estados del catálogo (v1.1.1 agrega 'En Monitoreo'):
+# Estados del catálogo (v2.1.3: 5 estados — 'En Monitoreo' de v1.1.1 fue
+#   ELIMINADO; véase _migrate_eliminar_en_monitoreo en database.py):
 #   Abierta → En Proceso → Esp. Repuesto → Completada / Cancelada
-#                        → En Monitoreo (reparado en observación)
 # ================================================================
 
 ESTADO_ABIERTA       = "Abierta"
 ESTADO_EN_PROCESO    = "En Proceso"
 ESTADO_ESP_REPUESTO  = "Esp. Repuesto"
-ESTADO_EN_MONITOREO  = "En Monitoreo"   # v1.1.1: estado ACTIVO (no cerrado)
 ESTADO_COMPLETADA    = "Completada"     # ≈ REPARADA del prompt
 ESTADO_CANCELADA     = "Cancelada"      # ≈ NO_REPARADA / CERRADA del prompt
 
 TRANSICIONES_VALIDAS = {
     ESTADO_ABIERTA:      {ESTADO_EN_PROCESO, ESTADO_CANCELADA},
-    ESTADO_EN_PROCESO:   {ESTADO_ESP_REPUESTO, ESTADO_EN_MONITOREO, ESTADO_COMPLETADA, ESTADO_CANCELADA},
+    ESTADO_EN_PROCESO:   {ESTADO_ESP_REPUESTO, ESTADO_COMPLETADA, ESTADO_CANCELADA},
     ESTADO_ESP_REPUESTO: {ESTADO_EN_PROCESO, ESTADO_CANCELADA},
-    ESTADO_EN_MONITOREO: {ESTADO_EN_PROCESO, ESTADO_COMPLETADA, ESTADO_CANCELADA},
     ESTADO_COMPLETADA:   set(),   # v1.1.1: inmutable — solo sale vía /reincidencia (OT nueva)
     ESTADO_CANCELADA:    set(),   # v1.1.1: inmutable — solo sale vía /reincidencia (OT nueva)
 }
@@ -490,16 +488,16 @@ def pausar_trabajo(ot_id: int, accion: AccionComentario, session: Session = Depe
 
 @router.post("/{ot_id}/reanudar", response_model=OrdenTrabajoRead)
 def reanudar_trabajo(ot_id: int, accion: AccionSimple, session: Session = Depends(get_session)):
-    """Esp. Repuesto → En Proceso (también En Monitoreo → En Proceso si recae).
-    Cierra el intervalo de espera de repuestos.
+    """Esp. Repuesto → En Proceso. Cierra el intervalo de espera de repuestos.
+    (v2.1.3: ya NO reanuda desde 'En Monitoreo' — el estado fue eliminado.)
     v1.1.1 (R8): puede recibir repuestos_utilizados (se descuentan del almacén
     aquí, forzando que existan en inventario) y costos_adicionales."""
     db_ot = _get_ot(session, ot_id)
     actual = _nombre_estado(session, db_ot.estado_id)
 
-    if actual not in (ESTADO_ESP_REPUESTO, ESTADO_EN_MONITOREO):
+    if actual != ESTADO_ESP_REPUESTO:
         raise HTTPException(status_code=400,
-            detail=f"Transición inválida (R2): solo una OT '{ESTADO_ESP_REPUESTO}' o '{ESTADO_EN_MONITOREO}' puede reanudarse.")
+            detail=f"Transición inválida (R2): solo una OT '{ESTADO_ESP_REPUESTO}' puede reanudarse.")
 
     # R8: alta de repuestos/costos dentro del flujo (antes de cambiar estado,
     # para que un error de stock no deje la transición a medias)
@@ -518,25 +516,8 @@ def reanudar_trabajo(ot_id: int, accion: AccionSimple, session: Session = Depend
     return _orden_response(session, db_ot)
 
 
-@router.post("/{ot_id}/monitorear", response_model=OrdenTrabajoRead)
-def monitorear_ot(ot_id: int, accion: AccionSimple, session: Session = Depends(get_session)):
-    """v1.1.1: En Proceso → En Monitoreo. El equipo quedó reparado pero queda
-    en observación antes del cierre definitivo. Estado ACTIVO: admite asignar,
-    editar contenido y volver a En Proceso si recae."""
-    db_ot = _get_ot(session, ot_id)
-    actual = _nombre_estado(session, db_ot.estado_id)
-
-    if ESTADO_EN_MONITOREO not in TRANSICIONES_VALIDAS[actual]:
-        raise HTTPException(status_code=400,
-            detail=f"Transición inválida (R2): '{actual}' no puede pasar a '{ESTADO_EN_MONITOREO}'.")
-
-    db_ot.estado_id = _get_estado(session, ESTADO_EN_MONITOREO).id
-    _bitacora(session, db_ot, "monitoreo", estado_anterior=actual, estado_nuevo=ESTADO_EN_MONITOREO,
-              comentario=accion.comentario or "Equipo reparado, en observación antes del cierre definitivo",
-              usuario=accion.usuario)
-    session.add(db_ot)
-    session.commit()
-    return _orden_response(session, db_ot)
+# v2.1.3: el endpoint POST /ordenes/{id}/monitorear fue ELIMINADO junto con
+# el estado 'En Monitoreo'. El cierre directo es En Proceso → /resolver.
 
 
 @router.post("/{ot_id}/resolver", response_model=OrdenTrabajoRead)

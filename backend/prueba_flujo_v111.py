@@ -7,7 +7,9 @@ Valida sobre una BD TEMPORAL (no toca cmms_bioai.db):
   A. FIX 422:     PUT del lápiz acepta equipo_id (y sigue rechazando estado_id).
   B. R7 v1.1.1:   OT cerrada INMUTABLE — /reabrir eliminado; /reincidencia
                   crea una OT NUEVA vinculada (parent_ot_id, failure_sequence).
-  C. En Monitoreo: En Proceso → En Monitoreo → (recaída → En Proceso | cierre).
+  C. v2.1.3:      estado 'En Monitoreo' ELIMINADO — /monitorear responde 404,
+                  el lápiz sigue funcionando y el cierre es directo
+                  En Proceso → Completada.
   D. R8:          repuestos del almacén y costos DENTRO del flujo
                   (reanudar/resolver) con validación de stock.
   E. Reportes:    /reportes/tiempos-etapa con reincidencias + /reportes/bitacora-csv
@@ -45,10 +47,11 @@ def check(nombre, condicion, extra=""):
 
 with TestClient(app) as client:
 
-    # ── Catálogo de estados (ahora 6: + 'En Monitoreo') ──
+    # ── Catálogo de estados (v2.1.3: 5 estados, sin 'En Monitoreo') ──
     estados = client.get("/ordenes/estados/").json()
     est = {e["nombre_estado"]: e["id"] for e in estados}
-    check("Catálogo incluye 'En Monitoreo' (v1.1.1)", "En Monitoreo" in est, str(list(est)))
+    check("Catálogo v2.1.3: 5 estados y SIN 'En Monitoreo'",
+          "En Monitoreo" not in est and len(est) == 5, str(list(est)))
 
     # ── Equipo, repuesto y usuarios de prueba (directo en la BD temporal) ──
     from database import engine
@@ -174,31 +177,31 @@ with TestClient(app) as client:
     ot_c_id = r.json()["id"]
 
     # ════════════════════════════════════════════════════════════
-    # C. En Monitoreo (nuevo estado activo)
+    # C. v2.1.3 — estado 'En Monitoreo' eliminado del sistema
     # ════════════════════════════════════════════════════════════
     r = client.post("/ordenes/", json={
-        "equipo_id": equipo_id, "titulo": "Correctivo", "descripcion_falla": "OT para monitoreo"})
+        "equipo_id": equipo_id, "titulo": "Correctivo", "descripcion_falla": "OT para cierre directo"})
     ot_m_id = r.json()["id"]
     client.post(f"/ordenes/{ot_m_id}/asignar", json={"tecnico_asignado_id": tech_id})
     client.post(f"/ordenes/{ot_m_id}/iniciar", json={})
 
+    # El endpoint /monitorear fue eliminado junto con el estado
     r = client.post(f"/ordenes/{ot_m_id}/monitorear", json={"usuario": "tech"})
-    check("C: En Proceso → En Monitoreo → 200", r.status_code == 200 and r.json()["estado_id"] == est["En Monitoreo"], r.text)
+    check("C-v2.1.3: /monitorear eliminado (404)", r.status_code == 404, str(r.status_code))
 
-    # En Monitoreo sigue siendo activo: se puede editar por lápiz
-    r = client.put(f"/ordenes/{ot_m_id}", json={"descripcion_falla": "OT en observación, editada"})
-    check("C: OT en En Monitoreo sigue editable (PUT → 200)", r.status_code == 200, r.text)
+    # El intento NO dejó la OT a medias: sigue en En Proceso
+    check("C-v2.1.3: la OT sigue en En Proceso tras el 404",
+          client.get(f"/ordenes/{ot_m_id}").json()["estado_id"] == est["En Proceso"])
 
-    # Recaída → volver a En Proceso
-    r = client.post(f"/ordenes/{ot_m_id}/reanudar", json={"comentario": "recae, se retoma"})
-    check("C: recaída En Monitoreo → En Proceso", r.status_code == 200 and r.json()["estado_id"] == est["En Proceso"], r.text)
+    # La OT activa sigue editable por lápiz (paridad con lo que hacía En Monitoreo)
+    r = client.put(f"/ordenes/{ot_m_id}", json={"descripcion_falla": "OT activa, editada"})
+    check("C-v2.1.3: OT en En Proceso sigue editable (PUT → 200)", r.status_code == 200, r.text)
 
-    # Monitoreo de nuevo y cierre definitivo desde monitoreo
-    client.post(f"/ordenes/{ot_m_id}/monitorear", json={})
+    # Cierre directo sin pasar por monitoreo: En Proceso → Completada
     r = client.post(f"/ordenes/{ot_m_id}/resolver", json={
-        "acciones_realizadas": "Estable en monitoreo, cierre definitivo",
+        "acciones_realizadas": "Intervención rápida, cierre directo",
         "tiempo_real_invertido": 0.5, "usuario": "tech"})
-    check("C: En Monitoreo → Completada (cierre definitivo)", r.status_code == 200 and r.json()["estado_id"] == est["Completada"], r.text)
+    check("C-v2.1.3: cierre directo En Proceso → Completada", r.status_code == 200 and r.json()["estado_id"] == est["Completada"], r.text)
 
     # ════════════════════════════════════════════════════════════
     # D. R8 — repuestos y costos DENTRO del flujo (reanudar/resolver)
@@ -286,7 +289,7 @@ with TestClient(app) as client:
     print("\n" + "=" * 60)
     print(f"RESULTADO: {ok}/{total} verificaciones OK")
     if ok == total:
-        print("OK ✓ — parche v1.1.1 validado (fix 422, reincidencia, En Monitoreo, R8, reportes)")
+        print("OK ✓ — parche v1.1.1 + v2.1.3 validados (fix 422, reincidencia, sin 'En Monitoreo', R8, reportes)")
     else:
         print("HAY FALLOS ✗ — revisar líneas [FALLO] arriba")
     # Limpieza de la carpeta temporal

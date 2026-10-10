@@ -1,7 +1,9 @@
+from datetime import datetime
+
 from sqlmodel import SQLModel, create_engine, Session, select, text
 from models.users import Usuario
 from models.estados import EstadoEquipo
-from models.ordenes import EstadoOT
+from models.ordenes import EstadoOT, OrdenTrabajo, BitacoraOT
 import bcrypt
 
 # Nombre del archivo de la base de datos local
@@ -161,9 +163,9 @@ def _migrate_ordentrabajo_v111():
     - Agrega parent_ot_id y failure_sequence a 'ordentrabajo' (cadena de
       reincidencias; la OT cerrada es inmutable y cada re-intervención es
       una OT nueva vinculada).
-    NOTA: el estado de OT 'En Monitoreo' se siembra en seed_database() y NO
-    aquí, porque en una BD NUEVA esta migración corre antes del seed base de
-    los 5 estados y dejaría el catálogo sin 'Abierta/En Proceso/...'."""
+    NOTA v2.1.3: el estado de OT 'En Monitoreo' que v1.1.1 sembraba aquí
+    al lado fue ELIMINADO del catálogo; su migración de datos vive en
+    _migrate_eliminar_en_monitoreo() (ver abajo)."""
     with engine.connect() as conn:
         result = conn.execute(text("PRAGMA table_info(ordentrabajo)"))
         existing = {row[1] for row in result.fetchall()}
@@ -186,10 +188,70 @@ def create_db_and_tables():
     _migrate_proveedor_ultimo_id()  # v0.9.14
     _migrate_equipo_ia()            # v1.0.0 — RF07 Módulo Predictivo (tipo_equipo + criticidad)
     _migrate_ordentrabajo_v110()    # v1.1.0 — Flujo OT (sellos de tiempo R5)
-    _migrate_ordentrabajo_v111()    # v1.1.1 — Reincidencias (parent_ot_id, failure_sequence) + estado 'En Monitoreo'
+    _migrate_ordentrabajo_v111()    # v1.1.1 — Reincidencias (parent_ot_id, failure_sequence)
     _migrate_ordentrabajo_v21()     # v2.1 — Dataset de prueba (15 campos nuevos de flujo/métricas)
+    _migrate_eliminar_en_monitoreo()  # v2.1.3 — deprecación del estado de OT 'En Monitoreo'
     # v0.9.23: hora_creacion fue eliminada. fecha_creacion (DATETIME) se usa como campo editable.
     # Si la columna hora_creacion existe en BD anterior, se ignora (SQLModel no la lee si no está en el modelo).
+
+
+def _migrate_eliminar_en_monitoreo():
+    """v2.1.3 (Refactorización de estados): deprecación del estado de OT
+    'En Monitoreo' (introducido en v1.1.1).
+
+    Motivo: no reflejaba la operación real (las intervenciones rápidas se
+    cierran como 'Completada') y generaba inconsistencias en métricas y
+    KPIs (el calendario/ventana y los conteos lo trataban de forma
+    divergente a los demás estados activos).
+
+    Acciones (IDEMPOTENTE: si el estado no existe, no hace nada y puede
+    correrse cualquier cantidad de veces):
+      1. Toda OrdenTrabajo en 'En Monitoreo' pasa a 'Completada'
+         (cierre automático). Se fija fecha_resolucion (sello R5) solo
+         si no tenía, y se cierra una pausa técnica abierta si quedara.
+      2. Cada OT migrada recibe bitácora accion='cierre_automatico' con
+         usuario='sistema'. El historial previo NO se toca ni se borra.
+      3. El estado se elimina del catálogo estadoot (6 → 5 estados).
+
+    IMPORTANTE: el estado de EQUIPO 'En Monitoreo' (tabla estadoequipo,
+    equipo con sensores IoT activos) es un concepto DISTINTO y sigue
+    vigente — esta migración no lo toca."""
+    with Session(engine) as session:
+        est_mon = session.exec(
+            select(EstadoOT).where(EstadoOT.nombre_estado == "En Monitoreo")).first()
+        if not est_mon:
+            return  # BD nueva o ya migrada → idempotente
+        est_comp = session.exec(
+            select(EstadoOT).where(EstadoOT.nombre_estado == "Completada")).first()
+        if not est_comp:
+            print("⚠ Migración v2.1.3: el catálogo no tiene 'Completada'; "
+                  "no se migran OTs ni se elimina 'En Monitoreo'.")
+            return
+        ots = session.exec(
+            select(OrdenTrabajo).where(OrdenTrabajo.estado_id == est_mon.id)).all()
+        for ot in ots:
+            ot.estado_id = est_comp.id
+            if ot.fecha_resolucion is None:
+                ot.fecha_resolucion = datetime.now()   # sello R5 del cierre automático
+            if ot.en_pausa_tecnica:
+                ot.en_pausa_tecnica = False            # una OT cerrada no queda en pausa
+            session.add(ot)
+            session.add(BitacoraOT(
+                orden_trabajo_id=ot.id,
+                accion="cierre_automatico",
+                usuario="sistema",
+                estado_anterior=est_mon.nombre_estado,
+                estado_nuevo=est_comp.nombre_estado,
+                comentario=("Migración v2.1.3: Estado 'En Monitoreo' deprecado. "
+                            "OT cerrada automáticamente."),
+            ))
+        session.delete(est_mon)
+        session.commit()
+        if ots:
+            print(f"✅ Migración v2.1.3: {len(ots)} OT(s) 'En Monitoreo' → 'Completada' "
+                  f"(ids: {sorted(o.id for o in ots)}) con bitácora 'cierre_automatico'")
+        print("✅ Migración v2.1.3: estado de OT 'En Monitoreo' eliminado del catálogo "
+              "(5 estados). El estado de EQUIPO 'En Monitoreo' NO se toca.")
 
 
 def _migrate_proveedor_ultimo_id():
@@ -227,7 +289,7 @@ def seed_database():
     Crea:
     - 3 usuarios TEST: admin/admin, tech/tech, user/user
     - 11 estados de equipo (catálogo biomédico)
-    - 5 estados base de OT + 'En Monitoreo' (v1.1.1, idempotente)
+    - 5 estados base de OT (v2.1.3: 'En Monitoreo' eliminado del catálogo)
     """
     with Session(engine) as session:
 
@@ -288,12 +350,6 @@ def seed_database():
             ]
             for estado in estados_ot:
                 session.add(estado)
-            print("✅ Seed: 5 estados base de OT creados ('En Monitoreo' se agrega aparte, idempotente)")
-
-        # === 3.b v1.1.1: estado de OT 'En Monitoreo' (idempotente, corre SIEMPRE
-        # === para cubrir BDs nuevas y BDs existentes actualizadas) ===
-        if not session.exec(select(EstadoOT).where(EstadoOT.nombre_estado == "En Monitoreo")).first():
-            session.add(EstadoOT(nombre_estado="En Monitoreo", color="#00cec9"))
-            print("✅ Seed v1.1.1: estado de OT 'En Monitoreo' creado")
+            print("✅ Seed: 5 estados base de OT creados (v2.1.3 — sin 'En Monitoreo')")
 
         session.commit()

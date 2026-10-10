@@ -1,0 +1,103 @@
+============================================================================
+ CMMS-BioAI — PATCH v2.1.3 — Refactorización: estado 'En Monitoreo' ELIMINADO
+============================================================================
+Fecha: 2026-10-10
+Base:  v2.1.2 (aplicada y validada 37/37)
+
+QUÉ HACE
+--------
+Elimina el estado de OT 'En Monitoreo' (introducido en v1.1.1) del sistema
+completo. Motivo: no reflejaba la operación real (las intervenciones rápidas
+deben cerrarse como 'Completada') y generaba inconsistencias en métricas y
+KPIs (el calendario/ventana y los conteos lo trataban de forma divergente).
+
+  1. MIGRACIÓN DE DATOS (idempotente, corre SOLA al arrancar el backend):
+     - Toda OT en 'En Monitoreo' pasa a 'Completada' (cierre automático).
+     - Sello R5: fecha_resolucion solo se fija si faltaba (nunca sobreescribe).
+     - Pausa técnica abierta se cierra.
+     - Bitácora por cada OT migrada: accion='cierre_automatico',
+       usuario='sistema', comentario "Migración v2.1.3: Estado 'En Monitoreo'
+       deprecado. OT cerrada automáticamente."
+     - El historial/bitácora previo NO se toca ni se borra.
+     - El estado se elimina del catálogo estadoot (6 → 5 estados).
+  2. SEED: database.py ya NO siembra 'En Monitoreo' (bloque 3.b eliminado).
+  3. BACKEND: constantes y TRANSICIONES_VALIDAS limpiadas; /reanudar solo
+     desde 'Esp. Repuesto'; endpoint POST /ordenes/{id}/monitorear ELIMINADO
+     (responde 404).
+  4. FRONTEND: sin 'En Monitoreo' en la máquina de estados espejo, botones
+     de flujo, calendario (I2) y ayuda. Los desplegables, que se llenan desde
+     GET /ordenes/estados/, quedan automáticamente en 5 estados.
+  5. IMPORTADOR: mapeo defensivo MONITORING → Completada (por si un CSV
+     heredado trae ese código; el dataset v2.1 actual no lo usa).
+
+IMPORTANTE — NO CONFUNDIR
+-------------------------
+El estado de EQUIPO 'En Monitoreo' (tabla estadoequipo, id 10, equipo con
+sensores IoT activos / predictivo) es un concepto DISTINTO y SIGUE VIGENTE.
+Este patch no lo toca.
+
+ARCHIVOS DEL PATCH
+------------------
+  backend/database.py                        REEMPLAZAR (migración + seed 5 estados)
+  backend/api/routes/ordenes.py              REEMPLAZAR (transiciones, /monitorear fuera)
+  backend/schemas/orden_trabajo.py           REEMPLAZAR (docstring AccionSimple)
+  backend/migrar_v213_eliminar_monitoreo.py  NUEVO      (runner manual opcional)
+  backend/prueba_flujo_v111.py               REEMPLAZAR (sección C: verifica la eliminación)
+  backend/importar_dataset_v21.py            REEMPLAZAR (mapeo MONITORING defensivo)
+  frontend/src/views/OrdenesView.vue         REEMPLAZAR (acciones de flujo)
+  frontend/src/views/PlanificacionView.vue   REEMPLAZAR (calendario)
+  frontend/src/views/AyudaView.vue           REEMPLAZAR (nota de deprecación)
+  versiones.txt                              REEMPLAZAR (fila v2.1.3)
+
+CÓMO APLICAR (Windows)
+----------------------
+  1. CERRAR el backend si está corriendo (Ctrl+C en uvicorn).
+  2. Copiar los archivos del zip sobre D:\cmmsbioai\ respetando las rutas:
+       backend\... y frontend\src\views\...
+     (crea la carpeta si el zip trae una nueva; migrar_v213... va en backend\).
+  3. ARRANCAR el backend:
+       cd D:\cmmsbioai\backend
+       venv\Scripts\activate
+       uvicorn main:app
+     Al arrancar verás (solo si tu BD tenía el estado u OTs en monitoreo):
+       ✅ Migración v2.1.3: N OT(s) 'En Monitoreo' → 'Completada' (ids: [...])
+          con bitácora 'cierre_automatico'
+       ✅ Migración v2.1.3: estado de OT 'En Monitoreo' eliminado del catálogo
+     Si tu BD ya estaba migrada o nunca tuvo el estado, no aparece nada
+     (idempotente — también puedes correrlo a mano:
+       python migrar_v213_eliminar_monitoreo.py
+     y ver el reporte sin levantar el server).
+  4. FRONTEND:
+       cd D:\cmmsbioai\frontend
+       npm run build          (producción)   — o —   npm run dev  (desarrollo)
+
+VALIDACIÓN (sandbox, BD limpias + BD legacy simulada)
+-----------------------------------------------------
+  · prueba_flujo_v111.py ............. 51/51 OK (sección C reescrita: catálogo
+    de 5 estados, /monitorear → 404, lápiz OK, cierre directo En Proceso →
+    Completada; MISMA cantidad de checks que antes).
+  · Migración simulando BD legacy v2.1.2 (2 OTs en 'En Monitoreo', una con
+    pausa técnica y sin fecha_resolucion): ambas → Completada, sello R5
+    respetado, pausa cerrada, bitácora 'cierre_automatico' ×2, bitácora
+    previa intacta, estado borrado; 2ª corrida NO duplica nada.
+  · Arranque de backend + GET /ordenes/estados/ → 5 estados, /monitorear → 404.
+  · Regresión completa: importar_dataset_v21.py + prueba_metricas_v21.py
+    sobre el seed nuevo → 37/37 OK.
+  · Frontend: npm run build sin errores (125 módulos).
+
+QUÉ VERIFICAR EN TU INSTALACIÓN
+-------------------------------
+  1. GET /ordenes/estados/ → 5 estados (sin 'En Monitoreo').
+  2. Si tenías OTs en 'En Monitoreo': aparecen como Completada, con
+     fecha_resolucion y una entrada 'cierre_automatico' en su bitácora.
+  3. La página Órdenes ya no muestra el botón "👁 Enviar a monitoreo".
+  4. El calendario de Planificación sigue marcando bien los MPs con OT activa.
+  5. python prueba_flujo_v111.py  → 51/51
+     python prueba_metricas_v21.py → 37/37 (si tienes el dataset importado)
+
+REGLAS QUE NO CAMBIAN
+---------------------
+  · R1-R8 del flujo OT intactas; OT cerrada sigue inmutable; /reincidencia
+    igual; R8 (repuestos/costos en reanudar/resolver) igual.
+  · Motor de métricas v2.1.2 SIN cambios (MTBF/MTTR/Disponibilidad).
+  · Catálogo de estados de EQUIPO (11 estados) SIN cambios.

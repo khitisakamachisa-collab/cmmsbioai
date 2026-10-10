@@ -18,7 +18,9 @@ IDs desplazados respecto al catálogo real del sistema):
     WAITING_SPARE → Esp. Repuesto  (id real 3)
     COMPLETED     → Completada     (id real 4)
     CANCELED      → Cancelada      (id real 5)
-    MONITORING    → En Monitoreo   (id real 6)
+    MONITORING    → Completada     (v2.1.3: 'En Monitoreo' fue eliminado del
+                                    catálogo; mapeo defensivo por si un CSV
+                                    heredado trae ese código)
 
 Relojes (alineados a /reportes/tiempos-etapa, que es la fuente viva):
     horas_hasta_asignacion = fecha_asignacion - fecha_creacion
@@ -79,7 +81,7 @@ MAPEO_ESTADOS_V21 = {
     "WAITING_SPARE": "Esp. Repuesto",
     "COMPLETED": "Completada",
     "CANCELED": "Cancelada",
-    "MONITORING": "En Monitoreo",
+    "MONITORING": "Completada",   # v2.1.3: 'En Monitoreo' eliminado — mapeo defensivo
 }
 
 # Motivos de cancelación que EXCLUYEN el MDT de la Disponibilidad (spec v2.1)

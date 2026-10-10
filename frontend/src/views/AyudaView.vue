@@ -1067,7 +1067,7 @@ function getEstadoClass(estado) {
           Basada en v1.1.0 (Flujo de Trabajo OT, R1–R7) + feedback de las primeras pruebas con casos reales
           y el prompt del usuario "Gestión de OTs con Cierre Definitivo y Reapertura" (adaptado de Django a
           FastAPI/SQLModel). Nuevas reglas R7-v1.1.1 (OT cerrada inmutable + reincidencia) y R8 (repuestos/costos
-          dentro del flujo), y estado <strong>En Monitoreo</strong>.</p>
+          dentro del flujo), y estado <strong>En Monitoreo</strong> (eliminado en v2.1.3).</p>
         </div>
 
         <div class="help-card help-card--info">
@@ -1089,7 +1089,7 @@ function getEstadoClass(estado) {
           <ul class="guia-lista">
             <li><strong>FIX ERROR 422:</strong> el lápiz (Editar) volvió a funcionar — el schema del PUT ahora declara <code>equipo_id</code>; también se arregló el stock cuando la OT ya usa un repuesto y los mensajes de error muestran el detalle real del backend.</li>
             <li><strong>R7-v1.1.1 (cierre definitivo):</strong> la OT Completada/Cancelada es INMUTABLE — el endpoint /reabrir fue ELIMINADO. Si la misma falla vuelve, la acción 🔁 "Generar OT de reincidencia" crea una OT NUEVA vinculada (<code>parent_ot_id</code>) con <code>failure_sequence</code> +1 (detecta fallas crónicas y protege MTBF/MTTR/Disponibilidad).</li>
-            <li><strong>En Monitoreo (nuevo estado activo):</strong> En Proceso → En Monitoreo (reparado en observación) → En Proceso (si recae) o Completada (cierre definitivo). Equivalencia con el prompt: Completada≈REPARADA, Cancelada≈NO_REPARADA/CERRADA.</li>
+            <li><strong>En Monitoreo (eliminado en v2.1.3):</strong> existía solo en v1.1.1–v2.1.2 (En Proceso → En Monitoreo → En Proceso/Completada). Desde v2.1.3 las intervenciones rápidas se cierran directamente como Completada; las OTs que quedaran en monitoreo se migraron automáticamente a Completada con bitácora 'cierre_automatico'.</li>
             <li><strong>R8 (repuestos/costos en el flujo):</strong> en las acciones ↻ Reanudar (salir de Esp. Repuesto) y ✔ Resolver se pueden registrar repuestos del almacén y costos adicionales; el stock se valida y descuenta EN ESE MOMENTO (obliga a que el repuesto esté en inventario) y queda en bitácora.</li>
             <li><strong>Bloqueo suave:</strong> al crear una OT sobre un equipo con OTs activas, el sistema advierte y exige confirmación (admite 2 fallas simultáneas como decisión consciente, ej. software + hardware).</li>
             <li><strong>Calendario → ⚡:</strong> "Ir a órdenes" abre directamente el modal de Acciones de Flujo de esa OT (<code>/ordenes?ot=ID</code>).</li>

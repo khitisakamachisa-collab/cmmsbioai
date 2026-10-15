@@ -1,8 +1,8 @@
 # REPORTE DE VERIFICACIÓN ESPERADA — Dataset Demo v2.1
 
-_Generado por `generar_demo_v21.py` el 2026-10-09 22:22:01._
-_Ancla temporal: OTs entre **2026-09-24 11:22:01** y **2026-10-09 21:22:01** (fechas relativas a la ejecución)._
-_Fecha de adquisición aplicada a los 13 equipos: **2026-09-09** (hoy − 30 días → ventana de 720 h calendario)._
+_Generado por `generar_demo_v21.py` el 2026-10-11 16:02:54._
+_Ancla temporal: OTs entre **2026-09-26 05:02:54** y **2026-10-11 15:02:54** (fechas relativas a la ejecución)._
+_Fecha de adquisición aplicada a los 13 equipos: **2026-09-11** (hoy − 30 días → ventana de 720 h calendario)._
 
 > **NOTA DE PRECISIÓN:** el motor v2.1.2 mide la ventana en **días completos desde
 > `fecha_adquisicion` hasta HOY**. Los valores de MTBF/Disponibilidad cuadran

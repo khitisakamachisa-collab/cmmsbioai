@@ -203,6 +203,15 @@ const totalFallas = computed(() => {
 })
 const dispClase = (p) => p >= 95 ? 'disp--verde' : (p >= 85 ? 'disp--amarillo' : 'disp--rojo')
 
+// v2.1.4 (evidencia de tesis): totales de reglas v2.1 para las tarjetas resumen
+const totalFallasReales = computed(() => {
+  if (!mtbfData.value) return 0
+  return mtbfData.value.por_equipo.reduce((s, r) => s + (r.n_fallas_reales || 0), 0)
+})
+const totalExclGarantia = computed(() => mtbfData.value?.reglas_v21?.excluidas_garantia ?? 0)
+// v2.1.4: formato de horas consistente con el CSV exportado (1 decimal; null → '—')
+const fmtH = (v) => (v === null || v === undefined ? '—' : Number(v).toFixed(1))
+
 // Mantenimiento: eventos por equipo (barras)
 const mantenimientoChartData = computed(() => {
   if (!mantenimientoData.value.length) return null
@@ -754,7 +763,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- ============ TAB: MTBF / MTTR / DISPONIBILIDAD (v1.0.2) ============ -->
+      <!-- ============ TAB: MTBF / MTTR / DISPONIBILIDAD (v1.0.2 → v2.1.4 evidencia tesis) ============ -->
       <div v-if="!loading && activeTab === 'mtbf'" class="report-section">
         <div v-if="mtbfData" class="report-summary-cards">
           <div class="summary-card">
@@ -766,6 +775,14 @@ onMounted(() => {
             <span class="summary-label">Fallas correctivas (periodo)</span>
           </div>
           <div class="summary-card">
+            <span class="summary-value">{{ totalFallasReales }}</span>
+            <span class="summary-label">Fallas reales (cuentan MTBF)</span>
+          </div>
+          <div class="summary-card summary-yellow">
+            <span class="summary-value">{{ totalExclGarantia }}</span>
+            <span class="summary-label">Excluidas por garantía 72h (R3)</span>
+          </div>
+          <div class="summary-card">
             <span class="summary-value">{{ mtbfData.por_equipo.length }}</span>
             <span class="summary-label">Equipos evaluados</span>
           </div>
@@ -774,70 +791,109 @@ onMounted(() => {
 
         <div v-if="mtbfData && mtbfData.definiciones" class="nota-metodologica">
           <strong>Definiciones:</strong> {{ mtbfData.definiciones.falla }} ·
+          Fallas reales = {{ mtbfData.definiciones.fallas_reales }} ·
           MTBF = {{ mtbfData.definiciones.mtbf }} ·
           MTTR = {{ mtbfData.definiciones.mttr }} ·
           Disponibilidad = {{ mtbfData.definiciones.disponibilidad }} (%).
           Unidad: {{ mtbfData.definiciones.unidad_tiempo }}.
+          <span class="motor-badge"
+                :title="'Motor de métricas ' + (mtbfData.definiciones.version_motor || 'v2.1') + ' — Reglas de negocio v2.1 aplicadas'">Motor {{ mtbfData.definiciones.version_motor || 'v2.1' }}</span>
+          <div v-if="mtbfData.reglas_v21" class="reglas-v21">
+            <strong>Reglas v2.1 aplicadas al periodo:</strong>
+            R3 (garantía 72h): {{ mtbfData.reglas_v21.regla_3_garantia }} — total excluidas: {{ mtbfData.reglas_v21.excluidas_garantia }}. ·
+            R6 (cierre administrativo): {{ mtbfData.reglas_v21.regla_6_cierre_admin }} — total excluidas MTTR: {{ mtbfData.reglas_v21.excluidas_mttr }}. ·
+            R4 (MDT): {{ mtbfData.reglas_v21.regla_4_mdt }} — MDT excluido: {{ mtbfData.reglas_v21.mdt_excluido_horas }} h. ·
+            R11-14 (horas activas): {{ mtbfData.reglas_v21.reglas_11_14_horas_activas }}
+          </div>
         </div>
 
-        <table v-if="mtbfData && mtbfData.por_equipo.length" class="report-table">
-          <thead>
-            <tr>
-              <th>Equipo</th>
-              <th>Tipo</th>
-              <th>Fallas</th>
-              <th>Horas reparación</th>
-              <th>Horas operativas</th>
-              <th>MTBF (h)</th>
-              <th>MTTR (h)</th>
-              <th>Disponibilidad</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in mtbfData.por_equipo" :key="r.equipo_id">
-              <td>{{ r.nombre_corto }}</td>
-              <td>{{ r.tipo_equipo }}</td>
-              <td>{{ r.n_fallas_correctivas }}</td>
-              <td>{{ r.horas_reparacion }}</td>
-              <td>{{ r.horas_operativas }}</td>
-              <td>{{ r.mtbf_horas ?? '—' }}</td>
-              <td>{{ r.mttr_horas ?? '—' }}</td>
-              <td>
-                <span v-if="r.disponibilidad_pct !== null" class="disp-pill"
-                      :class="dispClase(r.disponibilidad_pct)">{{ r.disponibilidad_pct }}%</span>
-                <span v-else>—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- v2.1.4: tabla de evidencia Cap. IV — columnas de reglas v2.1 + fix del bug "Horas reparación = 0"
+             (antes se leía r.horas_reparacion, campo legacy que el motor v2.1 mantiene en 0.0 cuando las OTs
+              tienen sellos de tiempo R5; el valor real está en r.horas_reparacion_activas) -->
+        <div v-if="mtbfData && mtbfData.por_equipo.length" class="table-scroll">
+          <table class="report-table tabla-ancha">
+            <thead>
+              <tr>
+                <th>Equipo</th>
+                <th>Tipo</th>
+                <th class="th-num th-help" title="n_fallas_correctivas: total de OTs correctivas del periodo (incluye reincidencias en garantía, falsas alarmas y errores de usuario)">Fallas</th>
+                <th class="th-num th-help" title="n_fallas_reales: correctivas que SÍ cuentan para MTBF (excluye reincidencias en ventana de garantía — Regla 3)">Fallas reales</th>
+                <th class="th-num th-help" title="n_excluidas_garantia: OTs dentro de la ventana de garantía de reparación de 72h (Regla 3) — no son falla nueva">Excl. garantía</th>
+                <th class="th-num th-help" title="horas_reparacion_activas: suma de horas de reparación ACTIVAS (Reglas 11-14: brutas − pausas/espera, sin doble conteo). El campo legacy horas_reparacion se conserva en el CSV por compatibilidad histórica">Horas rep. activas</th>
+                <th class="th-num th-help" title="Horas operativas = horas calendario − MDT válido">Horas operativas</th>
+                <th class="th-num th-help" title="MTBF = horas operativas / fallas reales">MTBF (h)</th>
+                <th class="th-num th-help" title="MTTR = horas de reparación activas / OTs completadas válidas (Regla 6 excluye las marcadas excluida_de_MTTR)">MTTR (h)</th>
+                <th class="th-num th-help" title="Disponibilidad = (horas calendario − MDT válido) / horas calendario × 100">Disponibilidad</th>
+                <th class="th-help" title="advertencia_mtbf: aviso del motor cuando MTBF/MTTR se calcula con pocas fallas (mínimo recomendado: 3)">Notas</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in mtbfData.por_equipo" :key="r.equipo_id"
+                  :class="{ 'tr-garantia': r.n_excluidas_garantia > 0 }">
+                <td>{{ r.nombre_corto }}</td>
+                <td>{{ r.tipo_equipo }}</td>
+                <td class="td-num">{{ r.n_fallas_correctivas }}</td>
+                <td class="td-num"><strong>{{ r.n_fallas_reales }}</strong></td>
+                <td class="td-num">
+                  <span v-if="r.n_excluidas_garantia > 0" class="badge-garantia"
+                        title="Regla 3: ventana de garantía de reparación 72h — no cuenta como falla nueva">{{ r.n_excluidas_garantia }}</span>
+                  <span v-else>0</span>
+                </td>
+                <!-- v2.1.4 FIX: antes r.horas_reparacion (legacy = 0.0) → mostraba 0; ahora el valor real del CSV -->
+                <td class="td-num">{{ fmtH(r.horas_reparacion_activas) }}</td>
+                <td class="td-num">{{ fmtH(r.horas_operativas) }}</td>
+                <td class="td-num">{{ fmtH(r.mtbf_horas) }}</td>
+                <td class="td-num"><strong>{{ fmtH(r.mttr_horas) }}</strong></td>
+                <td>
+                  <span v-if="r.disponibilidad_pct !== null" class="disp-pill"
+                        :class="dispClase(r.disponibilidad_pct)">{{ r.disponibilidad_pct }}%</span>
+                  <span v-else>—</span>
+                </td>
+                <td class="td-notas">
+                  <span v-if="r.advertencia_mtbf" class="badge-advertencia" :title="r.advertencia_mtbf">{{ r.advertencia_mtbf }}</span>
+                  <span v-else>—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
         <h3 v-if="mtbfData && mtbfData.por_tipo_equipo.length" class="panel-title" style="margin-top:1.25rem">Agregado por Tipo de Equipo</h3>
-        <table v-if="mtbfData && mtbfData.por_tipo_equipo.length" class="report-table">
-          <thead>
-            <tr>
-              <th>Tipo de equipo</th>
-              <th>Equipos</th>
-              <th>Fallas</th>
-              <th>MTBF (h)</th>
-              <th>MTTR (h)</th>
-              <th>Disponibilidad</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="t in mtbfData.por_tipo_equipo" :key="t.tipo_equipo">
-              <td>{{ t.tipo_equipo }}</td>
-              <td>{{ t.n_equipos }}</td>
-              <td>{{ t.n_fallas_correctivas }}</td>
-              <td>{{ t.mtbf_horas ?? '—' }}</td>
-              <td>{{ t.mttr_horas ?? '—' }}</td>
-              <td>
-                <span v-if="t.disponibilidad_pct !== null" class="disp-pill"
-                      :class="dispClase(t.disponibilidad_pct)">{{ t.disponibilidad_pct }}%</span>
-                <span v-else>—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-if="mtbfData && mtbfData.por_tipo_equipo.length" class="table-scroll">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Tipo de equipo</th>
+                <th class="th-num">Equipos</th>
+                <th class="th-num th-help" title="Total de OTs correctivas">Fallas</th>
+                <th class="th-num th-help" title="Correctivas que cuentan para MTBF (Regla 3 aplicada)">Fallas reales</th>
+                <th class="th-num th-help" title="OTs excluidas por garantía 72h (Regla 3)">Excl. garantía</th>
+                <th class="th-num">MTBF (h)</th>
+                <th class="th-num">MTTR (h)</th>
+                <th class="th-num">Disponibilidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="t in mtbfData.por_tipo_equipo" :key="t.tipo_equipo">
+                <td>{{ t.tipo_equipo }}</td>
+                <td class="td-num">{{ t.n_equipos }}</td>
+                <td class="td-num">{{ t.n_fallas_correctivas }}</td>
+                <td class="td-num">{{ t.n_fallas_reales }}</td>
+                <td class="td-num">
+                  <span v-if="t.n_excluidas_garantia > 0" class="badge-garantia">{{ t.n_excluidas_garantia }}</span>
+                  <span v-else>0</span>
+                </td>
+                <td class="td-num">{{ fmtH(t.mtbf_horas) }}</td>
+                <td class="td-num">{{ fmtH(t.mttr_horas) }}</td>
+                <td>
+                  <span v-if="t.disponibilidad_pct !== null" class="disp-pill"
+                        :class="dispClase(t.disponibilidad_pct)">{{ t.disponibilidad_pct }}%</span>
+                  <span v-else>—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
         <div v-if="mtbfData && !mtbfData.por_equipo.length" class="empty-state">
           No hay equipos con ventana de observación definida en el periodo seleccionado.
@@ -1083,6 +1139,19 @@ onMounted(() => {
   color: #334155;
 }
 .report-table tbody tr:hover { background: #f8fafc; }
+
+/* v2.1.4 — Evidencia de tesis: scroll horizontal + columnas de reglas v2.1 */
+.table-scroll { overflow-x: auto; }
+.tabla-ancha { min-width: 1080px; }
+.report-table th.th-num,
+.report-table td.td-num { text-align: right; font-variant-numeric: tabular-nums; }
+.th-help { cursor: help; text-decoration: underline dotted rgba(71,85,105,0.45); text-underline-offset: 3px; }
+.td-notas { max-width: 230px; white-space: normal; font-size: 0.8rem; }
+.badge-garantia { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-weight: 700; font-size: 0.78rem; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+.badge-advertencia { display: inline-block; padding: 0.12rem 0.5rem; border-radius: 6px; font-size: 0.76rem; font-weight: 600; background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+.report-table tbody tr.tr-garantia { background: #fffdf3; }
+.motor-badge { display: inline-block; margin-left: 0.35rem; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; vertical-align: middle; }
+.reglas-v21 { margin-top: 0.45rem; padding-top: 0.45rem; border-top: 1px dashed #e2e8f0; color: #64748b; }
 
 .num-badge {
   display: inline-block;

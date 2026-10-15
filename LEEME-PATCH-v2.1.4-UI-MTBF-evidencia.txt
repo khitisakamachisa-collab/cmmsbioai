@@ -1,0 +1,122 @@
+=====================================================================
+ CMMS-BioAI — PATCH v2.1.4 (UI): Tabla MTBF/MTTR/Dispon. de Evidencia
+ Archivo: ReportesView.vue (frontend) — SOLO FRONTEND, 0 cambios backend
+ Fecha: 2026-10-12
+ Base: v2.1.3 (commit c7d74c4) — motor de métricas NO se toca
+=====================================================================
+
+1) QUÉ RESUELVE
+---------------
+a) BUG VISUAL "Horas reparación = 0" en Bomba de Infusión 1:
+   La tabla leía el campo `horas_reparacion`, que el motor v2.1.3
+   mantiene como LEGACY (0.0 cuando las OTs tienen sellos de tiempo R5;
+   ver comentario en backend/api/routes/reportes.py linea ~479:
+   "La clave horas_reparacion mantiene su significado histórico").
+   El valor real está en `horas_reparacion_activas`.
+   FIX: la columna ahora muestra `horas_reparacion_activas`:
+   Bomba de Infusión 1 -> 3.0 h (1.5 + 1.5), igual que el CSV.
+
+b) COLUMNAS DE EVIDENCIA v2.1 QUE FALTABAN (Cap. IV de la tesis):
+   La tabla pasa de 8 a 11 columnas:
+   1. Equipo
+   2. Tipo
+   3. Fallas            (n_fallas_correctivas) — total correctivas
+   4. FALLAS REALES     (n_fallas_reales)      — NUEVA
+   5. EXCL. GARANTÍA    (n_excluidas_garantia) — NUEVA (badge ámbar si >0)
+   6. Horas rep. activas(horas_reparacion_activas) — FIX del bug
+   7. Horas operativas
+   8. MTBF (h)
+   9. MTTR (h)          -> Bomba de Infusión 1 muestra 1.5
+  10. Disponibilidad    (pill verde/amarillo/rojo, igual que antes)
+  11. NOTAS             (advertencia_mtbf)     — NUEVA
+       ej: "Basado en 1 fallas (mínimo recomendado: 3)"
+
+c) EXTRAS DE EVIDENCIA (todas render-only, no alteran cálculos):
+   - 2 tarjetas resumen nuevas: "Fallas reales (cuentan MTBF)" y
+     "Excluidas por garantía 72h (R3)".
+   - Nota metodológica ampliada: badge "Motor v2.1.3" + bloque
+     "Reglas v2.1 aplicadas al periodo" (R3, R6, R4, R11-14 con los
+     totales que ya envía el endpoint: excluidas_garantia,
+     excluidas_mttr, mdt_excluido_horas).
+   - Tooltips (title nativo) en TODAS las cabeceras con nombre de
+     campo del backend: al pasar el mouse se ve p.ej.
+     "n_excluidas_garantia: OTs dentro de la ventana de garantía de
+     reparación de 72h (Regla 3)". Perfecto para demo de tesis.
+   - Scroll horizontal: contenedor .table-scroll + min-width 1080px
+     en la tabla por_equipo (11 columnas). La tabla "por tipo de
+     equipo" también ganó Fallas reales + Excl. garantía + scroll.
+   - Fila con tinte suave cuando el equipo tiene OTs excluidas por
+     garantía (tr-garantia) -> resalta "Bomba de Infusión 1" en la
+     captura.
+   - Formato horario con 1 decimal (fmtH) = EXACTAMENTE igual al CSV
+     exportado (762.0, 3.0, 1.5, '—' si null).
+
+2) QUÉ NO SE TOCA
+-----------------
+- Backend: ni una línea (restricción respetada). El CSV que exporta
+  el botón "Exportar CSV (Cap. IV)" sigue igual, incluida la columna
+  legacy horas_reparacion.
+- Lógica de cálculo, fetch, filtros de fecha, otros tabs: intactos.
+- El fix es SOLO de mapeo/visualización en la pestaña MTBF.
+
+3) INSTALACIÓN (2 minutos)
+--------------------------
+Opción A (reemplazo completo, RECOMENDADA):
+  1. Cierra el dev server (Ctrl+C) si está corriendo.
+  2. Copia el archivo incluido en este patch:
+        frontend\src\views\ReportesView.vue
+     sobre:
+        D:\cmmsbioai\frontend\src\views\ReportesView.vue
+     (sobrescribe; antes haz una copia tipo ReportesView.vue.bak
+      si tu copia local tiene cambios sin subir a GitHub).
+  3. npm run dev  (Vite recarga solo; ni siquiera hace falta reiniciar).
+
+Opción B (parche manual, si tu archivo local difiere de c7d74c4):
+  En la pestaña MTBF de ReportesView.vue:
+  B1. <script setup>: después de la línea
+        const dispClase = (p) => ...
+      añade:
+        const totalFallasReales = computed(() => {
+          if (!mtbfData.value) return 0
+          return mtbfData.value.por_equipo.reduce((s, r) => s + (r.n_fallas_reales || 0), 0)
+        })
+        const totalExclGarantia = computed(() => mtbfData.value?.reglas_v21?.excluidas_garantia ?? 0)
+        const fmtH = (v) => (v === null || v === undefined ? '—' : Number(v).toFixed(1))
+  B2. Tabla por_equipo: cambia la celda del bug
+        ANTES:  <td>{{ r.horas_reparacion }}</td>
+        DESPUÉS: <td class="td-num">{{ fmtH(r.horas_reparacion_activas) }}</td>
+  B3. Añade las columnas nuevas <th>/<td> (Fallas reales, Excl. garantía,
+      Notas) copiando del archivo completo incluido.
+  B4. Añade el bloque CSS marcado con
+      /* v2.1.4 — Evidencia de tesis ... */ al final de <style scoped>.
+  (La Opción A es más segura: el archivo incluido está basado en
+   c7d74c4 tal cual está en GitHub.)
+
+4) VERIFICACIÓN ESPERADA (con la demo v2.1 actual)
+--------------------------------------------------
+Abrir http://localhost:5173/reportes -> pestaña "MTBF / MTTR / Dispon."
+y comparar con evidencia_tesis\mtbf_mttr_v21.csv:
+
+  Bomba de Infusión 1 (fila con tinte suave):
+    Fallas=2 | Fallas reales=1 | Excl. garantía=1 (badge ámbar) |
+    Horas rep. activas=3.0  <- YA NO 0 (bug corregido) |
+    MTBF=762.0 | MTTR=1.5 | Disponibilidad=99.2% |
+    Notas="Basado en 1 fallas (mínimo recomendado: 3)"
+
+  Tarjetas: Fallas correctivas=10 | Fallas reales=9 |
+            Excluidas garantía 72h (R3)=1 | Equipos evaluados=13
+  Nota: bloque "Reglas v2.1" con R3/R6/R4/R11-14 y badge Motor v2.1.3.
+
+  Consistencia UI vs CSV: los valores de la tabla deben coincidir
+  celda a celda con mtbf_mttr_v21.csv (misma fuente, /reportes/mtbf-mttr).
+
+5) ROLLBACK
+-----------
+Restaura ReportesView.vue.bak (o git checkout -- frontend/src/views/ReportesView.vue).
+Ningún otro archivo ni dato es afectado por este patch.
+
+6) SUGERENCIA DE COMMIT
+-----------------------
+  git add frontend/src/views/ReportesView.vue
+  git commit -m "v2.1.4 (UI): tabla MTBF/MTTR evidencia tesis - fix horas_reparacion_activas + columnas reglas v2.1"
+  (etiquetar v2.1.4 es opcional; el motor sigue siendo v2.1.3)

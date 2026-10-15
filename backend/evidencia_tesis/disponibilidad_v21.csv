@@ -1,0 +1,22 @@
+equipo_id,nombre_corto,modelo,tipo_equipo,periodo_inicio,periodo_fin,n_fallas_correctivas,n_fallas_reales,n_excluidas_garantia,n_excluidas_mttr,n_validas_mttr,n_programadas,n_con_tiempo_registrado,horas_reparacion,horas_reparacion_activas,mdt_valido_horas,mdt_excluido_horas,horas_calendario,horas_operativas,mtbf_horas,mttr_horas,disponibilidad_pct,advertencia_mtbf,ventana_fuente
+3,Autoclave Steris Amsco 3043,3043,Otro,2021-01-10,2026-10-11,0,0,0,0,0,0,0,0,0.0,0.0,0.0,50400.0,50400.0,,,100.0,Basado en 0 fallas (mínimo recomendado: 3),fecha_adquisicion
+8,Balanza Analítica Sartorius,Quintix 224,Otro,2021-08-12,2026-10-11,1,1,0,0,1,0,0,0.0,0.0,0.0,0.0,45264.0,45264.0,45264.0,0.0,100.0,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
+7,Bomba de Infusión B. Braun,Infusomat Space,Otro,2025-12-10,2026-10-11,0,0,0,0,0,0,0,0,0.0,0.0,0.0,7320.0,7320.0,,,100.0,Basado en 0 fallas (mínimo recomendado: 3),fecha_adquisicion
+17,Centrífuga Eppendorf,5810R,Centrífuga,2026-09-09,2026-10-11,0,0,0,0,0,1,0,0,0.0,0.0,0.0,768.0,768.0,,,100.0,Basado en 0 fallas (mínimo recomendado: 3),fecha_adquisicion
+2,Centrífuga Eppendorf 5424,5424,Otro,2025-07-20,2026-10-11,0,0,0,0,0,0,0,0,0.0,0.0,0.0,10752.0,10752.0,,,100.0,Basado en 0 fallas (mínimo recomendado: 3),fecha_adquisicion
+6,Desfibrilador Zoll R Series,R Series,Otro,2025-04-18,2026-10-11,0,0,0,0,0,0,0,0,0.0,0.0,0.0,12984.0,12984.0,,,100.0,Basado en 0 fallas (mínimo recomendado: 3),fecha_adquisicion
+5,Electrocardiógrafo GE MAC 2000,MAC 2000,Otro,2020-09-15,2026-10-11,0,0,0,0,0,0,0,0,0.0,0.0,0.0,53208.0,53208.0,,,100.0,Basado en 0 fallas (mínimo recomendado: 3),fecha_adquisicion
+1,Microscopio Olympus CX23,CX23,Otro,2025-03-15,2026-10-11,0,0,0,0,0,0,0,0,0.0,0.0,0.0,13800.0,13800.0,,,100.0,Basado en 0 fallas (mínimo recomendado: 3),fecha_adquisicion
+10,Monitor Signos Vitales,IPM-12,Monitor,2026-09-09,2026-10-11,0,0,0,0,0,0,0,0,0.0,0.0,1.2,768.0,768.0,,,100.0,Basado en 0 fallas (mínimo recomendado: 3),fecha_adquisicion
+4,Monitor Signos Vitales Mindray,uMEC10,Otro,2025-11-05,2026-10-11,0,0,0,0,0,0,0,0,0.0,0.0,0.0,8160.0,8160.0,,,100.0,Basado en 0 fallas (mínimo recomendado: 3),fecha_adquisicion
+19,Microscopio Olympus,CX23,Microscopio,2026-09-09,2026-10-11,1,1,0,0,1,0,0,0.0,0.5,1.8,0.0,768.0,766.2,766.2,0.5,99.8,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
+21,Electrocardiógrafo GE,MAC 2000,Electrocardiógrafo,2026-09-09,2026-10-11,1,1,0,0,1,0,0,0.0,0.5,2.0,0.0,768.0,766.0,766.0,0.5,99.7,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
+13,Máquina de Hemodiálisis,4008S,Hemodiálisis,2026-09-09,2026-10-11,1,1,0,0,1,0,0,0.0,2.0,2.5,0.0,768.0,765.5,765.5,2.0,99.7,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
+18,Autoclave Steris,Amsco 3011,Autoclave,2026-09-09,2026-10-11,1,1,0,0,1,0,0,0.0,1.5,3.0,0.0,768.0,765.0,765.0,1.5,99.6,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
+20,Balanza Analítica,PA214,Balanza,2026-09-09,2026-10-11,1,1,0,0,1,0,0,0.0,1.5,3.0,0.0,768.0,765.0,765.0,1.5,99.6,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
+15,Ventilador Mecánico,V60,Ventilador,2026-09-09,2026-10-11,1,1,0,0,1,0,0,0.0,1.5,4.0,0.0,768.0,764.0,764.0,1.5,99.5,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
+9,Bomba de Infusión 1,Alaris GP,Bomba de Infusión,2026-09-09,2026-10-11,2,1,1,0,2,0,0,0.0,3.0,6.0,0.0,768.0,762.0,762.0,1.5,99.2,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
+12,Equipo de Rayos X,Digital FX-40,Rayos X,2026-09-09,2026-10-11,1,1,0,0,1,0,0,0.0,2.5,8.0,0.0,768.0,760.0,760.0,2.5,99.0,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
+16,Desfibrilador Zoll,R Series,Desfibrilador,2026-09-09,2026-10-11,0,0,0,0,0,0,0,0,0.0,99.0,0.0,768.0,669.0,,,87.1,Basado en 0 fallas (mínimo recomendado: 3),fecha_adquisicion
+14,Resonancia Magnética,Magnetom 1.5T,Resonancia,2026-09-09,2026-10-11,1,1,0,1,0,0,0,0.0,0.0,128.0,0.0,768.0,640.0,640.0,,83.3,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
+11,Ecógrafo 4D,Voluson E8,Ecógrafo,2026-09-09,2026-10-11,1,1,0,0,1,0,0,0.0,0.0,270.0,0.0,768.0,498.0,498.0,0.0,64.8,Basado en 1 fallas (mínimo recomendado: 3),fecha_adquisicion
